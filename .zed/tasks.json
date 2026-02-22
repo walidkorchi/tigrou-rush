@@ -1,0 +1,14 @@
+[
+  {
+    "label": "Build Plugin (Gradle)",
+    "command": "./gradlew build"
+  },
+  {
+    "label": "Build & Deploy to Server",
+    "command": "./gradlew build && cp build/libs/*.jar ../rush-tl-events/plugins/"
+  },
+  {
+    "label": "Clean & Build (Maven)",
+    "command": "mvn clean package"
+  }
+]

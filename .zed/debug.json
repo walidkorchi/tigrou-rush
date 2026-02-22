@@ -1,0 +1,9 @@
+[
+  {
+    "adapter": "java",
+    "name": "Remote Debug Minecraft",
+    "request": "attach",
+    "hostName": "127.0.0.1",
+    "port": 5005
+  }
+]
