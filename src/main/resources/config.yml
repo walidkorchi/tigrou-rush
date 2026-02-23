@@ -1,0 +1,23 @@
+# World where the rush game takes place
+gameWorld: world_the_end
+
+# Radius around beds where block placement is prevented
+bedProtectionRadius: 3
+
+# minecraft defaults it to 4s
+explodeTicks: 80
+
+# Radius affected by the explosion. Minecraft default is 4.0
+radius: 4.0
+
+# Reduce the fall damage by dividing the damages (useful for TNT Fly). Set to 1.0 to not reduce it
+fallDamage: 5.0
+
+# Reduce the TNT damage by dividing the damages (useful for TNT Fly). Set to 1.0 to not reduce it
+TNTDamage: 5.0
+
+# Schematic filename for the rush island
+schematicFilename: rush_island.schem
+
+# Distance from island center to spawn villagers
+villagerSpawnOffset: 12

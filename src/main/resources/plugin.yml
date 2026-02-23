@@ -1,0 +1,12 @@
+name: Rush
+version: 1.0.0
+main: io.github.rush.Main
+softdepend:
+  - WorldEdit
+commands:
+  startgame:
+    description: Start the game
+    usage: /startgame
+  stopgame:
+    description: Stop the game
+    usage: /stopgame
