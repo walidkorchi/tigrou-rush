@@ -1,5 +1,6 @@
 package io.github.rush;
 
+import com.sk89q.worldedit.EditSession;
 import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.WorldEditException;
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
@@ -35,7 +36,6 @@ public class Main extends JavaPlugin implements Listener {
 
     private boolean gameStarted = false;
 
-    private static final int ISLAND_OFFSET = 100;
     private static final int ISLAND_Y = 64;
 
     private static final class Island {
@@ -56,11 +56,12 @@ public class Main extends JavaPlugin implements Listener {
     public void onEnable() {
         Bukkit.getPluginManager().registerEvents(new Rules(this), this);
 
+        int islandOffset = getConfig().getInt("islandOffset");
         schematics = List.of(
-                new Island(-ISLAND_OFFSET, ISLAND_Y, 0, 0),
-                new Island(ISLAND_OFFSET, ISLAND_Y, 0, 90),
-                new Island(0, ISLAND_Y, -ISLAND_OFFSET, 180),
-                new Island(0, ISLAND_Y, ISLAND_OFFSET, 270));
+                new Island(-islandOffset, ISLAND_Y, 0, 0),
+                new Island(islandOffset, ISLAND_Y, 0, 180),
+                new Island(0, ISLAND_Y, -islandOffset, 270),
+                new Island(0, ISLAND_Y, islandOffset, 90));
 
         // temporary for development purposes
         registerCommands();
@@ -90,55 +91,62 @@ public class Main extends JavaPlugin implements Listener {
         final World world = Bukkit.getWorld(getGameWorld());
         final Island schematic = schematics.get(islandIndex);
 
-        final int offset = getConfig().getInt("villagerSpawnOffset");
-        final int direction = (islandIndex % 2 == 0) ? 1 : -1;
+        final int speedOffset = getConfig().getInt("villagerSpeedOffset", 13);
+        final int regularOffset = getConfig().getInt("villagerRegularOffset", 12);
+        List<Integer> spread = getConfig().getIntegerList("villagerSpreadDistance");
 
-        // Spawn 4 regular merchants around the island
-        MerchantType[] regularTypes = { MerchantType.WEAPONSMITH, MerchantType.BUILDER, MerchantType.ALCHEMIST,
-                MerchantType.ARMORSMITH };
-        for (int i = 0; i < 4; i++) {
-            int x, z;
-            if (islandIndex % 2 == 0) {
-                // Even: normal pattern
-                x = schematic.x + (i < 2 ? -offset : offset);
-                z = schematic.z + (i % 2 == 0 ? offset * direction : -offset * direction);
-            } else {
-                // Odd: swap x and z
-                x = schematic.z + (i % 2 == 0 ? offset * direction : -offset * direction);
-                z = schematic.x + (i < 2 ? -offset : offset);
-            }
-
-            final Location villagerLoc = new Location(world, x + 0.5, schematic.y, z + 0.5);
-            final Villager villager = world.spawn(villagerLoc, Villager.class);
-
-            Merchant.apply(villager, regularTypes[i]);
+        if (spread == null || spread.isEmpty()) {
+            spread = List.of(5, 7);
         }
 
-        // Spawn 2 Speed merchants between regular merchants (at half offset)
-        int speedOffset = offset / 2;
-        for (int i = 0; i < 2; i++) {
-            int x, z;
-            if (islandIndex % 2 == 0) {
-                x = schematic.x + (i == 0 ? -speedOffset : speedOffset);
-                z = schematic.z + speedOffset * direction;
-            } else {
-                x = schematic.z + speedOffset * direction;
-                z = schematic.x + (i == 0 ? -speedOffset : speedOffset);
-            }
+        // direction vectors pointing toward center (0,0): {dirX, dirZ}
+        final int[][] directions = { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } };
+        final float[] yawValues = { -90f, 90f, 0f, 180f };
 
-            final Location speedLoc = new Location(world, x + 0.5, schematic.y, z + 0.5);
+        final int[] dir = directions[islandIndex];
+        final int perpX = dir[1];
+        final int perpZ = -dir[0];
+        final float facingYaw = yawValues[islandIndex];
+
+        final MerchantType[] regularTypes = { MerchantType.WEAPONSMITH, MerchantType.BUILDER,
+                MerchantType.ALCHEMIST, MerchantType.ARMORSMITH };
+
+        // spawn speed villagers (2) at direction * speedOffset ± spread[0]
+        for (int i = 0; i < 2; i++) {
+            final int sign = (i == 0) ? 1 : -1;
+            final int speedX = schematic.x + (dir[0] * speedOffset) + (perpX * sign);
+            final int speedZ = schematic.z + (dir[1] * speedOffset) + (perpZ * sign);
+
+            final Location speedLoc = new Location(world, speedX + 0.5, schematic.y + 0.5, speedZ + 0.5, facingYaw, 0);
             final Villager speedVillager = world.spawn(speedLoc, Villager.class);
+
+            speedVillager.setAI(false);
+            speedVillager.setInvulnerable(true);
+            speedVillager.setBaby();
+
             Merchant.apply(speedVillager, MerchantType.SPEED);
         }
 
-        getLogger().info("Spawned 4 regular + 2 Speed merchants for island " + islandIndex);
+        // spawn regular villagers (4) at direction * regularOffset ± spread
+        for (int i = 0; i < 4; i++) {
+            final int sign = (i < 2) ? 1 : -1;
+            final int spreadIdx = (i % 2 == 0) ? 0 : 1;
+            final int regX = schematic.x + (dir[0] * regularOffset) + (perpX * spread.get(spreadIdx) * sign);
+            final int regZ = schematic.z + (dir[1] * regularOffset) + (perpZ * spread.get(spreadIdx) * sign);
+
+            final Location villagerLoc = new Location(world, regX + 0.5, schematic.y + 1, regZ + 0.5, facingYaw, 0);
+            final Villager villager = world.spawn(villagerLoc, Villager.class);
+
+            villager.setAI(false);
+            villager.setInvulnerable(true);
+
+            Merchant.apply(villager, regularTypes[i]);
+        }
     }
 
     private void pasteSchematic(Island info) {
         final String schematic = getConfig().getString("schematicFilename");
         final File schematicFile = new File(getDataFolder().getParentFile(), "WorldEdit/schematics/" + schematic);
-
-        getLogger().info("Looking for schematic at: " + schematicFile.getPath());
 
         if (!schematicFile.exists()) {
             getLogger().warning("Schematic not found: " + schematicFile.getPath());
@@ -147,26 +155,16 @@ public class Main extends JavaPlugin implements Listener {
 
         final ClipboardFormat format = ClipboardFormats.findByPath(schematicFile.toPath());
 
-        if (format == null) {
-            getLogger().warning("Unknown schematic format: " + schematic);
-            return;
-        }
-
         try (ClipboardReader reader = format.getReader(new FileInputStream(schematicFile))) {
             final Clipboard clipboard = reader.read();
             final BlockVector3 dimensions = clipboard.getDimensions();
 
-            getLogger().info(
-                    "Schematic dimensions: " + dimensions.x() + "x" + dimensions.y() + "x" + dimensions.z());
-
-            var bukkitWorld = Bukkit.getWorld(getGameWorld());
+            World bukkitWorld = Bukkit.getWorld(getGameWorld());
 
             if (bukkitWorld == null) {
                 getLogger().warning("World not found: " + getGameWorld());
                 return;
             }
-
-            getLogger().info("Pasting to world: " + bukkitWorld.getName());
 
             final com.sk89q.worldedit.world.World worldEditWorld = BukkitAdapter.adapt(bukkitWorld);
             final int minX = info.x;
@@ -180,7 +178,7 @@ public class Main extends JavaPlugin implements Listener {
                 }
             }
 
-            try (var editSession = WorldEdit.getInstance().newEditSession(worldEditWorld)) {
+            try (EditSession editSession = WorldEdit.getInstance().newEditSession(worldEditWorld)) {
                 final ClipboardHolder holder = new ClipboardHolder(clipboard);
 
                 if (info.rotation != 0) {

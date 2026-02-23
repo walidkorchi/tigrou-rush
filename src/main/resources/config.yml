@@ -19,5 +19,10 @@ TNTDamage: 5.0
 # Schematic filename for the rush island
 schematicFilename: rush_island.schem
 
-# Distance from island center to spawn villagers
-villagerSpawnOffset: 12
+# Distance from center point to islands
+islandOffset: 40
+
+# Villager spawn offsets (distance from island center)
+villagerSpeedOffset: 13
+villagerRegularOffset: 12
+villagerSpreadDistance: 5,7
