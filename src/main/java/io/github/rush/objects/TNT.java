@@ -1,6 +1,4 @@
-package io.gihtub.rush.objects;
-
-import io.gihtub.rush.Main;
+package io.github.rush.objects;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -31,6 +29,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Vector;
 
+import io.github.rush.Main;
 import net.kyori.adventure.text.Component;
 
 class TNT implements Listener {

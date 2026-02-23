@@ -1,6 +1,5 @@
-package io.gihtub.rush.events;
+package io.github.rush.events;
 
-import io.gihtub.rush.Main;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
@@ -9,6 +8,8 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.player.PlayerBedEnterEvent;
+
+import io.github.rush.Main;
 
 import java.util.function.Predicate;
 

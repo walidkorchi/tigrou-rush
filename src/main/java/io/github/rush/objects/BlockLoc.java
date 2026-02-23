@@ -1,4 +1,4 @@
-package io.gihtub.rush.objects;
+package io.github.rush.objects;
 
 import java.util.Objects;
 

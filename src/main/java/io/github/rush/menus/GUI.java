@@ -1,4 +1,4 @@
-package io.gihtub.rush.menus;
+package io.github.rush.menus;
 
 import io.papermc.paper.datacomponent.DataComponentTypes;
 import io.papermc.paper.datacomponent.item.ItemLore;

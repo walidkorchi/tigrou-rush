@@ -1,4 +1,4 @@
-package io.gihtub.rush.entities;
+package io.github.rush.entities;
 
 import org.bukkit.Material;
 import org.bukkit.entity.Villager;

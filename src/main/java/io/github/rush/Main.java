@@ -1,4 +1,4 @@
-package io.gihtub.rush;
+package io.github.rush;
 
 import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.WorldEditException;
@@ -13,9 +13,9 @@ import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.math.transform.AffineTransform;
 import com.sk89q.worldedit.session.ClipboardHolder;
 
-import io.gihtub.rush.entities.Merchant;
-import io.gihtub.rush.entities.MerchantType;
-import io.gihtub.rush.events.Rules;
+import io.github.rush.entities.Merchant;
+import io.github.rush.entities.MerchantType;
+import io.github.rush.events.Rules;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -94,7 +94,8 @@ public class Main extends JavaPlugin implements Listener {
         final int direction = (islandIndex % 2 == 0) ? 1 : -1;
 
         // Spawn 4 regular merchants around the island
-        MerchantType[] regularTypes = {MerchantType.WEAPONSMITH, MerchantType.BUILDER, MerchantType.ALCHEMIST, MerchantType.ARMORSMITH};
+        MerchantType[] regularTypes = { MerchantType.WEAPONSMITH, MerchantType.BUILDER, MerchantType.ALCHEMIST,
+                MerchantType.ARMORSMITH };
         for (int i = 0; i < 4; i++) {
             int x, z;
             if (islandIndex % 2 == 0) {
