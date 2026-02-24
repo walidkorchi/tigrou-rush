@@ -1,15 +1,23 @@
 package io.github.rush.events;
 
 import net.kyori.adventure.text.Component;
+import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.data.type.Bed;
+import org.bukkit.entity.Villager;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.player.PlayerBedEnterEvent;
+import org.bukkit.event.player.PlayerInteractEntityEvent;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.ItemStack;
 
 import io.github.rush.Main;
+import io.github.rush.entities.MerchantType;
 
 import java.util.function.Predicate;
 
@@ -55,6 +63,78 @@ public class Rules implements Listener {
             return;
 
         event.setCancelled(true);
+    }
+
+    @EventHandler
+    public void onVillagerDamage(EntityDamageEvent event) {
+        if (!(event.getEntity() instanceof Villager villager))
+            return;
+
+        if (!isGameEventRegistered(villager.getWorld().getName()))
+            return;
+
+        event.setCancelled(true);
+    }
+
+    @EventHandler
+    public void onVillagerInteract(PlayerInteractEntityEvent event) {
+        if (!(event.getRightClicked() instanceof Villager villager))
+            return;
+
+        if (!isGameEventRegistered(villager.getWorld().getName()))
+            return;
+
+        if (villager.getProfession() != org.bukkit.entity.Villager.Profession.LIBRARIAN)
+            return;
+
+        event.setCancelled(true);
+
+        Inventory inv = Bukkit.createInventory(null, 27, Component.text("Speed Merchant"));
+
+        inv.setItem(0, new ItemStack(Material.IRON_SWORD));
+        inv.setItem(1, new ItemStack(Material.IRON_CHESTPLATE));
+        inv.setItem(2, new ItemStack(Material.GOLDEN_APPLE));
+        inv.setItem(9, new ItemStack(Material.SANDSTONE));
+
+        event.getPlayer().openInventory(inv);
+    }
+
+    @EventHandler
+    public void onInventoryClick(InventoryClickEvent event) {
+        if (!(event.getWhoClicked() instanceof org.bukkit.entity.Player player))
+            return;
+
+        if (!event.getView().getTitle().equals("Speed Merchant"))
+            return;
+
+        event.setCancelled(true);
+
+        int slot = event.getRawSlot();
+
+        MerchantType type = switch (slot) {
+            case 0 -> MerchantType.WEAPONSMITH;
+            case 1 -> MerchantType.ARMORSMITH;
+            case 2 -> MerchantType.ALCHEMIST;
+            case 9 -> MerchantType.BUILDER;
+            default -> null;
+        };
+
+        if (type == null)
+            return;
+
+        Villager targetVillager = plugin.getMerchantVillager(type);
+        if (targetVillager == null || targetVillager.isDead())
+            return;
+
+        player.closeInventory();
+
+        org.bukkit.scheduler.BukkitRunnable task = new org.bukkit.scheduler.BukkitRunnable() {
+            @Override
+            public void run() {
+                player.openMerchant(targetVillager, true);
+            }
+        };
+        task.runTask(plugin);
     }
 
     private boolean hasNearbyBlock(final Block center, final int radius, final Predicate<Block> predicate) {
