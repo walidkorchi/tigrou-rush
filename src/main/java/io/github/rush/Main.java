@@ -16,11 +16,13 @@ import com.sk89q.worldedit.session.ClipboardHolder;
 
 import io.github.rush.entities.Merchant;
 import io.github.rush.entities.MerchantType;
+import io.github.rush.events.Join;
 import io.github.rush.events.Rules;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.block.Block;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Villager;
 import org.bukkit.event.Listener;
@@ -30,13 +32,21 @@ import org.bukkit.plugin.java.JavaPlugin;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.Map;
 
 public class Main extends JavaPlugin implements Listener {
 
     private boolean gameStarted = false;
 
     private static final int ISLAND_Y = 64;
+
+    private final List<Villager> spawnedVillagers = new ArrayList<>();
+    private final List<Island> pastedRegions = new ArrayList<>();
+
+    private final Map<MerchantType, Villager> merchantVillagers = new HashMap<>();
 
     private static final class Island {
         final int x, y, z;
@@ -55,6 +65,7 @@ public class Main extends JavaPlugin implements Listener {
     @Override
     public void onEnable() {
         Bukkit.getPluginManager().registerEvents(new Rules(this), this);
+        Bukkit.getPluginManager().registerEvents(new Join(this), this);
 
         int islandOffset = getConfig().getInt("islandOffset");
         schematics = List.of(
@@ -120,6 +131,8 @@ public class Main extends JavaPlugin implements Listener {
             final Location speedLoc = new Location(world, speedX + 0.5, schematic.y + 0.5, speedZ + 0.5, facingYaw, 0);
             final Villager speedVillager = world.spawn(speedLoc, Villager.class);
 
+            spawnedVillagers.add(speedVillager);
+
             speedVillager.setAI(false);
             speedVillager.setInvulnerable(true);
             speedVillager.setBaby();
@@ -136,12 +149,56 @@ public class Main extends JavaPlugin implements Listener {
 
             final Location villagerLoc = new Location(world, regX + 0.5, schematic.y + 1, regZ + 0.5, facingYaw, 0);
             final Villager villager = world.spawn(villagerLoc, Villager.class);
+            spawnedVillagers.add(villager);
 
             villager.setAI(false);
             villager.setInvulnerable(true);
 
             Merchant.apply(villager, regularTypes[i]);
+            merchantVillagers.put(regularTypes[i], villager);
         }
+
+        pastedRegions.add(schematic);
+    }
+
+    private void clearGame() {
+        for (Villager villager : spawnedVillagers) {
+            if (villager != null && !villager.isDead()) {
+                villager.remove();
+            }
+        }
+        spawnedVillagers.clear();
+        merchantVillagers.clear();
+
+        // Clear pasted schematic regions
+        World world = Bukkit.getWorld(getGameWorld());
+        if (world != null) {
+            for (Island region : pastedRegions) {
+                clearRegion(world, region);
+            }
+        }
+        pastedRegions.clear();
+
+        getLogger().info("Cleared all game entities and regions");
+    }
+
+    private void clearRegion(World world, Island region) {
+        int radius = getConfig().getInt("islandOffset", 40) + 20;
+        int centerX = region.x;
+        int centerZ = region.z;
+        int centerY = region.y;
+
+        for (int x = centerX - radius; x <= centerX + radius; x++) {
+            for (int y = centerY - 5; y <= centerY + 20; y++) {
+                for (int z = centerZ - radius; z <= centerZ + radius; z++) {
+                    Block block = world.getBlockAt(x, y, z);
+                    if (block.getType() != org.bukkit.Material.AIR && block.getType() != org.bukkit.Material.BEDROCK) {
+                        block.setType(org.bukkit.Material.AIR);
+                    }
+                }
+            }
+        }
+        getLogger().info("Cleared region at (" + region.x + ", " + region.y + ", " + region.z + ")");
     }
 
     private void pasteSchematic(Island info) {
@@ -211,6 +268,10 @@ public class Main extends JavaPlugin implements Listener {
         return gameStarted;
     }
 
+    public Villager getMerchantVillager(MerchantType type) {
+        return merchantVillagers.get(type);
+    }
+
     public void registerCommands() {
         getCommand("startgame").setExecutor((sender, command, label, args) -> {
             if (gameStarted) {
@@ -231,6 +292,7 @@ public class Main extends JavaPlugin implements Listener {
                 return true;
             }
 
+            clearGame();
             gameStarted = false;
             sender.sendMessage(Component.text("Game stopped!"));
             return true;
