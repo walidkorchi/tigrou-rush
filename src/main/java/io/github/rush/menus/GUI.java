@@ -20,6 +20,8 @@ import java.util.function.IntPredicate;
 
 /**
  * Class representing a menu in a chest with clickable items.
+ * 
+ * @author [Matocolotoe](https://github.com/Matocolotoe)
  */
 public class GUI implements InventoryHolder {
 
