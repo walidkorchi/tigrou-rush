@@ -4,10 +4,3 @@ main: io.github.rush.Main
 api-version: 1.21
 softdepend:
   - WorldEdit
-commands:
-  startgame:
-    description: Start the game
-    usage: /startgame
-  stopgame:
-    description: Stop the game
-    usage: /stopgame

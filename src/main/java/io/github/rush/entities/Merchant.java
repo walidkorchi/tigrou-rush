@@ -1,6 +1,5 @@
 package io.github.rush.entities;
 
-import org.bukkit.Material;
 import org.bukkit.entity.Villager;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.MerchantRecipe;
@@ -43,7 +42,7 @@ public class Merchant {
 
         final MerchantRecipe recipe = new MerchantRecipe(result, 0, 12, true);
 
-        recipe.addIngredient(new ItemStack(Material.EMERALD, trade.emeraldCost()));
+        recipe.addIngredient(new ItemStack(trade.currency(), trade.costAmount()));
 
         if (trade.secondCost() != null) {
             recipe.addIngredient(new ItemStack(trade.secondCost().material(), trade.secondCost().amount()));

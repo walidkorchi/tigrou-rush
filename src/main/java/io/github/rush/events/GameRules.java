@@ -134,7 +134,7 @@ public class GameRules implements Listener {
 
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
-        if (!(event.getWhoClicked() instanceof org.bukkit.entity.Player player))
+        if (!(event.getWhoClicked() instanceof Player player))
             return;
 
         if (!Component.text("Speed Merchant").equals(event.getView().title()))

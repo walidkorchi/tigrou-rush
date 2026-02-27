@@ -4,6 +4,14 @@ gameWorld: world_the_end
 # World where players spawn when game stops
 lobbyWorld: world
 
+# Database configuration (PostgreSQL)
+database:
+  host: localhost
+  port: 5432
+  name: rush
+  username: rush
+  password: rush
+
 # Radius around beds where block placement is prevented
 bedProtectionRadius: 3
 
@@ -35,33 +43,27 @@ villagerSpreadDistance: 5,7
 
 # Resources config
 resource:
-  bronze:
+  copper:
     item:
-    - type: CLAY_BRICK
-      amount: 1
-      meta:
-        ==: ItemMeta
-        meta-type: UNSPECIFIC
-        display-name: "§4Bronze"
+      - type: COPPER_INGOT
+        amount: 1
     spawn-interval: 1000
     spread: 1.0
   iron:
     item:
-    - type: IRON_INGOT
-      amount: 1
-      meta:
-        ==: ItemMeta
-        meta-type: UNSPECIFIC
-        display-name: "§7Iron"
+      - type: IRON_INGOT
+        amount: 1
     spawn-interval: 10000
     spread: 1.0
   gold:
     item:
-    - type: GOLD_INGOT
-      amount: 1
-      meta:
-        ==: ItemMeta
-        meta-type: UNSPECIFIC
-        display-name: "§6Gold"
+      - type: GOLD_INGOT
+        amount: 1
     spawn-interval: 20000
+    spread: 1.0
+  diamond:
+    item:
+      - type: DIAMOND
+        amount: 1
+    spawn-interval: 300000
     spread: 1.0

@@ -1,1035 +1,486 @@
 package io.github.rush.game;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
+import io.github.rush.Main;
+import io.github.rush.statistics.PlayerStatistic;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
-import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
-import org.bukkit.Sound;
-import org.bukkit.block.Block;
-import org.bukkit.command.CommandSender;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
-import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.inventory.meta.SkullMeta;
-import org.bukkit.material.Bed;
-import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.inventory.meta.LeatherArmorMeta;
 import org.bukkit.scheduler.BukkitTask;
-import org.bukkit.scoreboard.DisplaySlot;
-import org.bukkit.scoreboard.Objective;
-import org.bukkit.scoreboard.Score;
-import org.bukkit.scoreboard.Scoreboard;
-import org.bukkit.util.Vector;
 
-import com.google.common.collect.ImmutableMap;
+import java.util.*;
+import java.util.stream.Collectors;
 
-import io.github.rush.Main;
-import io.github.rush.game.GameCycle;
-import io.github.rush.statistics.PlayerStatistic;
-import io.github.rush.utils.ChatWriter;
-import io.github.rush.utils.Utils;
-import lombok.Data;
-
-@Data
 public class Game {
 
-    private String name = null;
-    private GameState state = null;
-    private GameCycle cycle = null;
-    private YamlConfiguration config = null;
-    private Scoreboard scoreboard = null;
-    private GameLobbyCountdown gameLobbyCountdown = null;
+    private final String name;
+    private GameState state;
+    private GameCycle cycle;
+    private Location lobby;
 
     private boolean isOver = false;
     private boolean isStopping = false;
-    private List<BukkitTask> runningTasks = null;
+    private final List<BukkitTask> runningTasks = new ArrayList<>();
+    private final List<BukkitTask> spawnerTasks = new ArrayList<>();
+    private final List<ResourceSpawner> resourceSpawners = new ArrayList<>();
 
-    private HashMap<String, Team> teams = null;
-    private List<Player> freePlayers = null;
-    private List<Team> playingTeams = null;
-    private Map<Player, Player> playerDamages = null;
-    private Map<Player, PlayerSettings> playerSettings = null;
-    private List<ResourceSpawner> resourceSpawners = null;
-    private HashMap<Player, PlayerStorage> playerStorages = null;
-    private Map<Player, RespawnProtectionRunnable> respawnProtections = null;
+    private final Map<String, Team> teams = new HashMap<>();
+    private final List<Player> freePlayers = new ArrayList<>();
+    private final Map<Player, PlayerStatistic> playerStats = new HashMap<>();
 
-    private int time = 1000;
-    private int length = 0;
     private int timeLeft = 0;
-    private int minPlayers = 0;
-    private Location lobby = null;
+    private final int maxPlayers = 8;
+    private final int minPlayers = 2;
+    private final int minTeams = 2;
+
+    private GameLobbyCountdown lobbyCountdown;
+    private final Map<Player, Boolean> playerReady = new HashMap<>();
 
     public Game(String name) {
-        super();
-
         this.name = name;
-        this.runningTasks = new ArrayList<BukkitTask>();
-
-        this.freePlayers = new ArrayList<Player>();
-        this.resourceSpawners = new ArrayList<ResourceSpawner>();
-        this.teams = new HashMap<String, Team>();
-        this.playingTeams = new ArrayList<Team>();
-
-        this.state = GameState.STOPPED;
-
-        this.timeLeft = Main.getInstance().getMaxLength();
-        this.isOver = false;
-
-        this.length = Main.getInstance().getMaxLength();
-
+        this.state = GameState.WAITING;
         this.cycle = new GameCycle(this);
+        this.timeLeft = Main.getInstance().getMaxLength();
+
+        initializeTeams();
     }
 
-    public boolean start(CommandSender sender) {
-        if (this.state != GameState.WAITING) {
-            sender.sendMessage(
-                    ChatWriter
-                            .pluginMessage(ChatColor.RED + "Cannot start game - not in waiting state"));
+    private void initializeTeams() {
+        List<TeamColor> colors = List.of(
+                TeamColor.RED, TeamColor.BLUE, TeamColor.GREEN, TeamColor.YELLOW);
+
+        for (TeamColor color : colors) {
+            Team team = new Team(color.name(), color, 4);
+            teams.put(color.name(), team);
+        }
+    }
+
+    public boolean addPlayer(Player player) {
+        if (state == GameState.RUNNING) {
             return false;
         }
 
-        // BedwarsGameStartEvent startEvent = new BedwarsGameStartEvent(this);
-        // Main.getInstance().getServer().getPluginManager().callEvent(startEvent);
+        playerReady.put(player, false);
+        freePlayers.add(player);
 
-        // if (startEvent.isCancelled()) {
-        // return false;
-        // }
-
-        this.isOver = false;
-        for (Player aPlayer : this.getPlayers()) {
-            if (aPlayer.isOnline()) {
-                aPlayer.sendMessage(
-                        ChatWriter
-                                .pluginMessage(ChatColor.GREEN + "Game starting!"));
-            }
-        }
-
-        // load shop categories again (if shop was changed)
-        this.loadItemShopCategories();
-        this.runningTasks.clear();
-        this.cleanUsersInventory();
-        this.clearProtections();
-        this.moveFreePlayersToTeam();
-        this.makeTeamsReady();
-
-        this.cycle.onGameStart();
-        this.startResourceSpawners();
-
-        // Update world time before game starts
-        // this.getRegion().getWorld().setTime(this.time);
-
-        this.teleportPlayersToTeamSpawn();
-
-        this.state = GameState.RUNNING;
-
-        for (Player player : this.getPlayers()) {
-            this.setPlayerGameMode(player);
-            this.setPlayerVisibility(player);
-        }
-
-        this.updateScoreboard();
-        this.displayRecord();
-        this.startTimerCountdown();
-        this.updateSigns();
-
-        if (Main.getInstance().getConfig().getBoolean("global-messages", true)) {
-            for (Player aPlayer : Main.getInstance().getServer().getOnlinePlayers()) {
-                aPlayer.sendMessage(ChatWriter.pluginMessage(ChatColor.GREEN
-                        + "Game started!"));
-            }
-            Main.getInstance().getServer().getConsoleSender()
-                    .sendMessage(ChatWriter.pluginMessage(ChatColor.GREEN
-                            + "Game started!"));
-        }
-
-        // BedwarsGameStartedEvent startedEvent = new BedwarsGameStartedEvent(this);
-        // Main.getInstance().getServer().getPluginManager().callEvent(startedEvent);
+        giveLobbyItems(player);
+        updatePlayerList();
 
         return true;
     }
 
-    private void teleportPlayersToTeamSpawn() {
-        for (Team team : this.teams.values()) {
-            for (Player player : team.getPlayers()) {
-                if (!player.getWorld().equals(team.getSpawnLocation().getWorld())) {
-                    this.getPlayerSettings(player).setTeleporting(true);
-                }
-
-                player.setVelocity(new Vector(0, 0, 0));
-                player.setFallDistance(0.0F);
-                player.teleport(team.getSpawnLocation());
-                if (this.getPlayerStorage(player) != null) {
-                    this.getPlayerStorage(player).clean();
-                }
-            }
+    public void joinTeam(Player player, TeamColor color) {
+        Team team = teams.get(color.name());
+        if (team == null) {
+            return;
         }
-    }
 
-    public boolean playerLeave(Player p, boolean kicked) {
-        this.getPlayerSettings(p).setTeleporting(true);
-
-        Team team = this.getPlayerTeam(p);
-        PlayerStatistic statistic = Main.getInstance().getPlayerStatisticManager().getStatistic(p);
-
-        if (this.isSpectator(p)) {
-            if (!this.getCycle().isEndGameRunning()) {
-                for (Player player : this.getPlayers()) {
-                    if (player.equals(p)) {
-                        continue;
-                    }
-
-                    player.showPlayer(Main.getInstance(), p);
-                    p.showPlayer(Main.getInstance(), player);
-                }
-            }
-        } else {
-            if (this.state == GameState.RUNNING && !this.getCycle().isEndGameRunning()) {
-                // player gets killed after leaving
-                if (!team.isDead(this) && !p.isDead()) {
-                    statistic.setCurrentDeaths(statistic.getCurrentDeaths() + 1);
-                    statistic.setCurrentScore(statistic.getCurrentScore() + Main.getInstance()
-                            .getConfig().getInt("statistics.scores.die", 0));
-                    if (this.getPlayerDamager(p) != null) {
-                        PlayerStatistic killerPlayer = Main.getInstance().getPlayerStatisticManager()
-                                .getStatistic(this.getPlayerDamager(p));
-                        killerPlayer.setCurrentKills(killerPlayer.getCurrentKills() + 1);
-                        killerPlayer.setCurrentScore(killerPlayer.getCurrentScore() + Main.getInstance()
-                                .getConfig().getInt("statistics.scores.kill", 10));
-                    }
-                    statistic.setCurrentLoses(statistic.getCurrentLoses() + 1);
-                    statistic.setCurrentScore(statistic.getCurrentScore() + Main.getInstance()
-                            .getConfig().getInt("statistics.scores.lose", 0));
-                }
+        for (Team existingTeam : teams.values()) {
+            if (existingTeam.isInTeam(player)) {
+                existingTeam.removePlayer(player);
+                break;
             }
         }
 
-        if (this.isProtected(p)) {
-            this.removeProtection(p);
+        team.addPlayer(player);
+        if (freePlayers.contains(player)) {
+            freePlayers.remove(player);
         }
 
-        this.playerDamages.remove(p);
-        if (team != null && Main.getInstance().getGameManager().getGameOfPlayer(p) != null
-                && !Main.getInstance().getGameManager().getGameOfPlayer(p).isSpectator(p)) {
-            if (kicked) {
-                for (Player aPlayer : this.getPlayers()) {
-                    if (aPlayer.isOnline()) {
-                        aPlayer.sendMessage(
-                                ChatWriter.pluginMessage(ChatColor.RED + Main
-                                        ._l(aPlayer, "ingame.player.kicked", ImmutableMap.of("player",
-                                                Game.getPlayerWithTeamString(p, team, ChatColor.RED)
-                                                        + ChatColor.RED))));
-                    }
-                }
-            } else {
-                for (Player aPlayer : this.getPlayers()) {
-                    if (aPlayer.isOnline()) {
-                        aPlayer.sendMessage(
-                                ChatWriter.pluginMessage(
-                                        ChatColor.RED + Main
-                                                ._l(aPlayer, "ingame.player.left", ImmutableMap.of("player",
-                                                        Game.getPlayerWithTeamString(p, team, ChatColor.RED)
-                                                                + ChatColor.RED))));
-                    }
-                }
-            }
-            team.removePlayer(p);
-        }
+        updatePlayerList();
+    }
 
-        Main.getInstance().getGameManager().removeGamePlayer(p);
-
-        if (this.freePlayers.contains(p)) {
-            this.freePlayers.remove(p);
-        }
-
-        if (Main.getInstance().getHolographicInteractor() != null && Main.getInstance()
-                .getHolographicInteractor().getType().equalsIgnoreCase("HolographicDisplays")) {
-            Main.getInstance().getHolographicInteractor().updateHolograms(p);
-        }
-
-        if (Main.getInstance().getConfig().getBoolean("statistics.show-on-game-end", true)) {
-            Main.getInstance().getServer().dispatchCommand(p, "bw stats");
-        }
-
-        Main.getInstance().getPlayerStatisticManager().storeStatistic(statistic);
-        // Main.getInstance().getPlayerStatisticManager().unloadStatistic(p);
-
-        PlayerStorage storage = this.playerStorages.get(p);
-        storage.clean();
-        storage.restore();
-
-        this.playerSettings.remove(p);
-        this.updateScoreboard();
-
-        try {
-            p.setScoreboard(Main.getInstance().getScoreboardManager().getMainScoreboard());
-        } catch (Exception e) {
-            Main.getInstance().getBugsnag().notify(e);
-        }
-
-        this.removeNewItemShop(p);
-
-        if (p.isOnline()) {
-            if (kicked) {
-                p.sendMessage(
-                        ChatWriter.pluginMessage(ChatColor.RED + "You were kicked from the game"));
-            } else {
-                p.sendMessage(ChatWriter.pluginMessage(ChatColor.GREEN + "You left the game"));
+    public void leaveTeam(Player player) {
+        for (Team team : teams.values()) {
+            if (team.isInTeam(player)) {
+                team.removePlayer(player);
+                break;
             }
         }
 
-        this.cycle.onPlayerLeave(p);
-        this.updateSigns();
-        this.playerStorages.remove(p);
-        return true;
+        if (!freePlayers.contains(player)) {
+            freePlayers.add(player);
+        }
+
+        playerReady.put(player, false);
+        updatePlayerList();
     }
 
-    public void clearProtections() {
-        for (RespawnProtectionRunnable protection : this.respawnProtections.values()) {
-            try {
-                protection.cancel();
-            } catch (Exception ex) {
-                Main.getInstance().getBugsnag().notify(ex);
+    public boolean isPlayerReady(Player player) {
+        Boolean ready = playerReady.get(player);
+        return ready != null && ready;
+    }
+
+    public void removePlayer(Player player) {
+        freePlayers.remove(player);
+        playerReady.remove(player);
+
+        for (Team team : teams.values()) {
+            if (team.isInTeam(player)) {
+                team.removePlayer(player);
+                break;
             }
         }
 
-        this.respawnProtections.clear();
+        updatePlayerList();
     }
 
-    public void addPlayerSettings(Player player) {
-        this.playerSettings.put(player, new PlayerSettings(player));
+    public void setPlayerReady(Player player, boolean ready) {
+        playerReady.put(player, ready);
+        checkStartCondition();
     }
 
-    public static String getPlayerWithTeamString(Player player, Team team, ChatColor before) {
-        if (Main.getInstance().getBooleanConfig("teamname-in-chat", true)) {
-            return player.getDisplayName() + before + " (" + team.getChatColor() + team.getDisplayName()
-                    + before + ")";
+    private void giveLobbyItems(Player player) {
+        player.getInventory().clear();
+
+        ItemStack redWool = new ItemStack(Material.RED_WOOL);
+        ItemMeta redMeta = redWool.getItemMeta();
+        redMeta.displayName(Component.text("Prêt").color(NamedTextColor.RED));
+        redWool.setItemMeta(redMeta);
+
+        ItemStack greenWool = new ItemStack(Material.GREEN_WOOL);
+        ItemMeta greenMeta = greenWool.getItemMeta();
+        greenMeta.displayName(Component.text("Pas prêt").color(NamedTextColor.GREEN));
+        greenWool.setItemMeta(greenMeta);
+
+        player.getInventory().setItem(0, redWool);
+        player.getInventory().setItem(1, greenWool);
+    }
+
+    public void checkStartCondition() {
+        if (state != GameState.WAITING) {
+            return;
         }
 
-        return player.getDisplayName() + before;
-    }
+        long readyCount = playerReady.values().stream().filter(r -> r).count();
 
-    public boolean playerJoins(final Player p) {
-        if (this.state == GameState.STOPPED) {
-            return false;
+        if (readyCount >= minPlayers && getTeamCount() >= minTeams) {
+            if (lobbyCountdown == null) {
+                lobbyCountdown = new GameLobbyCountdown(this);
+                lobbyCountdown.start();
+            }
+        } else if (lobbyCountdown != null) {
+            lobbyCountdown.cancel();
+            lobbyCountdown = null;
+            broadcastMessage("§cPas assez de joueurs prêts pour démarrer!");
         }
 
-        // BedwarsPlayerJoinEvent joiningEvent = new BedwarsPlayerJoinEvent(this, p);
-        // Main.getInstance().getServer().getPluginManager().callEvent(joiningEvent);
+        updateActionBar();
+    }
 
-        Main.getInstance().getGameManager().addGamePlayer(p, this);
-        Main.getInstance().getPlayerStatisticManager().getStatistic(p);
+    public void autoStart() {
+        if (state != GameState.WAITING) {
+            return;
+        }
 
-        // add damager and set it to null
-        this.playerDamages.put(p, null);
+        List<Player> unassigned = freePlayers.stream()
+                .filter(p -> teams.values().stream().noneMatch(t -> t.isInTeam(p)))
+                .collect(Collectors.toList());
 
-        // add player settings
-        this.addPlayerSettings(p);
+        if (unassigned.isEmpty()) {
+            return;
+        }
 
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                for (Player playerInGame : Game.this.getPlayers()) {
-                    playerInGame.hidePlayer(Main.getInstance(), p);
-                    p.hidePlayer(Main.getInstance(), playerInGame);
-                }
-            }
+        List<Team> sortedTeams = teams.values().stream()
+                .sorted(Comparator.comparingInt(t -> t.getPlayers().size()))
+                .collect(Collectors.toList());
 
-        }.runTaskLater(Main.getInstance(), 5L);
-
-        if (this.state == GameState.RUNNING) {
-            this.toSpectator(p);
-            this.displayMapInfo(p);
-        } else {
-            PlayerStorage storage = this.addPlayerStorage(p);
-
-            storage.store();
-            storage.clean();
-
-            final Location location = this.getPlayerTeleportLocation(p);
-
-            if (!p.getLocation().equals(location)) {
-                this.getPlayerSettings(p).setTeleporting(true);
-                p.teleport(location);
-            }
-
-            storage.loadLobbyInventory(this);
-
-            new BukkitRunnable() {
-                @Override
-                public void run() {
-                    Game.this.setPlayerGameMode(p);
-                    Game.this.setPlayerVisibility(p);
-                }
-            }.runTaskLater(Main.getInstance(), 15L);
-
-            for (Player aPlayer : this.getPlayers()) {
-                if (aPlayer.isOnline()) {
-                    aPlayer.sendMessage(
-                            ChatWriter.pluginMessage(ChatColor.GREEN + p.getDisplayName() + " joined the game"));
-                }
-            }
-
-            this.freePlayers.add(p); // auto-balance teams players
-            this.displayRecord(p);
-
-            if (this.isStartable()) {
-                if (this.gameLobbyCountdown == null) {
-                    this.gameLobbyCountdown = new GameLobbyCountdown(this);
-                    this.gameLobbyCountdown.runTaskTimer(Main.getInstance(), 20L, 20L);
-                }
-            } else {
-                if (!this.hasEnoughPlayers()) {
-                    int playersNeeded = this.getMinPlayers() - this.getPlayerAmount();
-                    for (Player aPlayer : this.getPlayers()) {
-                        if (aPlayer.isOnline()) {
-                            aPlayer.sendMessage(ChatWriter
-                                    .pluginMessage(
-                                            ChatColor.GREEN + "More players needed: " + playersNeeded));
-                        }
-                    }
-                } else if (!this.hasEnoughTeams()) {
-                    for (Player aPlayer : this.getPlayers()) {
-                        if (aPlayer.isOnline()) {
-                            aPlayer.sendMessage(ChatWriter
-                                    .pluginMessage(ChatColor.RED + "More teams needed"));
-                        }
-                    }
-                }
+        for (Player player : unassigned) {
+            Team smallestTeam = sortedTeams.get(0);
+            if (smallestTeam.getPlayers().size() < smallestTeam.getMaxPlayers()) {
+                smallestTeam.addPlayer(player);
             }
         }
 
-        this.updateScoreboard();
-        this.updateSigns();
-
-        return true;
-
+        checkStartCondition();
     }
 
-    public boolean hasEnoughTeams() {
-        int teamsWithPlayers = 0;
-        for (Team team : this.getTeams().values()) {
-            if (team.getPlayers().size() > 0) {
-                teamsWithPlayers++;
+    public void start() {
+        if (state != GameState.WAITING) {
+            return;
+        }
+
+        state = GameState.RUNNING;
+        isOver = false;
+
+        for (Team team : teams.values()) {
+            if (!team.getPlayers().isEmpty()) {
+                team.placeBed();
+                team.spawnVillagers();
             }
         }
 
-        return (teamsWithPlayers > 1 || (teamsWithPlayers == 1 && this.getFreePlayers().size() >= 1)
-                || (teamsWithPlayers == 0 && this.getFreePlayers().size() >= 2));
-    }
-
-    public boolean hasEnoughPlayers() {
-        return this.getPlayers().size() >= this.getMinPlayers();
-    }
-
-    public boolean isStartable() {
-        return (this.hasEnoughPlayers() && this.hasEnoughTeams());
-    }
-
-    public PlayerSettings getPlayerSettings(Player player) {
-        return this.playerSettings.get(player);
-    }
-
-    private void displayRecord() {
-        for (Player player : this.getPlayers()) {
-            this.displayRecord(player);
-        }
-    }
-
-    private void displayRecord(Player player) {
-        boolean displayHolders = Main
-                .getInstance().getBooleanConfig("store-game-records-holder", true);
-
-        if (displayHolders && this.getRecordHolders().size() > 0) {
-            StringBuilder holders = new StringBuilder();
-
-            for (String holder : this.recordHolders) {
-                if (holders.length() == 0) {
-                    holders.append(ChatColor.WHITE + holder);
-                } else {
-                    holders.append(ChatColor.GOLD + ", " + ChatColor.WHITE + holder);
-                }
-            }
-
-            player
-                    .sendMessage(ChatWriter.pluginMessage(
-                            "Record: " + this.getFormattedRecord() + " | Holders: " + holders.toString()));
-        } else {
-            player.sendMessage(ChatWriter.pluginMessage(
-                    "Record: " + this.getFormattedRecord()));
-        }
-    }
-
-    public void setPlayerVisibility(Player player) {
-        ArrayList<Player> players = new ArrayList<Player>();
-        players.addAll(this.getPlayers());
-
-        Main main = Main.getInstance();
-
-        if (this.state == GameState.RUNNING) {
-            if (this.isSpectator(player)) {
-                if (player.getGameMode().equals(GameMode.SURVIVAL)) {
-                    for (Player playerInGame : players) {
-                        playerInGame.hidePlayer(main, player);
-                        player.showPlayer(main, playerInGame);
-                    }
-                } else {
-                    for (Player teamPlayer : this.getTeamPlayers()) {
-                        teamPlayer.hidePlayer(main, player);
-                        player.showPlayer(main, teamPlayer);
-                    }
-                    for (Player freePlayer : this.getFreePlayers()) {
-                        freePlayer.showPlayer(main, player);
-                        player.showPlayer(main, freePlayer);
-                    }
-                }
-            } else {
-                for (Player playerInGame : players) {
-                    playerInGame.showPlayer(main, player);
-                    player.showPlayer(main, playerInGame);
-                }
-            }
-        } else {
-            for (Player playerInGame : players) {
-                if (!playerInGame.equals(player)) {
-                    playerInGame.showPlayer(main, player);
-                    player.showPlayer(main, playerInGame);
-                }
-            }
-        }
-    }
-
-    public Player getPlayerDamager(Player p) {
-        return this.playerDamages.get(p);
-    }
-
-    public boolean isProtected(Player player) {
-        return (this.respawnProtections.containsKey(player) && this.getState() == GameState.RUNNING);
-    }
-
-    public void addResourceSpawner(ResourceSpawner rs) {
-        this.resourceSpawners.add(rs);
-    }
-
-    public boolean isFull() {
-        return (this.getMaxPlayers() <= this.getPlayerAmount());
-    }
-
-    public HashMap<String, Team> getTeams() {
-        return this.teams;
-    }
-
-    private void makeTeamsReady() {
-        this.playingTeams.clear();
-
-        for (Team team : this.teams.values()) {
-            team.getScoreboardTeam()
-                    .setAllowFriendlyFire(Main.getInstance().getConfig().getBoolean("friendlyfire"));
-            if (team.getPlayers().size() == 0) {
-                this.dropTargetBlock(team.getHeadTarget());
-            } else {
-                this.playingTeams.add(team);
+        for (Player player : getPlayers()) {
+            Team team = getPlayerTeam(player);
+            if (team != null) {
+                teleportToTeamSpawn(player, team);
+                equipPlayer(player);
             }
         }
 
-        this.updateScoreboard();
+        startResourceSpawners();
+        cycle.onGameStart();
     }
 
-    private void dropTargetBlock(Block targetBlock) {
-        if (targetBlock.getType().equals(Material.BED_BLOCK)) {
-            Block bedHead;
-            Block bedFeet;
-            Bed bedBlock = (Bed) targetBlock.getState().getData();
+    private void teleportToTeamSpawn(Player player, Team team) {
+        Location spawn = team.getSpawnLocation();
+        if (spawn != null) {
+            player.teleport(spawn);
+        }
+    }
 
-            if (!bedBlock.isHeadOfBed()) {
-                bedFeet = targetBlock;
-                bedHead = Utils.getBedNeighbor(bedFeet);
-            } else {
-                bedHead = targetBlock;
-                bedFeet = Utils.getBedNeighbor(bedHead);
+    private void equipPlayer(Player player) {
+        Team team = getPlayerTeam(player);
+        if (team == null)
+            return;
+
+        org.bukkit.Color color = team.getColor().getColor();
+
+        ItemStack helmet = new ItemStack(Material.LEATHER_HELMET);
+        LeatherArmorMeta helmetMeta = (LeatherArmorMeta) helmet.getItemMeta();
+        helmetMeta.setColor(color);
+        helmet.setItemMeta(helmetMeta);
+
+        ItemStack chestplate = new ItemStack(Material.LEATHER_CHESTPLATE);
+        LeatherArmorMeta chestMeta = (LeatherArmorMeta) chestplate.getItemMeta();
+        chestMeta.setColor(color);
+        chestplate.setItemMeta(chestMeta);
+
+        ItemStack leggings = new ItemStack(Material.LEATHER_LEGGINGS);
+        LeatherArmorMeta legsMeta = (LeatherArmorMeta) leggings.getItemMeta();
+        legsMeta.setColor(color);
+        leggings.setItemMeta(legsMeta);
+
+        ItemStack boots = new ItemStack(Material.LEATHER_BOOTS);
+        LeatherArmorMeta bootsMeta = (LeatherArmorMeta) boots.getItemMeta();
+        bootsMeta.setColor(color);
+        boots.setItemMeta(bootsMeta);
+
+        ItemStack pickaxe = new ItemStack(Material.WOODEN_PICKAXE);
+        ItemMeta pickMeta = pickaxe.getItemMeta();
+        pickMeta.displayName(Component.text("Pickaxe"));
+        pickaxe.setItemMeta(pickMeta);
+
+        player.getInventory().setHelmet(helmet);
+        player.getInventory().setChestplate(chestplate);
+        player.getInventory().setLeggings(leggings);
+        player.getInventory().setBoots(boots);
+        player.getInventory().setItem(0, pickaxe);
+
+        player.updateInventory();
+    }
+
+    public void onPlayerDeath(Player player, Player killer) {
+        Team playerTeam = getPlayerTeam(player);
+
+        player.getInventory().clear();
+        player.getInventory().setArmorContents(null);
+        player.setRespawnLocation(playerTeam != null ? playerTeam.getSpawnLocation() : lobby);
+
+        if (killer != null) {
+            PlayerStatistic killerStat = playerStats.get(killer);
+            if (killerStat != null) {
+                killerStat.setCurrentKills(killerStat.getCurrentKills() + 1);
+                killerStat.setCurrentScore(killerStat.getCurrentScore() + 10);
             }
+        }
 
-            bedFeet.setType(Material.AIR);
-        } else {
-            targetBlock.setType(Material.AIR);
+        PlayerStatistic playerStat = playerStats.get(player);
+        if (playerStat != null) {
+            playerStat.setCurrentDeaths(playerStat.getCurrentDeaths() + 1);
         }
     }
 
-    public void setPlayerGameMode(Player player) {
-        if (this.isSpectator(player)) {
-            player.setAllowFlight(true);
-            player.setFlying(true);
-            player.setGameMode(GameMode.SPECTATOR);
+    public void onBedDestroyed(Team team) {
+        team.setBedDestroyed(true);
 
-        } else {
-            if (this.getState().equals(GameState.RUNNING)) {
-                player.setGameMode(GameMode.SURVIVAL);
-            } else if (this.getState().equals(GameState.WAITING)) {
-                player.setGameMode(GameMode.ADVENTURE);
+        for (Player player : team.getPlayers()) {
+            player.sendMessage(Component.text("§cVotre lit a été détruit!"));
+        }
+
+        checkGameOver();
+    }
+
+    private void checkGameOver() {
+        List<Team> teamsWithBeds = teams.values().stream()
+                .filter(t -> !t.isBedDestroyed())
+                .collect(Collectors.toList());
+
+        if (teamsWithBeds.size() <= 1) {
+            endGame(teamsWithBeds.isEmpty() ? null : teamsWithBeds.get(0));
+        }
+    }
+
+    private void endGame(Team winner) {
+        state = GameState.STOPPED;
+        isOver = true;
+
+        if (winner != null) {
+            String winMessage = "Victoire de l'équipe " + winner.getColor().name();
+            for (Player player : getPlayers()) {
+                player.sendTitle(winMessage, "", 20, 60, 20);
             }
         }
+
+        cycle.onGameEnd();
+
+        Bukkit.getScheduler().runTaskLater(Main.getInstance(), this::resetGame, 400L);
     }
 
-    private void moveFreePlayersToTeam() {
-        for (Player player : this.freePlayers) {
-            Team lowest = this.getLowestTeam();
-            lowest.addPlayer(player);
+    private void resetGame() {
+        for (Player player : getPlayers()) {
+            removePlayer(player);
+            if (lobby != null) {
+                player.teleport(lobby);
+            }
         }
 
-        this.freePlayers = new ArrayList<Player>();
-        this.updateScoreboard();
+        for (Team team : teams.values()) {
+            team.reset();
+        }
+
+        freePlayers.clear();
+        playerReady.clear();
+        playerStats.clear();
+        runningTasks.forEach(BukkitTask::cancel);
+        runningTasks.clear();
+        stopResourceSpawners();
+
+        state = GameState.WAITING;
     }
 
-    private Team getLowestTeam() {
-        Team lowest = null;
-        for (Team team : this.teams.values()) {
-            if (lowest == null) {
-                lowest = team;
+    private void startResourceSpawners() {
+        for (Team team : teams.values()) {
+            if (team.getPlayers().isEmpty()) {
                 continue;
             }
 
-            if (team.getPlayers().size() < lowest.getPlayers().size()) {
-                lowest = team;
-            }
-        }
+            team.placeEnderChests();
 
-        return lowest;
-    }
+            for (Location chestLocation : team.getEnderChestLocations()) {
+                for (ResourceType type : ResourceType.values()) {
+                    ResourceSpawner spawner = new ResourceSpawner(this, type, chestLocation);
+                    resourceSpawners.add(spawner);
 
-    public Location getPlayerTeleportLocation(Player player) {
-        if (this.isSpectator(player) && !(this.getCycle().isEndGameRunning())) {
-            return ((Team) this.teams.values().toArray()[Utils.randInt(0, this.teams.size() - 1)])
-                    .getSpawnLocation();
-        }
-
-        if (this.getPlayerTeam(player) != null && !(this.getCycle().isEndGameRunning()
-                && Main.getInstance().getBooleanConfig("bungeecord.endgame-in-lobby", true))) {
-            return this.getPlayerTeam(player).getSpawnLocation();
-        }
-
-        return this.getLobby();
-    }
-
-    public void toSpectator(Player player) {
-        final Player p = player;
-
-        if (!this.freePlayers.contains(player)) {
-            this.freePlayers.add(player);
-        }
-
-        PlayerStorage storage = this.getPlayerStorage(player);
-        if (storage != null) {
-            storage.clean();
-        } else {
-            storage = this.addPlayerStorage(player);
-            storage.store();
-            storage.clean();
-        }
-
-        final Location location = this.getPlayerTeleportLocation(p);
-
-        if (!p.getLocation().getWorld().equals(location.getWorld())) {
-            this.getPlayerSettings(p).setTeleporting(true);
-        }
-
-        new BukkitRunnable() {
-
-            @Override
-            public void run() {
-                Game.this.setPlayerGameMode(p);
-                Game.this.setPlayerVisibility(p);
-            }
-
-        }.runTaskLater(Main.getInstance(), 15L);
-
-        final ItemStack item = new ItemStack(Material.SLIME_BALL, 1);
-        final ItemMeta im = item.getItemMeta();
-
-        im.setDisplayName("Leave Game");
-        item.setItemMeta(im);
-        p.getInventory().setItem(8, item);
-
-        ItemStack teleportPlayer = new ItemStack(Material.COMPASS, 1);
-        im = teleportPlayer.getItemMeta();
-        im.setDisplayName("Spectate");
-        teleportPlayer.setItemMeta(im);
-        p.getInventory().setItem(0, teleportPlayer);
-        p.updateInventory();
-        this.updateScoreboard();
-    }
-
-    private void updateLobbyScoreboard() {
-        this.scoreboard.clearSlot(DisplaySlot.SIDEBAR);
-
-        Objective obj = this.scoreboard.getObjective("lobby");
-        if (obj != null) {
-            obj.unregister();
-        }
-
-        obj = this.scoreboard.registerNewObjective("lobby", "dummy");
-        obj.setDisplaySlot(DisplaySlot.SIDEBAR);
-        obj.setDisplayName(this.formatLobbyScoreboardString("&eBEDWARS"));
-
-        List<String> rows = Main.getInstance().getConfig()
-                .getStringList("lobby-scoreboard.content");
-        int rowMax = rows.size();
-        if (rows == null || rows.isEmpty()) {
-            return;
-        }
-
-        for (String row : rows) {
-            if (row.trim().equals("")) {
-                for (int i = 0; i <= rowMax; i++) {
-                    row = row + " ";
+                    BukkitTask task = Bukkit.getScheduler().runTaskTimer(
+                            Main.getInstance(),
+                            spawner,
+                            spawner.getIntervalTicks(),
+                            spawner.getIntervalTicks());
+                    spawnerTasks.add(task);
                 }
             }
-
-            Score score = obj.getScore(this.formatLobbyScoreboardString(row));
-            score.setScore(rowMax);
-            rowMax--;
-        }
-
-        for (Player player : this.getPlayers()) {
-            player.setScoreboard(this.scoreboard);
         }
     }
 
-    public void updateScoreboard() {
-        if (this.state == GameState.WAITING) {
-            this.updateLobbyScoreboard();
+    private void stopResourceSpawners() {
+        spawnerTasks.forEach(BukkitTask::cancel);
+        spawnerTasks.clear();
+        resourceSpawners.clear();
+    }
+
+    private void updateActionBar() {
+        String gameWorld = Main.getInstance().getGameWorld();
+        if (gameWorld == null)
             return;
-        }
 
-        Objective obj = this.scoreboard.getObjective("display");
-        if (obj == null) {
-            obj = this.scoreboard.registerNewObjective("display", "dummy");
-        }
+        long readyCount = playerReady.values().stream().filter(r -> r).count();
+        NamedTextColor color = readyCount >= minPlayers ? NamedTextColor.GREEN : NamedTextColor.RED;
+        Component message = Component.text("(" + readyCount + "/" + maxPlayers + ")").color(color);
 
-        obj.setDisplaySlot(DisplaySlot.SIDEBAR);
-        obj.setDisplayName(this.formatScoreboardTitle());
-
-        for (Team t : this.teams.values()) {
-            this.scoreboard.resetScores(this.formatScoreboardTeam(t, false));
-            this.scoreboard.resetScores(this.formatScoreboardTeam(t, true));
-
-            boolean teamDead = (t.isDead(this) && this.getState() == GameState.RUNNING) ? true : false;
-            Score score = obj.getScore(this.formatScoreboardTeam(t, teamDead));
-            score.setScore(t.getPlayers().size());
-        }
-
-        for (Player player : this.getPlayers()) {
-            player.setScoreboard(this.scoreboard);
-        }
-    }
-
-    public void loadItemShopCategories() {
-        this.shopCategories = MerchantCategory.loadCategories(Main.getInstance().getShopConfig());
-        this.orderedShopCategories = this.loadOrderedItemShopCategories();
-    }
-
-    private void cleanUsersInventory() {
-        for (PlayerStorage storage : this.playerStorages.values()) {
-            storage.clean();
-        }
-    }
-
-    public void stopWorkers() {
-        for (BukkitTask task : this.runningTasks) {
-            try {
-                task.cancel();
-            } catch (Exception ex) {
-                Main.getInstance().getBugsnag().notify(ex);
-                // already cancelled
+        for (Player player : Main.getInstance().getServer().getOnlinePlayers()) {
+            if (player.getWorld().getName().equals(gameWorld)) {
+                player.sendActionBar(message);
             }
         }
-
-        this.runningTasks.clear();
     }
 
-    public RespawnProtectionRunnable addProtection(Player player) {
-        final RespawnProtectionRunnable rpr = new RespawnProtectionRunnable(this, player,
-                Main.getInstance().getRespawnProtectionTime());
-
-        this.respawnProtections.put(player, rpr);
-
-        return rpr;
-    }
-
-    public boolean isSpectator(Player player) {
-        return (this.getState() == GameState.RUNNING && this.freePlayers.contains(player));
-    }
-
-    public GameState getState() {
-        return this.state;
-    }
-
-    public GameCycle getCycle() {
-        return this.cycle;
-    }
-
-    public int getMaxPlayers() {
-        int max = 0;
-
-        for (Team t : this.teams.values()) {
-            max += t.getMaxPlayers();
-        }
-
-        return max;
-    }
-
-    public PlayerStorage getPlayerStorage(Player p) {
-        return this.playerStorages.get(p);
-    }
-
-    public PlayerStorage addPlayerStorage(Player p) {
-        PlayerStorage storage = new PlayerStorage(p);
-        this.playerStorages.put(p, storage);
-
-        return storage;
-    }
-
-    public void removeProtection(Player player) {
-        final RespawnProtectionRunnable rpr = this.respawnProtections.get(player);
-
-        if (rpr != null) {
-            try {
-                rpr.cancel();
-            } catch (Exception ex) {
-                Main.getInstance().getBugsnag().notify(ex);
-                // isn't running, ignore
-            }
-
-            this.respawnProtections.remove(player);
+    private void broadcastMessage(String message) {
+        for (Player player : getPlayers()) {
+            player.sendMessage(Component.text(message));
         }
     }
 
-    public void setPlayerDamager(Player p, Player damager) {
-        this.playerDamages.remove(p);
-        this.playerDamages.put(p, damager);
+    private void updatePlayerList() {
+        for (Player player : freePlayers) {
+            Boolean ready = playerReady.get(player);
+            String prefix = (ready != null && ready) ? "§a" : "§c";
+            player.setPlayerListName(prefix + player.getName());
+        }
     }
 
-    public boolean isOverSet() {
-        return this.isOver;
+    public int getTeamCount() {
+        return (int) teams.values().stream()
+                .filter(t -> !t.getPlayers().isEmpty())
+                .count();
     }
 
-    public Team getPlayerTeam(Player p) {
-        for (Team team : this.getTeams().values()) {
-            if (team.isInTeam(p)) {
+    public List<Player> getPlayers() {
+        List<Player> allPlayers = new ArrayList<>(freePlayers);
+        for (Team team : teams.values()) {
+            allPlayers.addAll(team.getPlayers());
+        }
+        return allPlayers;
+    }
+
+    public Team getPlayerTeam(Player player) {
+        for (Team team : teams.values()) {
+            if (team.isInTeam(player)) {
                 return team;
             }
         }
-
         return null;
     }
 
-    public boolean isInGame(Player p) {
-        for (Team t : this.teams.values()) {
-            if (t.isInTeam(p)) {
-                return true;
-            }
-        }
-
-        return this.freePlayers.contains(p);
+    public String getName() {
+        return name;
     }
 
-    public void kickAllPlayers() {
-        for (Player p : this.getPlayers()) {
-            this.playerLeave(p, false);
-        }
+    public GameState getState() {
+        return state;
     }
 
-    public ArrayList<Player> getTeamPlayers() {
-        final ArrayList<Player> players = new ArrayList<>();
-
-        for (Team team : this.teams.values()) {
-            players.addAll(team.getPlayers());
-        }
-
-        return players;
-    }
-
-    public void addTeam(String name, TeamColor color, int maxPlayers) {
-        org.bukkit.scoreboard.Team newTeam = this.scoreboard.registerNewTeam(name);
-        newTeam.setDisplayName(name);
-        newTeam.setPrefix(color.getTextColor().toString());
-
-        Team theTeam = new Team(name, color, maxPlayers, newTeam);
-        this.teams.put(name, theTeam);
-    }
-
-    public void addTeam(Team team) {
-        org.bukkit.scoreboard.Team newTeam = this.scoreboard.registerNewTeam(team.getName());
-        newTeam.setDisplayName(team.getName());
-        newTeam.setPrefix(team.getChatColor().toString());
-
-        team.setScoreboardTeam(newTeam);
-
-        this.teams.put(team.getName(), team);
-    }
-
-    public void broadcastSound(Sound sound, float volume, float pitch) {
-        for (Player p : this.getPlayers()) {
-            if (p.isOnline()) {
-                p.playSound(p.getLocation(), sound, volume, pitch);
-            }
-        }
-    }
-
-    public void broadcastSound(Sound sound, float volume, float pitch, List<Player> players) {
-        for (Player p : players) {
-            if (p.isOnline()) {
-                p.playSound(p.getLocation(), sound, volume, pitch);
-            }
-        }
-    }
-
-    public void openSpectatorCompass(Player player) {
-        if (!this.isSpectator(player)) {
-            return;
-        }
-
-        int teamplayers = this.getTeamPlayers().size();
-        int nom = (teamplayers % 9 == 0) ? 9 : (teamplayers % 9);
-        int size = teamplayers + (9 - nom);
-        Inventory compass = Bukkit
-                .createInventory(null, size, "Spectator");
-        for (Team t : this.getTeams().values()) {
-            for (Player p : t.getPlayers()) {
-                ItemStack head = new ItemStack(Material.PLAYER_HEAD, 1);
-                SkullMeta meta = (SkullMeta) head.getItemMeta();
-                meta.displayName(net.kyori.adventure.text.Component.text(t.getChatColor() + p.getDisplayName()));
-                meta.lore(java.util.Arrays
-                        .asList(net.kyori.adventure.text.Component.text(t.getChatColor() + t.getDisplayName())));
-                meta.setOwner(p.getName());
-                head.setItemMeta(meta);
-
-                compass.addItem(head);
-            }
-        }
-
-        player.openInventory(compass);
-    }
-
-    private String formatLobbyScoreboardString(String str) {
-        String finalStr = str;
-
-        finalStr = finalStr.replace("$gamename$", this.name);
-        finalStr = finalStr.replace("$players$", String.valueOf(this.getPlayerAmount()));
-        finalStr = finalStr.replace("$maxplayers$", String.valueOf(this.getMaxPlayers()));
-
-        return ChatColor.translateAlternateColorCodes('&', finalStr);
-    }
-
-    public static String bedExistString() {
-        return "\u2714";
-    }
-
-    public static String bedLostString() {
-        return "\u2718";
-    }
-
-    private String formatScoreboardTeam(Team team, boolean destroyed) {
-        String format = null;
-
-        if (team == null) {
-            return "";
-        }
-
-        if (destroyed) {
-            format = "&c$status$ $team$";
-        } else {
-            format = "&a$status$ $team$";
-        }
-
-        format = format.replace("$status$", (destroyed) ? Game.bedLostString() : Game.bedExistString());
-        format = format.replace("$team$", team.getChatColor() + team.getName());
-
-        return ChatColor.translateAlternateColorCodes('&', format);
-    }
-
-    private String formatScoreboardTitle() {
-        String format = Main.getInstance()
-                .getStringConfig("scoreboard.format-title");
-
-        // replaces
-        format = format.replace("$game$", this.name);
-        format = format.replace("$time$", this.getFormattedTimeLeft());
-
-        return ChatColor.translateAlternateColorCodes('&', format);
-    }
-
-    private String getFormattedTimeLeft() {
-        int min = 0;
-        int sec = 0;
-        String minStr = "";
-        String secStr = "";
-
-        min = (int) Math.floor(this.timeLeft / 60);
-        sec = this.timeLeft % 60;
-
-        minStr = (min < 10) ? "0" + String.valueOf(min) : String.valueOf(min);
-        secStr = (sec < 10) ? "0" + String.valueOf(sec) : String.valueOf(sec);
-
-        return minStr + ":" + secStr;
-    }
-
-    public Team isOver() {
-        if (this.isOver || this.state != GameState.RUNNING) {
-            return null;
-        }
-
-        final ArrayList<Player> players = this.getTeamPlayers();
-        final ArrayList<Team> teams = new ArrayList<>();
-
-        if (players.size() == 0 || players.isEmpty()) {
-            return null;
-        }
-
-        for (Player player : players) {
-            final Team playerTeam = this.getPlayerTeam(player);
-
-            if (teams.contains(playerTeam)) {
-                continue;
-            }
-
-            if (!player.isDead()) {
-                teams.add(playerTeam);
-            } else if (!playerTeam.isDead(this)) {
-                teams.add(playerTeam);
-            }
-        }
-
-        if (teams.size() == 1) {
-            return teams.get(0);
-        } else {
-            return null;
-        }
-    }
-
-    public ArrayList<Player> getPlayers() {
-        ArrayList<Player> players = new ArrayList<>();
-
-        players.addAll(this.freePlayers);
-
-        for (Team team : this.teams.values()) {
-            players.addAll(team.getPlayers());
-        }
-
-        return players;
-    }
-
-    public int getPlayerAmount() {
-        return this.getPlayers().size();
+    public void setState(GameState state) {
+        this.state = state;
     }
 
     public Location getLobby() {
-        return this.lobby;
+        return lobby;
+    }
+
+    public void setLobby(Location lobby) {
+        this.lobby = lobby;
+    }
+
+    public GameCycle getCycle() {
+        return cycle;
+    }
+
+    public Map<String, Team> getTeams() {
+        return teams;
+    }
+
+    public Team getTeam(String name) {
+        return teams.get(name);
+    }
+
+    public List<Player> getFreePlayers() {
+        return freePlayers;
+    }
+
+    public PlayerStatistic getPlayerStatistic(Player player) {
+        return playerStats.computeIfAbsent(player,
+                p -> Main.getInstance().getPlayerStatisticManager().loadStatistic(p.getUniqueId()));
+    }
+
+    public void saveStats() {
+        for (PlayerStatistic stat : playerStats.values()) {
+            Main.getInstance().getPlayerStatisticManager().saveStatistic(stat);
+        }
     }
 }

@@ -22,7 +22,9 @@ import io.github.rush.objects.*;
 import io.github.rush.game.*;
 import io.github.rush.statistics.*;
 import io.github.rush.scoreboard.ScoreboardManager;
+import fr.mrmicky.fastboard.FastBoard;
 import net.kyori.adventure.text.Component;
+import org.bukkit.entity.Player;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Rotation;
@@ -62,6 +64,15 @@ public class Main extends JavaPlugin {
     private final List<Island> pastedRegions = new ArrayList<>();
 
     private final Map<MerchantType, Villager> merchantVillagers = new HashMap<>();
+    private final Map<Player, FastBoard> playerBoards = new HashMap<>();
+
+    public FastBoard getFastBoard(Player player) {
+        return playerBoards.get(player);
+    }
+
+    public void setFastBoard(Player player, FastBoard board) {
+        playerBoards.put(player, board);
+    }
 
     private static final class Island {
         final int x, y, z;
@@ -80,10 +91,24 @@ public class Main extends JavaPlugin {
         instance = this;
 
         scoreboardManager = new ScoreboardManager(this);
+        playerStatisticManager = new PlayerStatisticManager(this);
+        gameManager = new GameManager(this);
+        gameManager.createGame("rush");
 
         Bukkit.getPluginManager().registerEvents(new GameRules(this), this);
         Bukkit.getPluginManager().registerEvents(new PlayerActivity(this), this);
         Bukkit.getPluginManager().registerEvents(new TNT(this), this);
+        Bukkit.getPluginManager().registerEvents(new VillagerInteraction(), this);
+
+        Bukkit.getScheduler().runTaskTimer(this, () -> {
+            scoreboardManager.updateAll();
+        }, 0L, 40L);
+
+        Bukkit.getScheduler().runTaskTimer(this, () -> {
+            if (gameManager != null && gameManager.getCurrentGame() != null) {
+                gameManager.getCurrentGame().autoStart();
+            }
+        }, 0L, 600L);
 
         int islandOffset = getConfig().getInt("islandOffset");
         schematics = List.of(
@@ -368,15 +393,69 @@ public class Main extends JavaPlugin {
         return null;
     }
 
-    public Object getDatabaseManager() {
-        return null;
-    }
-
     public String getCurrentVersion() {
         return "1.21.11";
     }
 
     public boolean getBooleanConfig(String path, boolean defaultValue) {
         return getConfig().getBoolean(path, defaultValue);
+    }
+
+    public String getStringConfig(String path, String defaultValue) {
+        return getConfig().getString(path, defaultValue);
+    }
+
+    public Class<?> getVersionRelatedClass(String className) {
+        return null;
+    }
+
+    public boolean statisticsEnabled() {
+        return false;
+    }
+
+    public boolean spectationEnabled() {
+        return false;
+    }
+
+    public boolean isHologramsEnabled() {
+        return false;
+    }
+
+    public Object getHolographicInteractor() {
+        return null;
+    }
+
+    public void toMainLobby(org.bukkit.entity.Player player) {
+    }
+
+    public org.bukkit.Location getMainLobby() {
+        return null;
+    }
+
+    public static String _l(org.bukkit.command.CommandSender sender, String key) {
+        return key;
+    }
+
+    public static String _l(org.bukkit.command.CommandSender sender, String key, java.util.Map<String, String> params) {
+        return key;
+    }
+
+    public int getIntConfig(String path, int defaultValue) {
+        return getConfig().getInt(path, defaultValue);
+    }
+
+    public io.github.rush.game.GameManager getGameManager() {
+        return this.gameManager;
+    }
+
+    public io.github.rush.scoreboard.ScoreboardManager getScoreboardManager() {
+        return this.scoreboardManager;
+    }
+
+    @Override
+    public void onDisable() {
+        if (playerStatisticManager != null) {
+            playerStatisticManager.close();
+        }
     }
 }

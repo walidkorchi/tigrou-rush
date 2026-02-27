@@ -9,6 +9,8 @@ import java.util.List;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockState;
+import org.bukkit.block.Bed;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
@@ -29,6 +31,9 @@ import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Vector;
 
 import io.github.rush.Main;
+import io.github.rush.game.Game;
+import io.github.rush.game.Team;
+import io.github.rush.game.TeamColor;
 import net.kyori.adventure.text.Component;
 
 public class TNT implements Listener {
@@ -98,16 +103,6 @@ public class TNT implements Listener {
 
     private void handleExplosion(Event event, Entity source, Location location,
             float yield, List<Block> blockList) {
-        // if (plugin.getConfig().getBoolean("DisableDrops")) {
-        // yield = 0;
-
-        // if (event instanceof EntityExplodeEvent) {
-        // ((EntityExplodeEvent) event).setYield(0);
-        // } else {
-        // ((BlockExplodeEvent) event).setYield(0);
-        // }
-        // }
-
         final Iterator<Block> blockIterator = blockList.iterator();
         while (blockIterator.hasNext()) {
             final Block block = blockIterator.next();
@@ -133,7 +128,86 @@ public class TNT implements Listener {
                     block.setType(Material.AIR);
                 }
             }
+
+            if (isBed(block)) {
+                handleBedDestruction(block, source);
+            }
         }
+    }
+
+    private boolean isBed(Block block) {
+        BlockState state = block.getState();
+        return state instanceof Bed;
+    }
+
+    private void handleBedDestruction(Block bedBlock, Entity source) {
+        if (!plugin.isGameStarted()) {
+            return;
+        }
+
+        Game game = Main.getInstance().getGameManager().getCurrentGame();
+        if (game == null) {
+            return;
+        }
+
+        BlockState state = bedBlock.getState();
+        if (!(state instanceof Bed bed)) {
+            return;
+        }
+
+        TeamColor bedColor = getTeamColorFromBed(bed);
+        
+        if (bedColor == null) {
+            return;
+        }
+
+        Team team = game.getTeam(bedColor.name());
+        if (team == null) {
+            return;
+        }
+
+        if (team.isBedDestroyed()) {
+            return;
+        }
+
+        Player tntSource = null;
+        if (source instanceof Player) {
+            tntSource = (Player) source;
+        } else if (source instanceof TNTPrimed) {
+            TNTPrimed tnt = (TNTPrimed) source;
+            if (tnt.getSource() instanceof Player) {
+                tntSource = (Player) tnt.getSource();
+            }
+        }
+
+        if (tntSource != null) {
+            Team sourceTeam = game.getPlayerTeam(tntSource);
+            if (sourceTeam != null && sourceTeam == team) {
+                return;
+            }
+        }
+
+        bedBlock.setType(Material.AIR);
+        
+        game.onBedDestroyed(team);
+    }
+
+    private TeamColor getTeamColorFromBed(Bed bed) {
+        org.bukkit.DyeColor dyeColor = bed.getColor();
+        
+        return switch (dyeColor) {
+            case RED -> TeamColor.RED;
+            case BLUE -> TeamColor.BLUE;
+            case LIGHT_BLUE -> TeamColor.BLUE;
+            case GREEN -> TeamColor.GREEN;
+            case LIME -> TeamColor.GREEN;
+            case YELLOW -> TeamColor.YELLOW;
+            case WHITE -> TeamColor.WHITE;
+            case BLACK -> TeamColor.BLACK;
+            case PINK -> TeamColor.LIGHT_PURPLE;
+            case CYAN -> TeamColor.AQUA;
+            default -> null;
+        };
     }
 
     public TNTPrimed spawnTNT(Location location, Entity source) {

@@ -162,7 +162,7 @@ public class GUI implements InventoryHolder {
      *
      * @return Whether to allow the click interaction
      */
-    boolean onClick(Player player, int slot, ClickType type) {
+    public boolean onClick(Player player, int slot, ClickType type) {
         if (type == ClickType.RIGHT) {
             // Prioritize right click action over generic when it exists
             Consumer<Player> action = rightClickActions.get(slot);

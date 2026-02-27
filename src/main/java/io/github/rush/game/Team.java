@@ -1,236 +1,291 @@
 package io.github.rush.game;
 
-import io.github.rush.Main;
-import io.github.rush.utils.Utils;
-import lombok.Data;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
+import io.github.rush.entities.Merchant;
+import io.github.rush.entities.MerchantType;
+import net.kyori.adventure.text.Component;
 import org.bukkit.Location;
 import org.bukkit.Material;
-import org.bukkit.OfflinePlayer;
 import org.bukkit.block.Block;
-import org.bukkit.configuration.serialization.ConfigurationSerializable;
-import org.bukkit.configuration.serialization.SerializableAs;
+import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
-import org.bukkit.event.inventory.InventoryType;
-import org.bukkit.inventory.Inventory;
-import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.LeatherArmorMeta;
+import org.bukkit.entity.Villager;
 
-@Data
-public class Team implements ConfigurationSerializable {
+import java.util.ArrayList;
+import java.util.List;
 
-    private List<Block> chests = null;
-    private TeamColor color = null;
-    private Inventory inventory = null;
-    private int maxPlayers = 0;
-    private String name = null;
-    private org.bukkit.scoreboard.Team scoreboardTeam = null;
-    private Location spawnLocation = null;
-    private Location targetFeetBlock = null;
-    private Location targetHeadBlock = null;
+public class Team {
 
-    public Team(Map<String, Object> deserialize) {
-        this.setName(deserialize.get("name").toString());
-        this.setMaxPlayers(Integer.parseInt(deserialize.get("maxplayers").toString()));
-        this.setColor(TeamColor.valueOf(deserialize.get("color").toString().toUpperCase()));
-        this.setSpawnLocation(Utils.locationDeserialize(deserialize.get("spawn")));
-        this.setChests(new ArrayList<Block>());
+    private final String name;
+    private final TeamColor color;
+    private final int maxPlayers;
+    private final List<Player> players = new ArrayList<>();
+    private Location spawnLocation;
+    private Location bedLocation;
+    private final List<Location> enderChestLocations = new ArrayList<>();
+    private final List<Villager> regularVillagers = new ArrayList<>();
+    private final List<Villager> speedVillagers = new ArrayList<>();
+    private boolean bedDestroyed = false;
 
-        if (deserialize.containsKey("bedhead")) {
-            this.setTargetHeadBlock(Utils.locationDeserialize(deserialize.get("bedhead")));
-
-            if (this.getTargetHeadBlock() != null && deserialize.containsKey("bedfeed")
-                    && this.getTargetHeadBlock().getBlock().getType().equals(Material.BED_BLOCK)) {
-                this.setTargetFeetBlock(Utils.locationDeserialize(deserialize.get("bedfeed")));
-            }
-        }
+    public Team(String name, TeamColor color, int maxPlayers) {
+        this.name = name;
+        this.color = color;
+        this.maxPlayers = maxPlayers;
     }
 
-    public Team(String name, TeamColor color, int maxPlayers,
-            org.bukkit.scoreboard.Team scoreboardTeam) {
-        this.setName(name);
-        this.setColor(color);
-        this.setMaxPlayers(maxPlayers);
-        this.setScoreboardTeam(scoreboardTeam);
-        this.setChests(new ArrayList<Block>());
-    }
-
-    public void addChest(Block chestBlock) {
-        this.getChests().add(chestBlock);
-    }
-
-    @SuppressWarnings("deprecation")
     public boolean addPlayer(Player player) {
-        if (this.getScoreboardTeam().getPlayers().size() >= this.getMaxPlayers()) {
+        if (players.size() >= maxPlayers) {
             return false;
         }
-
-        String displayName = player.getDisplayName();
-        String playerListName = player.getPlayerListName();
-
-        // team name of tab
-        playerListName = this.getChatColor() + this.getName() + ChatColor.WHITE + " | "
-                + this.getChatColor() + ChatColor.stripColor(player.getDisplayName());
-
-        player.setDisplayName(displayName);
-        player.setPlayerListName(playerListName);
-
-        this.getScoreboardTeam().addEntry(player.getName());
-        this.equipPlayerWithLeather(player);
-
+        if (!players.contains(player)) {
+            players.add(player);
+        }
         return true;
     }
 
-    public void createTeamInventory() {
-        Inventory inventory = Bukkit.createInventory(null, InventoryType.ENDER_CHEST,
-                "Team Chest");
-        this.setInventory(inventory);
+    public void removePlayer(Player player) {
+        players.remove(player);
     }
 
-    private void equipPlayerWithLeather(Player player) {
-        // helmet
-        ItemStack helmet = new ItemStack(Material.LEATHER_HELMET, 1);
-        LeatherArmorMeta meta = (LeatherArmorMeta) helmet.getItemMeta();
-        meta.setColor(this.getColor().getColor());
-        helmet.setItemMeta(meta);
-
-        // chestplate
-        ItemStack chestplate = new ItemStack(Material.LEATHER_CHESTPLATE, 1);
-        meta = (LeatherArmorMeta) chestplate.getItemMeta();
-        meta.setColor(this.getColor().getColor());
-        chestplate.setItemMeta(meta);
-
-        // leggings
-        ItemStack leggings = new ItemStack(Material.LEATHER_LEGGINGS, 1);
-        meta = (LeatherArmorMeta) leggings.getItemMeta();
-        meta.setColor(this.getColor().getColor());
-        leggings.setItemMeta(meta);
-
-        // boots
-        ItemStack boots = new ItemStack(Material.LEATHER_BOOTS, 1);
-        meta = (LeatherArmorMeta) boots.getItemMeta();
-        meta.setColor(this.getColor().getColor());
-        boots.setItemMeta(meta);
-
-        player.getInventory().setHelmet(helmet);
-        player.getInventory().setChestplate(chestplate);
-        player.getInventory().setLeggings(leggings);
-        player.getInventory().setBoots(boots);
-        player.updateInventory();
-    }
-
-    public ChatColor getChatColor() {
-        return this.getColor().getChatColor();
-    }
-
-    public String getDisplayName() {
-        return this.getScoreboardTeam().getDisplayName();
-    }
-
-    public Block getFeetTarget() {
-        if (this.getTargetFeetBlock() == null) {
-            return null;
-        }
-
-        this.getTargetFeetBlock().getBlock().getChunk().load(true);
-        return this.getTargetFeetBlock().getBlock();
-    }
-
-    public Block getHeadTarget() {
-        if (this.targetHeadBlock == null) {
-            return null;
-        }
-
-        this.getTargetHeadBlock().getBlock().getChunk().load(true);
-        return this.getTargetHeadBlock().getBlock();
+    public boolean isInTeam(Player player) {
+        return players.contains(player);
     }
 
     public List<Player> getPlayers() {
-        List<Player> players = new ArrayList<>();
+        return new ArrayList<>(players);
+    }
 
-        for (OfflinePlayer offlinePlayer : this.getScoreboardTeam().getPlayers()) {
-            Player player = Main.getInstance().getServer().getPlayer(offlinePlayer.getName());
-            if (player != null
-                    && Main.getInstance().getGameManager().getGameOfPlayer(player) != null
-                    && !Main.getInstance().getGameManager().getGameOfPlayer(player)
-                            .isSpectator(player)) {
-                players.add(player);
+    public int getPlayerCount() {
+        return players.size();
+    }
+
+    public void reset() {
+        players.clear();
+        bedDestroyed = false;
+        enderChestLocations.clear();
+        removeVillagers();
+
+        if (bedLocation != null && bedLocation.getWorld() != null) {
+            Block bedBlock = bedLocation.getBlock();
+            if (bedBlock != null && bedBlock.getType().name().endsWith("_BED")) {
+                bedBlock.setType(Material.AIR);
             }
         }
+        bedLocation = null;
+        bedDestroyed = false;
+    }
 
-        return players;
+    public String getName() {
+        return name;
+    }
+
+    public TeamColor getColor() {
+        return color;
+    }
+
+    public int getMaxPlayers() {
+        return maxPlayers;
+    }
+
+    public Location getSpawnLocation() {
+        return spawnLocation;
+    }
+
+    public void setSpawnLocation(Location location) {
+        this.spawnLocation = location;
+    }
+
+    public Location getBedLocation() {
+        return bedLocation;
+    }
+
+    public void setBedLocation(Location bedLocation) {
+        this.bedLocation = bedLocation;
+    }
+
+    public List<Location> getEnderChestLocations() {
+        return enderChestLocations;
+    }
+
+    public void addEnderChestLocation(Location location) {
+        this.enderChestLocations.add(location);
+    }
+
+    public void clearEnderChestLocations() {
+        this.enderChestLocations.clear();
+    }
+
+    public int getEnderChestCount() {
+        return enderChestLocations.size();
+    }
+
+    public void placeEnderChests() {
+        if (spawnLocation == null) {
+            return;
+        }
+
+        int count = getResourceSpawnerCount();
+        enderChestLocations.clear();
+
+        double offset = 2.0;
+        double angleStep = Math.PI / 2.0;
+
+        for (int i = 0; i < count; i++) {
+            double angle = i * angleStep;
+            int x = (int) (spawnLocation.getX() + offset * Math.cos(angle));
+            int z = (int) (spawnLocation.getZ() + offset * Math.sin(angle));
+            int y = spawnLocation.getBlockY();
+
+            Block block = spawnLocation.getWorld().getBlockAt(x, y, z);
+            block.setType(Material.ENDER_CHEST);
+
+            enderChestLocations.add(block.getLocation());
+        }
+    }
+
+    public int getResourceSpawnerCount() {
+        int playerCount = players.size();
+        if (playerCount <= 1)
+            return 2;
+        if (playerCount == 2)
+            return 2;
+        if (playerCount == 3)
+            return 3;
+        return 4;
+    }
+
+    public void spawnVillagers() {
+        if (spawnLocation == null) {
+            return;
+        }
+
+        spawnRegularVillagers();
+        spawnSpeedVillagers();
+    }
+
+    private void spawnRegularVillagers() {
+        regularVillagers.clear();
+
+        MerchantType[] types = {
+                MerchantType.ARMORSMITH,
+                MerchantType.WEAPONSMITH,
+                MerchantType.ALCHEMIST,
+                MerchantType.BUILDER
+        };
+
+        double offset = 12.0;
+        double angleStep = Math.PI / 2.0;
+
+        for (int i = 0; i < types.length; i++) {
+            double angle = i * angleStep;
+            int x = (int) (spawnLocation.getX() + offset * Math.cos(angle));
+            int z = (int) (spawnLocation.getZ() + offset * Math.sin(angle));
+            int y = spawnLocation.getBlockY() + 1;
+
+            Location villagerLoc = new Location(spawnLocation.getWorld(), x + 0.5, y, z + 0.5);
+            Villager villager = (Villager) spawnLocation.getWorld().spawnEntity(villagerLoc, EntityType.VILLAGER);
+
+            villager.setAI(false);
+            villager.setInvulnerable(true);
+            villager.setCollidable(false);
+            villager.setSilent(true);
+            villager.customName(Component.text(color.getTextColor() + types[i].name()));
+            villager.setCustomNameVisible(true);
+
+            Merchant.apply(villager, types[i]);
+
+            regularVillagers.add(villager);
+        }
+    }
+
+    private void spawnSpeedVillagers() {
+        speedVillagers.clear();
+
+        int count = getResourceSpawnerCount();
+        double offset = 13.0;
+        double angleStep = Math.PI / 2.0;
+
+        for (int i = 0; i < count; i++) {
+            double angle = i * angleStep + (Math.PI / 4);
+            int x = (int) (spawnLocation.getX() + offset * Math.cos(angle));
+            int z = (int) (spawnLocation.getZ() + offset * Math.sin(angle));
+            int y = spawnLocation.getBlockY() + 1;
+
+            Location villagerLoc = new Location(spawnLocation.getWorld(), x + 0.5, y, z + 0.5);
+            Villager villager = (Villager) spawnLocation.getWorld().spawnEntity(villagerLoc, EntityType.VILLAGER);
+
+            villager.setAI(false);
+            villager.setInvulnerable(true);
+            villager.setCollidable(false);
+            villager.setSilent(true);
+            villager.customName(Component.text("§eSpeed Marchand"));
+            villager.setCustomNameVisible(true);
+            villager.setBaby();
+
+            Merchant.apply(villager, MerchantType.SPEED);
+
+            speedVillagers.add(villager);
+        }
+    }
+
+    public void removeVillagers() {
+        for (Villager villager : regularVillagers) {
+            if (villager.isValid()) {
+                villager.remove();
+            }
+        }
+        regularVillagers.clear();
+
+        for (Villager villager : speedVillagers) {
+            if (villager.isValid()) {
+                villager.remove();
+            }
+        }
+        speedVillagers.clear();
+    }
+
+    public List<Villager> getSpeedVillagers() {
+        return new ArrayList<>(speedVillagers);
+    }
+
+    public void placeBed() {
+        if (spawnLocation == null) {
+            return;
+        }
+
+        Material bedMaterial = getBedMaterial();
+        if (bedMaterial == null) {
+            return;
+        }
+
+        int x = spawnLocation.getBlockX();
+        int y = spawnLocation.getBlockY();
+        int z = spawnLocation.getBlockZ();
+
+        Block bedFoot = spawnLocation.getWorld().getBlockAt(x, y, z);
+        bedFoot.setType(bedMaterial);
+
+        bedLocation = bedFoot.getLocation();
+    }
+
+    private Material getBedMaterial() {
+        return switch (color) {
+            case RED -> Material.RED_BED;
+            case BLUE -> Material.BLUE_BED;
+            case GREEN -> Material.GREEN_BED;
+            case YELLOW -> Material.YELLOW_BED;
+            default -> Material.RED_BED;
+        };
+    }
+
+    public boolean isBedDestroyed() {
+        return bedDestroyed;
+    }
+
+    public void setBedDestroyed(boolean destroyed) {
+        this.bedDestroyed = destroyed;
     }
 
     public boolean isDead(Game game) {
-        Material targetMaterial = game.getTargetMaterial();
-
-        this.getTargetHeadBlock().getBlock().getChunk().load(true);
-        if (this.getTargetFeetBlock() == null) {
-            return this.getTargetHeadBlock().getBlock().getType() != targetMaterial;
-        }
-
-        this.getTargetFeetBlock().getBlock().getChunk().load(true);
-        return (this.getTargetHeadBlock().getBlock().getType() != targetMaterial
-                && this.getTargetFeetBlock().getBlock().getType() != targetMaterial);
+        return bedDestroyed;
     }
-
-    public boolean isInTeam(Player p) {
-        return this.getScoreboardTeam().hasPlayer(p);
-    }
-
-    public void removeChest(Block chest) {
-        this.getChests().remove(chest);
-        if (this.getChests().size() == 0) {
-            this.setInventory(null);
-        }
-    }
-
-    public void removePlayer(Player player) {
-        if (isInTeam(player)) {
-            this.getScoreboardTeam().removePlayer(player);
-        }
-
-        if (player.isOnline()) {
-            player.setDisplayName(ChatColor.RESET + ChatColor.stripColor(player.getName()));
-            player.setPlayerListName(ChatColor.RESET + player.getPlayer().getName());
-        }
-    }
-
-    @Override
-    public Map<String, Object> serialize() {
-        HashMap<String, Object> team = new HashMap<>();
-
-        team.put("name", this.getName());
-        team.put("color", this.getColor().toString());
-        team.put("maxplayers", this.getMaxPlayers());
-        team.put("spawn", Utils.locationSerialize(this.getSpawnLocation()));
-        team.put("bedhead", Utils.locationSerialize(this.getTargetHeadBlock()));
-
-        if (this.targetFeetBlock != null) {
-            team.put("bedfeed", Utils.locationSerialize(this.targetFeetBlock));
-        }
-
-        return team;
-    }
-
-    public void setScoreboardTeam(org.bukkit.scoreboard.Team scoreboardTeam) {
-        scoreboardTeam.setDisplayName(this.getChatColor() + this.name);
-        this.scoreboardTeam = scoreboardTeam;
-    }
-
-    public void setTargets(Block headBlock, Block feetBlock) {
-        this.setTargetHeadBlock(headBlock.getLocation());
-        if (feetBlock != null) {
-            this.setTargetFeetBlock(feetBlock.getLocation());
-        } else {
-            this.setTargetFeetBlock(null);
-        }
-    }
-
 }
