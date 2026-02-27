@@ -12,20 +12,26 @@ import com.sk89q.worldedit.function.operation.Operation;
 import com.sk89q.worldedit.function.operation.Operations;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.math.transform.AffineTransform;
+import com.sk89q.worldedit.regions.CuboidRegion;
 import com.sk89q.worldedit.session.ClipboardHolder;
+import com.sk89q.worldedit.world.block.BlockTypes;
 
-import io.github.rush.entities.Merchant;
-import io.github.rush.entities.MerchantType;
-import io.github.rush.events.Join;
-import io.github.rush.events.Rules;
+import io.github.rush.entities.*;
+import io.github.rush.events.*;
+import io.github.rush.objects.*;
+import io.github.rush.game.*;
+import io.github.rush.statistics.*;
+import io.github.rush.scoreboard.ScoreboardManager;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.Rotation;
 import org.bukkit.World;
-import org.bukkit.block.Block;
 import org.bukkit.command.CommandSender;
+import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.entity.ItemFrame;
 import org.bukkit.entity.Villager;
-import org.bukkit.event.Listener;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -36,12 +42,21 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
+import lombok.Getter;
 
-public class Main extends JavaPlugin implements Listener {
+public class Main extends JavaPlugin {
 
+    private PlayerStatisticManager playerStatisticManager = null;
+    @Getter
+    private GameManager gameManager = null;
+    @Getter
+    private ScoreboardManager scoreboardManager = null;
     private boolean gameStarted = false;
+    private static Main instance = null;
 
     private static final int ISLAND_Y = 64;
+
+    private List<Island> schematics;
 
     private final List<Villager> spawnedVillagers = new ArrayList<>();
     private final List<Island> pastedRegions = new ArrayList<>();
@@ -60,12 +75,15 @@ public class Main extends JavaPlugin implements Listener {
         }
     }
 
-    private List<Island> schematics;
-
     @Override
     public void onEnable() {
-        Bukkit.getPluginManager().registerEvents(new Rules(this), this);
-        Bukkit.getPluginManager().registerEvents(new Join(this), this);
+        instance = this;
+
+        scoreboardManager = new ScoreboardManager(this);
+
+        Bukkit.getPluginManager().registerEvents(new GameRules(this), this);
+        Bukkit.getPluginManager().registerEvents(new PlayerActivity(this), this);
+        Bukkit.getPluginManager().registerEvents(new TNT(this), this);
 
         int islandOffset = getConfig().getInt("islandOffset");
         schematics = List.of(
@@ -73,12 +91,9 @@ public class Main extends JavaPlugin implements Listener {
                 new Island(islandOffset, ISLAND_Y, 0, 180),
                 new Island(0, ISLAND_Y, -islandOffset, 270),
                 new Island(0, ISLAND_Y, islandOffset, 90));
-
-        // temporary for development purposes
-        registerCommands();
     }
 
-    private void loadSchematics(CommandSender sender) {
+    public void loadSchematics(CommandSender sender) {
         final Plugin worldEdit = Bukkit.getPluginManager().getPlugin("WorldEdit");
 
         if (worldEdit == null || !worldEdit.isEnabled()) {
@@ -156,49 +171,87 @@ public class Main extends JavaPlugin implements Listener {
 
             Merchant.apply(villager, regularTypes[i]);
             merchantVillagers.put(regularTypes[i], villager);
+
+            // Spawn item frame 2 blocks in front of villager with corresponding item
+            final int frameX = schematic.x + (dir[0] * (regularOffset + 2)) + (perpX * spread.get(spreadIdx) * sign);
+            final int frameZ = schematic.z + (dir[1] * (regularOffset + 2)) + (perpZ * spread.get(spreadIdx) * sign);
+            final Location frameLoc = new Location(world, frameX + 0.5, schematic.y + 1, frameZ + 0.5);
+
+            final ItemFrame itemFrame = world.spawn(frameLoc, ItemFrame.class);
+
+            itemFrame.setRotation(Rotation.NONE);
+            itemFrame.setInvulnerable(true);
+            itemFrame.setVisibleByDefault(false);
+            itemFrame.setFixed(true);
+
+            ItemStack displayItem = switch (regularTypes[i]) {
+                case WEAPONSMITH -> new ItemStack(org.bukkit.Material.IRON_SWORD);
+                case ARMORSMITH -> new ItemStack(org.bukkit.Material.IRON_CHESTPLATE);
+                case ALCHEMIST -> new ItemStack(org.bukkit.Material.GOLDEN_APPLE);
+                case BUILDER -> new ItemStack(org.bukkit.Material.SANDSTONE);
+                default -> null;
+            };
+
+            if (displayItem != null) {
+                itemFrame.setItem(displayItem);
+            }
         }
 
         pastedRegions.add(schematic);
     }
 
-    private void clearGame() {
+    public Integer getRespawnProtectionTime() {
+        final FileConfiguration config = this.getConfig();
+
+        if (config.contains("respawn-protection") && config.isInt("respawn-protection")) {
+            return config.getInt("respawn-protection");
+        } else {
+            return 0;
+        }
+    }
+
+    public void clearGame() {
         for (Villager villager : spawnedVillagers) {
             if (villager != null && !villager.isDead()) {
                 villager.remove();
             }
         }
+
         spawnedVillagers.clear();
         merchantVillagers.clear();
 
-        // Clear pasted schematic regions
         World world = Bukkit.getWorld(getGameWorld());
+
         if (world != null) {
             for (Island region : pastedRegions) {
                 clearRegion(world, region);
             }
         }
-        pastedRegions.clear();
 
-        getLogger().info("Cleared all game entities and regions");
+        pastedRegions.clear();
+    }
+
+    public PlayerStatisticManager getPlayerStatisticManager() {
+        return this.playerStatisticManager;
     }
 
     private void clearRegion(World world, Island region) {
-        int radius = getConfig().getInt("islandOffset", 40) + 20;
-        int centerX = region.x;
-        int centerZ = region.z;
-        int centerY = region.y;
+        final int radius = getConfig().getInt("islandOffset", 40) + 20;
+        final int centerX = region.x;
+        final int centerZ = region.z;
+        final int centerY = region.y;
 
-        for (int x = centerX - radius; x <= centerX + radius; x++) {
-            for (int y = centerY - 5; y <= centerY + 20; y++) {
-                for (int z = centerZ - radius; z <= centerZ + radius; z++) {
-                    Block block = world.getBlockAt(x, y, z);
-                    if (block.getType() != org.bukkit.Material.AIR && block.getType() != org.bukkit.Material.BEDROCK) {
-                        block.setType(org.bukkit.Material.AIR);
-                    }
-                }
-            }
+        final com.sk89q.worldedit.world.World worldEditWorld = BukkitAdapter.adapt(world);
+
+        final BlockVector3 min = BlockVector3.at(centerX - radius, centerY - 5, centerZ - radius);
+        final BlockVector3 max = BlockVector3.at(centerX + radius, centerY + 20, centerZ + radius);
+        final CuboidRegion cuboidRegion = new CuboidRegion(worldEditWorld, min, max);
+
+        try (final EditSession editSession = WorldEdit.getInstance().newEditSession(worldEditWorld)) {
+            editSession.setBlocks(cuboidRegion, BlockTypes.AIR.getDefaultState());
+        } catch (WorldEditException e) {
+            getLogger().severe("Failed to clear region: " + e.getMessage());
         }
-        getLogger().info("Cleared region at (" + region.x + ", " + region.y + ", " + region.z + ")");
     }
 
     private void pasteSchematic(Island info) {
@@ -268,34 +321,62 @@ public class Main extends JavaPlugin implements Listener {
         return gameStarted;
     }
 
+    public void setGameStarted(boolean started) {
+        this.gameStarted = started;
+    }
+
     public Villager getMerchantVillager(MerchantType type) {
         return merchantVillagers.get(type);
     }
 
-    public void registerCommands() {
-        getCommand("startgame").setExecutor((sender, command, label, args) -> {
-            if (gameStarted) {
-                sender.sendMessage(Component.text("Game already started!"));
+    public boolean isBlockOnIsland(org.bukkit.block.Block block) {
+        if (!gameStarted)
+            return false;
+
+        int radius = getConfig().getInt("islandOffset", 40) + 10;
+        int blockX = block.getX();
+        int blockZ = block.getZ();
+
+        for (Island island : pastedRegions) {
+            int dx = blockX - island.x;
+            int dz = blockZ - island.z;
+            if (dx * dx + dz * dz <= radius * radius) {
                 return true;
             }
+        }
+        return false;
+    }
 
-            gameStarted = true;
-            sender.sendMessage(Component.text("Game started! Loading schematics..."));
+    /**
+     * Returns the max length of a game in seconds, fallbacks to 60 minutes if not
+     * defined in plugin config
+     *
+     * @return The length of the game in seconds
+     */
+    public int getMaxLength() {
+        if (this.getConfig().contains("gamelength") && this.getConfig().isInt("gamelength")) {
+            return this.getConfig().getInt("gamelength") * 60;
+        } else
+            return 60 * 60;
+    }
 
-            loadSchematics(sender);
-            return true;
-        });
+    public static Main getInstance() {
+        return Main.instance;
+    }
 
-        getCommand("stopgame").setExecutor((sender, command, label, args) -> {
-            if (!gameStarted) {
-                sender.sendMessage(Component.text("Game not started!"));
-                return true;
-            }
+    public Object getBugsnag() {
+        return null;
+    }
 
-            clearGame();
-            gameStarted = false;
-            sender.sendMessage(Component.text("Game stopped!"));
-            return true;
-        });
+    public Object getDatabaseManager() {
+        return null;
+    }
+
+    public String getCurrentVersion() {
+        return "1.21.11";
+    }
+
+    public boolean getBooleanConfig(String path, boolean defaultValue) {
+        return getConfig().getBoolean(path, defaultValue);
     }
 }

@@ -30,6 +30,9 @@ repositories {
 dependencies {
     compileOnly("io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT")
     compileOnly(files("../rush-tl-events/plugins/worldedit-bukkit-7.4.0.jar"))
+    compileOnly("fr.mrmicky:fastboard:2.1.5")
+    compileOnly("org.projectlombok:lombok:1.18.36")
+    annotationProcessor("org.projectlombok:lombok:1.18.36")
 }
 
 java {

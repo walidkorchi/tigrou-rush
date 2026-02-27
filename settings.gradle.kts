@@ -5,4 +5,11 @@
  * For more detailed information on multi-project builds, please refer to https://docs.gradle.org/9.3.1/userguide/multi_project_builds.html in the Gradle documentation.
  */
 
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+
 rootProject.name = "rush"

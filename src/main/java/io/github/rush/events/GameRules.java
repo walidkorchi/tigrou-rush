@@ -5,27 +5,33 @@ import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.data.type.Bed;
+import org.bukkit.entity.Player;
 import org.bukkit.entity.Villager;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.inventory.CraftItemEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.player.PlayerBedEnterEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.scheduler.BukkitRunnable;
 
 import io.github.rush.Main;
 import io.github.rush.entities.MerchantType;
+import io.github.rush.game.Game;
+import io.github.rush.game.GameState;
 
 import java.util.function.Predicate;
 
-public class Rules implements Listener {
+public class GameRules implements Listener {
 
     private final Main plugin;
 
-    public Rules(Main plugin) {
+    public GameRules(Main plugin) {
         this.plugin = plugin;
     }
 
@@ -58,6 +64,16 @@ public class Rules implements Listener {
     }
 
     @EventHandler
+    public void onBlockBreak(BlockBreakEvent event) {
+        if (!isGameEventRegistered(event.getBlock().getWorld().getName()))
+            return;
+
+        if (plugin.isBlockOnIsland(event.getBlock())) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler
     public void onPlayerBedEnter(PlayerBedEnterEvent event) {
         if (!isGameEventRegistered(event.getBed().getWorld().getName()))
             return;
@@ -84,8 +100,9 @@ public class Rules implements Listener {
         if (!isGameEventRegistered(villager.getWorld().getName()))
             return;
 
-        if (villager.getProfession() != org.bukkit.entity.Villager.Profession.LIBRARIAN)
-            return;
+        // if (villager.getProfession() !=
+        // org.bukkit.entity.Villager.Profession.LIBRARIAN)
+        // return;
 
         event.setCancelled(true);
 
@@ -100,11 +117,27 @@ public class Rules implements Listener {
     }
 
     @EventHandler
+    public void onCraft(CraftItemEvent cie) {
+        Player player = (Player) cie.getWhoClicked();
+        Game game = Main.getInstance().getGameManager().getGameOfPlayer(player);
+
+        if (game == null) {
+            return;
+        }
+
+        if (game.getState() == GameState.STOPPED) {
+            return;
+        }
+
+        cie.setCancelled(true);
+    }
+
+    @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof org.bukkit.entity.Player player))
             return;
 
-        if (!event.getView().getTitle().equals("Speed Merchant"))
+        if (!Component.text("Speed Merchant").equals(event.getView().title()))
             return;
 
         event.setCancelled(true);
@@ -128,8 +161,9 @@ public class Rules implements Listener {
 
         player.closeInventory();
 
-        org.bukkit.scheduler.BukkitRunnable task = new org.bukkit.scheduler.BukkitRunnable() {
+        BukkitRunnable task = new BukkitRunnable() {
             @Override
+            @SuppressWarnings("deprecation")
             public void run() {
                 player.openMerchant(targetVillager, true);
             }
@@ -137,7 +171,7 @@ public class Rules implements Listener {
         task.runTask(plugin);
     }
 
-    private boolean hasNearbyBlock(final Block center, final int radius, final Predicate<Block> predicate) {
+    private boolean hasNearbyBlock(Block center, int radius, Predicate<Block> predicate) {
         for (int x = -radius; x <= radius; x++) {
             for (int y = -radius; y <= radius; y++) {
                 for (int z = -radius; z <= radius; z++) {

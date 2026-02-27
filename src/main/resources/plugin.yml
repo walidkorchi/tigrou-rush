@@ -1,6 +1,7 @@
 name: Rush
 version: 1.0.0
 main: io.github.rush.Main
+api-version: 1.21
 softdepend:
   - WorldEdit
 commands:

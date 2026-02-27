@@ -5,7 +5,6 @@ import java.lang.reflect.Method;
 import java.text.DecimalFormat;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
 
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -32,11 +31,7 @@ import org.bukkit.util.Vector;
 import io.github.rush.Main;
 import net.kyori.adventure.text.Component;
 
-class TNT implements Listener {
-
-    private static final Set<Material> EXPLOSION_IMMUNE_BLOCKS = Set.of(
-            Material.SANDSTONE,
-            Material.END_STONE);
+public class TNT implements Listener {
 
     private final Main plugin;
 
@@ -118,11 +113,16 @@ class TNT implements Listener {
             final Block block = blockIterator.next();
             final Material blockType = block.getType();
 
+            if (plugin.isBlockOnIsland(block)) {
+                blockIterator.remove();
+                continue;
+            }
+
             if (blockType == Material.TNT) {
                 block.setType(Material.AIR);
                 spawnTNT(block.getLocation(), source);
                 blockIterator.remove();
-            } else if (plugin.getConfig().getBoolean("DisableBreak") || EXPLOSION_IMMUNE_BLOCKS.contains(blockType)) {
+            } else {
                 blockIterator.remove();
             }
 

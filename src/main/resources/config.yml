@@ -1,6 +1,9 @@
 # World where the rush game takes place
 gameWorld: world_the_end
 
+# World where players spawn when game stops
+lobbyWorld: world
+
 # Radius around beds where block placement is prevented
 bedProtectionRadius: 3
 
@@ -22,7 +25,43 @@ schematicFilename: rush_island.schem
 # Distance from center point to islands
 islandOffset: 40
 
+# Respawn protection time in seconds (0 to disable)
+respawn-protection: 0
+
 # Villager spawn offsets (distance from island center)
 villagerSpeedOffset: 13
 villagerRegularOffset: 12
 villagerSpreadDistance: 5,7
+
+# Resources config
+resource:
+  bronze:
+    item:
+    - type: CLAY_BRICK
+      amount: 1
+      meta:
+        ==: ItemMeta
+        meta-type: UNSPECIFIC
+        display-name: "§4Bronze"
+    spawn-interval: 1000
+    spread: 1.0
+  iron:
+    item:
+    - type: IRON_INGOT
+      amount: 1
+      meta:
+        ==: ItemMeta
+        meta-type: UNSPECIFIC
+        display-name: "§7Iron"
+    spawn-interval: 10000
+    spread: 1.0
+  gold:
+    item:
+    - type: GOLD_INGOT
+      amount: 1
+      meta:
+        ==: ItemMeta
+        meta-type: UNSPECIFIC
+        display-name: "§6Gold"
+    spawn-interval: 20000
+    spread: 1.0
