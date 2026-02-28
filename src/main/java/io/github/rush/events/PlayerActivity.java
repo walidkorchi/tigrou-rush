@@ -87,6 +87,7 @@ public class PlayerActivity implements Listener {
 
         player.getInventory().clear();
         player.getInventory().setItem(0, TeamSelectionGUI.createBannerItem());
+        plugin.getMusicManager().playForPlayer(player);
 
         if (player.getWorld().getName().equals(plugin.getGameWorld())) {
             sendActionBarToAll();

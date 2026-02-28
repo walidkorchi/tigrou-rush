@@ -22,6 +22,7 @@ import io.github.rush.objects.*;
 import io.github.rush.game.*;
 import io.github.rush.statistics.*;
 import io.github.rush.scoreboard.ScoreboardManager;
+import io.github.rush.utils.MusicManager;
 import fr.mrmicky.fastboard.FastBoard;
 import net.kyori.adventure.text.Component;
 import org.bukkit.entity.Player;
@@ -54,6 +55,8 @@ public class Main extends JavaPlugin {
     private GameManager gameManager = null;
     @Getter
     private ScoreboardManager scoreboardManager = null;
+    @Getter
+    private MusicManager musicManager = null;
     private boolean gameStarted = false;
     private static Main instance = null;
 
@@ -95,6 +98,7 @@ public class Main extends JavaPlugin {
         playerStatisticManager = new PlayerStatisticManager(this);
         gameManager = new GameManager(this);
         gameManager.createGame("rush");
+        musicManager = new MusicManager(this);
 
         Bukkit.getPluginManager().registerEvents(new GameRules(this), this);
         Bukkit.getPluginManager().registerEvents(new PlayerActivity(this), this);

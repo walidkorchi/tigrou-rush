@@ -4,3 +4,4 @@ main: io.github.rush.Main
 api-version: 1.21
 softdepend:
   - WorldEdit
+  - GMusic
