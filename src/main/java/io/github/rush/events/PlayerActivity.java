@@ -86,6 +86,8 @@ public class PlayerActivity implements Listener {
     public void onPlayerJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
 
+        event.setJoinMessage("§a[+] §f" + player.getName());
+
         player.getInventory().clear();
         player.getInventory().setItem(0, TeamSelectionGUI.createBannerItem());
         plugin.getMusicManager().playForPlayer(player);
@@ -97,6 +99,7 @@ public class PlayerActivity implements Listener {
 
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
+        event.setQuitMessage("§c[-] §f" + event.getPlayer().getName());
         sendActionBarToAll();
     }
 

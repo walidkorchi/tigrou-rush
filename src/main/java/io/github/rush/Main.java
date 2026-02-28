@@ -52,6 +52,8 @@ public class Main extends JavaPlugin {
 
     private PlayerStatisticManager playerStatisticManager = null;
     @Getter
+    private PlayerLevelManager playerLevelManager = null;
+    @Getter
     private GameManager gameManager = null;
     @Getter
     private ScoreboardManager scoreboardManager = null;
@@ -96,6 +98,7 @@ public class Main extends JavaPlugin {
 
         scoreboardManager = new ScoreboardManager(this);
         playerStatisticManager = new PlayerStatisticManager(this);
+        playerLevelManager = new PlayerLevelManager(this);
         gameManager = new GameManager(this);
         gameManager.createGame("rush");
         musicManager = new MusicManager(this);
@@ -107,7 +110,7 @@ public class Main extends JavaPlugin {
 
         Bukkit.getScheduler().runTaskTimer(this, () -> {
             scoreboardManager.updateAll();
-        }, 0L, 40L);
+        }, 0L, 1L);
 
         Bukkit.getScheduler().runTaskTimer(this, () -> {
             if (gameManager != null && gameManager.getCurrentGame() != null) {
@@ -416,6 +419,9 @@ public class Main extends JavaPlugin {
     public void onDisable() {
         if (playerStatisticManager != null) {
             playerStatisticManager.close();
+        }
+        if (playerLevelManager != null) {
+            playerLevelManager.close();
         }
     }
 }

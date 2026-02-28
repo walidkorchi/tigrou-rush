@@ -6,7 +6,9 @@ import io.github.rush.game.Game;
 import io.github.rush.game.GameState;
 import io.github.rush.game.Team;
 import io.github.rush.game.TeamColor;
+import io.github.rush.statistics.PlayerLevel;
 import io.github.rush.statistics.PlayerStatistic;
+import io.github.rush.utils.TextUtils;
 import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
@@ -16,20 +18,68 @@ public class ScoreboardManager {
 
     private final Main plugin;
     private final List<Player> lobbyPlayers = new ArrayList<>();
+    private double animationFrame = 0.0;
+
+    private static final String[] SEPARATOR_FRAMES = {
+            "§8§m=                         =",
+            "§8§m=§8§m                         =",
+            "§8§m= §8§m                        =",
+            "§8§m=  §8§m                       =",
+            "§8§m=§7§m   §8§m                      =",
+            "§8§m= §7§m   §8§m                     =",
+            "§8§m=  §7§m   §8§m                    =",
+            "§8§m=   §7§m   §8§m                   =",
+            "§8§m=    §7§m   §8§m                  =",
+            "§8§m=     §7§m   §8§m                 =",
+            "§8§m=      §7§m   §8§m                =",
+            "§8§m=       §7§m   §8§m               =",
+            "§8§m=        §7§m   §8§m              =",
+            "§8§m=         §7§m   §8§m             =",
+            "§8§m=          §7§m   §8§m            =",
+            "§8§m=           §7§m   §8§m           =",
+            "§8§m=            §7§m   §8§m          =",
+            "§8§m=             §7§m   §8§m         =",
+            "§8§m=              §7§m   §8§m        =",
+            "§8§m=               §7§m   §8§m       =",
+            "§8§m=                §7§m   §8§m      =",
+            "§8§m=                 §7§m   §8§m     =",
+            "§8§m=                  §7§m   §8§m    =",
+            "§8§m=                   §7§m   §8§m   =",
+            "§8§m=                    §7§m   §8§m  =",
+            "§8§m=                     §7§m   §8§m =",
+            "§8§m=                      §7§m   §8§m=",
+            "§8§m=                      §7§m   =",
+            "§8§m=                       §7§m  =",
+            "§8§m=                        §7§m =",
+            "§8§m=                         §7§m="
+    };
 
     public ScoreboardManager(Main plugin) {
         this.plugin = plugin;
     }
 
+    private String getAnimatedSeparator() {
+        int frameIndex = (int) animationFrame;
+
+        if (frameIndex >= SEPARATOR_FRAMES.length) {
+            return SEPARATOR_FRAMES[0];
+        }
+
+        return SEPARATOR_FRAMES[frameIndex];
+    }
+
     public void updateLobbyScoreboard(Player player) {
         FastBoard board = getOrCreateBoard(player);
 
-        board.updateTitle("&#B8291BT&#C0301Ci&#C8361Eg&#D03D1Fr&#D84320o&#DF4A22u&#E75023R&#EF5724u&#F75D26s&#FF6427h");
+        String title = TextUtils.convertHexToLegacy(
+                "&#B8291BT&#C0301Ci&#C8361Eg&#D03D1Fr&#D84320o&#DF4A22u&#E75023R&#EF5724u&#F75D26s&#FF6427h");
+        board.updateTitle(title);
 
         final PlayerStatistic stat = plugin.getPlayerStatisticManager().loadStatistic(player.getUniqueId());
+        final PlayerLevel playerLevel = plugin.getPlayerLevelManager().loadPlayerLevel(player.getUniqueId());
 
-        final int gamesWon = stat != null ? stat.getWins() : 0;
-        final int gamesLost = stat != null ? stat.getLoses() : 0;
+        // final int gamesWon = stat != null ? stat.getWins() : 0;
+        // final int gamesLost = stat != null ? stat.getLoses() : 0;
 
         final int totalKills = stat != null ? stat.getKills() : 0;
         final int totalDeaths = stat != null ? stat.getDeaths() : 0;
@@ -37,19 +87,48 @@ public class ScoreboardManager {
 
         final double ratio = calculateRatio(totalKills, totalDeaths, totalAssists);
 
+        String progressBar = generateProgressBar(playerLevel);
+        String tierColor = playerLevel.getTierColor();
+        String tierIcon = playerLevel.getTierIcon();
+        int level = playerLevel.getLevel();
+        int currentXP = playerLevel.getCurrentXP();
+        int nextLevelXP = playerLevel.getXPForNextLevel();
+
         final List<String> lines = new ArrayList<>();
 
-        lines.add("&8&m+                           +");
+        lines.add(getAnimatedSeparator());
         lines.add("");
-        lines.add("&f✪ &7Niveau: &x&2&0&f&b&a&c%alonsolevels_level% &8[%alonsolevels_progress_format%&8]");
-        lines.add("&8[%alonsolevels_progress_bar%&8]");
+        lines.add("§f" + tierIcon + " §7Niveau: " + tierColor + level + " §8[" + currentXP + "/" + nextLevelXP + "§8]");
+        lines.add("§8[" + progressBar + "§8]");
         lines.add("");
-        lines.add("&f⋄ &7Statistiques: &f" + totalDeaths + " &c☠&f " + totalKills + "&c🗡️&f " + totalAssists + "&c⚔️");
-        lines.add("&eRatio: &f" + String.format("%.1f", ratio));
+        lines.add("§f◆ §7Statistiques:");
+        lines.add(totalKills + " §c\uD83D\uDDE1 §f" + totalAssists + " §c\u2694 §f" + totalDeaths + " §c☠ §8("
+                + String.format("%.1f", ratio) + ")");
         lines.add("");
-        lines.add("&8&m+                           +");
+        lines.add(getAnimatedSeparator());
 
         board.updateLines(lines);
+    }
+
+    private String generateProgressBar(PlayerLevel playerLevel) {
+        int currentXP = playerLevel.getCurrentXP();
+        int nextLevelXP = playerLevel.getXPForNextLevel();
+
+        double progress = nextLevelXP > 0 ? (double) currentXP / nextLevelXP : 0.0;
+        progress = Math.min(1.0, Math.max(0.0, progress));
+
+        int totalBars = 15;
+        int filledBars = (int) (totalBars * progress);
+
+        StringBuilder bar = new StringBuilder();
+        for (int i = 0; i < filledBars; i++) {
+            bar.append("§a▮");
+        }
+        for (int i = filledBars; i < totalBars; i++) {
+            bar.append("§8■");
+        }
+
+        return bar.toString();
     }
 
     public void updateGameScoreboard(Player player, Game game) {
@@ -122,6 +201,13 @@ public class ScoreboardManager {
     }
 
     public void updateAll() {
+        animationFrame += 1;
+
+        // 10 seconds + n ticks based on animation length
+        if (animationFrame >= (200 + SEPARATOR_FRAMES.length)) {
+            animationFrame = 0;
+        }
+
         String gameWorld = plugin.getGameWorld();
         if (gameWorld == null)
             return;

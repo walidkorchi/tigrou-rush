@@ -27,6 +27,7 @@ public class DatabaseManager {
         configuration.setProperty("hibernate.connection.pool_size", "10");
 
         configuration.addAnnotatedClass(io.github.rush.statistics.PlayerStatistic.class);
+        configuration.addAnnotatedClass(io.github.rush.statistics.PlayerLevel.class);
 
         return configuration.buildSessionFactory();
     }
