@@ -93,6 +93,12 @@ public class Game {
             freePlayers.remove(player);
         }
 
+        for (Player existingPlayer : team.getPlayers()) {
+            if (!existingPlayer.equals(player)) {
+                existingPlayer.sendMessage(Component.text("§a➜ " + player.getName() + " a rejoint l'équipe " + color.name()).color(color.getTextColor()));
+            }
+        }
+
         updatePlayerList();
     }
 
