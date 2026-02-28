@@ -1,5 +1,3 @@
-[![Status](https://github.com/walidkorchi/tigrou-rush/actions/workflows/deploy.yml/badge.svg)](https://github.com/walidkorchi/tigrou-rush/actions/workflows/lint.yml)
-
 ![Banner](.github/assets/Banner.webp)
 
 > [!WARNING]

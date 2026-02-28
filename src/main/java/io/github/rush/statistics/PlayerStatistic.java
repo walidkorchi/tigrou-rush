@@ -27,7 +27,7 @@ public class PlayerStatistic {
     private int currentScore = 0;
     private int currentWins = 0;
     private int currentAssists = 0;
-    
+
     @Setter(AccessLevel.NONE)
     private int deaths = 0;
     @Setter(AccessLevel.NONE)
@@ -38,12 +38,12 @@ public class PlayerStatistic {
     private int loses = 0;
     @Setter(AccessLevel.NONE)
     private int assists = 0;
-    
+
     private String name = "";
-    
+
     @Setter(AccessLevel.NONE)
     private int score = 0;
-    
+
     @Setter(AccessLevel.NONE)
     private int wins = 0;
 
@@ -80,17 +80,13 @@ public class PlayerStatistic {
     public double getCurrentKD() {
         int totalDeaths = this.getDeaths() + this.getCurrentDeaths();
         int totalKills = this.getKills() + this.getCurrentKills();
-        
+
         if (totalDeaths == 0) {
             return totalKills;
         } else if (totalKills == 0) {
             return 0.0;
         }
         return Math.round((double) totalKills / totalDeaths * 100.0) / 100.0;
-    }
-
-    public int getGames() {
-        return this.getWins() + this.getLoses();
     }
 
     public UUID getId() {

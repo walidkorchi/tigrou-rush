@@ -143,7 +143,7 @@ public class TeamSelectionGUI {
     public static void openLeaveTeamMenu(Player player) {
         Game game = Main.getInstance().getGameManager().getCurrentGame();
 
-        if (game.getState() != GameState.WAITING) {
+        if (game.getState() == GameState.WAITING) {
             game.leaveTeam(player);
 
             player.getInventory().setItem(0, createBannerItem());
@@ -176,7 +176,7 @@ public class TeamSelectionGUI {
     public static void toggleReady(Player player) {
         Game game = Main.getInstance().getGameManager().getCurrentGame();
 
-        if (game.getState() != GameState.WAITING) {
+        if (game.getState() == GameState.WAITING) {
             final boolean currentlyReady = game.isPlayerReady(player);
 
             game.setPlayerReady(player, !currentlyReady);

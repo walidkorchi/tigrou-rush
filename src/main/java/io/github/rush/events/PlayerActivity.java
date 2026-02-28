@@ -28,6 +28,7 @@ import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitRunnable;
 
@@ -168,6 +169,10 @@ public class PlayerActivity implements Listener {
 
     @EventHandler
     public void onPlayerInteract(PlayerInteractEvent pie) {
+        if (pie.getHand() != EquipmentSlot.HAND) {
+            return;
+        }
+
         Player player = pie.getPlayer();
         ItemStack item = player.getInventory().getItemInMainHand();
 
