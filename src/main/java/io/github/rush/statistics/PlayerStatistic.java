@@ -3,7 +3,6 @@ package io.github.rush.statistics;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -20,31 +19,39 @@ public class PlayerStatistic {
     @Id
     private UUID uuid;
 
+    @Setter
     private int currentDeaths = 0;
+    @Setter
     private int currentDestroyedBeds = 0;
+
+    @Setter
     private int currentKills = 0;
+    @Setter
     private int currentLoses = 0;
+    @Setter
     private int currentScore = 0;
+    @Setter
     private int currentWins = 0;
+    @Setter
     private int currentAssists = 0;
 
-    @Setter(AccessLevel.NONE)
+    @Setter
     private int deaths = 0;
-    @Setter(AccessLevel.NONE)
+    @Setter
     private int destroyedBeds = 0;
-    @Setter(AccessLevel.NONE)
+    @Setter
     private int kills = 0;
-    @Setter(AccessLevel.NONE)
+    @Setter
     private int loses = 0;
-    @Setter(AccessLevel.NONE)
+    @Setter
     private int assists = 0;
 
     private String name = "";
 
-    @Setter(AccessLevel.NONE)
+    @Setter
     private int score = 0;
 
-    @Setter(AccessLevel.NONE)
+    @Setter
     private int wins = 0;
 
     public PlayerStatistic(UUID uuid) {
@@ -73,10 +80,6 @@ public class PlayerStatistic {
         this.currentWins = 0;
     }
 
-    public int getCurrentGames() {
-        return this.getCurrentWins() + this.getCurrentLoses();
-    }
-
     public double getCurrentKD() {
         int totalDeaths = this.getDeaths() + this.getCurrentDeaths();
         int totalKills = this.getKills() + this.getCurrentKills();
@@ -97,36 +100,13 @@ public class PlayerStatistic {
         this.uuid = uuid;
     }
 
-    public void setCurrentScore(int score) {
-        this.currentScore = score;
-    }
-
-    public void setCurrentKills(int kills) {
-        this.currentKills = kills;
-    }
-
-    public void setCurrentDeaths(int deaths) {
-        this.currentDeaths = deaths;
-    }
-
-    public void setCurrentWins(int wins) {
-        this.currentWins = wins;
-    }
-
-    public void setCurrentLoses(int loses) {
-        this.currentLoses = loses;
-    }
-
-    public void setCurrentAssists(int assists) {
-        this.currentAssists = assists;
-    }
-
     public double getKD() {
         if (this.getDeaths() == 0) {
             return this.getKills();
         } else if (this.getKills() == 0) {
             return 0.0;
         }
+
         return Math.round((double) this.getKills() / this.getDeaths() * 100.0) / 100.0;
     }
 }

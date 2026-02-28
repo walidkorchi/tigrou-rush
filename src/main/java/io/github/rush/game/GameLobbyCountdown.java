@@ -56,10 +56,7 @@ public class GameLobbyCountdown {
             task.cancel();
             task = null;
         }
-        counter = 60;
-    }
 
-    public int getCounter() {
-        return counter;
+        counter = 60;
     }
 }

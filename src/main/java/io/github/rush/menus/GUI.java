@@ -221,7 +221,9 @@ public class GUI implements InventoryHolder {
      * @param lore The list of lines to apply
      */
     public void setItemLore(int slot, List<String> lore) {
-        inventory.getItem(slot).setData(DataComponentTypes.LORE,
+        ItemStack item = inventory.getItem(slot);
+        if (item == null) return;
+        item.setData(DataComponentTypes.LORE,
                 ItemLore.lore(lore.stream().map(Component::text).toList()));
     }
 
@@ -234,7 +236,10 @@ public class GUI implements InventoryHolder {
      */
     public void setItemLore(int slot, int line, String text) {
         ItemStack item = inventory.getItem(slot);
-        List<Component> lines = new ArrayList<>(item.getData(DataComponentTypes.LORE).lines());
+        if (item == null) return;
+        var loreData = item.getData(DataComponentTypes.LORE);
+        if (loreData == null) return;
+        List<Component> lines = new ArrayList<>(loreData.lines());
         lines.set(line, Component.text(text));
         item.setData(DataComponentTypes.LORE, ItemLore.lore(lines));
     }

@@ -112,6 +112,11 @@ public class Main extends JavaPlugin {
         Bukkit.getPluginManager().registerEvents(new TNT(this), this);
         Bukkit.getPluginManager().registerEvents(new VillagerInteraction(), this);
 
+        var cmd = getCommand("rush:levels");
+        if (cmd != null) {
+            cmd.setExecutor(new LevelDebugCommand(this));
+        }
+
         Bukkit.getScheduler().runTaskTimer(this, () -> {
             scoreboardManager.updateAll();
         }, 0L, 1L);
@@ -409,14 +414,6 @@ public class Main extends JavaPlugin {
 
     public Location getMainLobby() {
         return null;
-    }
-
-    public GameManager getGameManager() {
-        return this.gameManager;
-    }
-
-    public ScoreboardManager getScoreboardManager() {
-        return this.scoreboardManager;
     }
 
     @Override

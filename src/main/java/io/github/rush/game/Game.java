@@ -2,10 +2,14 @@ package io.github.rush.game;
 
 import io.github.rush.Main;
 import io.github.rush.statistics.PlayerStatistic;
+import lombok.Getter;
+import lombok.Setter;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
+import org.bukkit.Color;
+import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -19,8 +23,10 @@ import java.util.stream.Collectors;
 
 public class Game {
 
-    private final String name;
+    @Setter
+    @Getter
     private GameState state;
+    @Getter
     private GameCycle cycle;
     private Location lobby;
 
@@ -28,12 +34,15 @@ public class Game {
     private final List<BukkitTask> spawnerTasks = new ArrayList<>();
     private final List<ResourceSpawner> resourceSpawners = new ArrayList<>();
 
+    @Getter
     private final Map<String, Team> teams = new HashMap<>();
+    @Getter
     private final List<Player> freePlayers = new ArrayList<>();
     private final Map<Player, PlayerStatistic> playerStats = new HashMap<>();
     private final Set<Player> spectators = new HashSet<>();
     private final Set<Player> protectedPlayers = new HashSet<>();
 
+    @Getter
     private int timeLeft = 0;
     private final int maxPlayers = 8;
     private final int minPlayers = 2;
@@ -43,10 +52,13 @@ public class Game {
     private final Map<Player, Boolean> playerReady = new HashMap<>();
 
     public Game(String name) {
-        this.name = name;
         this.state = GameState.WAITING;
         this.cycle = new GameCycle(this);
         this.timeLeft = Main.getInstance().getMaxLength();
+
+        String lobbyWorld = Main.getInstance().getConfig().getString("lobbyWorld", "world");
+        org.bukkit.World world = Bukkit.getWorld(lobbyWorld);
+        this.lobby = world != null ? world.getSpawnLocation() : null;
 
         initializeTeams();
     }
@@ -95,7 +107,9 @@ public class Game {
 
         for (Player existingPlayer : team.getPlayers()) {
             if (!existingPlayer.equals(player)) {
-                existingPlayer.sendMessage(Component.text("§a➜ " + player.getName() + " a rejoint l'équipe " + color.name()).color(color.getTextColor()));
+                existingPlayer
+                        .sendMessage(Component.text("§a➜ " + player.getName() + " a rejoint l'équipe " + color.name())
+                                .color(color.getTextColor()));
             }
         }
 
@@ -146,27 +160,27 @@ public class Game {
         }
         freePlayers.remove(player);
         playerReady.remove(player);
-        
-        player.setGameMode(org.bukkit.GameMode.SPECTATOR);
+
+        player.setGameMode(GameMode.SPECTATOR);
         player.setAllowFlight(true);
         player.setFlying(true);
-        
+
         player.getInventory().clear();
         ItemStack compass = new ItemStack(Material.COMPASS);
         ItemMeta meta = compass.getItemMeta();
         meta.displayName(Component.text("§cQuitter le spectator"));
         compass.setItemMeta(meta);
         player.getInventory().setItem(0, compass);
-        
+
         for (Player online : Bukkit.getOnlinePlayers()) {
             player.hidePlayer(Main.getInstance(), online);
         }
-        
+
         Location spawn = Main.getInstance().getSpectatorSpawn();
         if (spawn != null) {
             player.teleport(spawn);
         }
-        
+
         player.sendMessage(Component.text("§cVotre lit a été détruit! Vous êtes maintenant spectateur."));
         updatePlayerList();
     }
@@ -181,21 +195,21 @@ public class Game {
 
     public void removeSpectator(Player player) {
         spectators.remove(player);
-        player.setGameMode(org.bukkit.GameMode.ADVENTURE);
+        player.setGameMode(GameMode.ADVENTURE);
         player.setAllowFlight(false);
         player.setFlying(false);
-        
+
         for (Player online : Bukkit.getOnlinePlayers()) {
             player.showPlayer(Main.getInstance(), online);
         }
-        
+
         player.getInventory().clear();
-        
+
         Location lobbyLoc = Main.getInstance().getMainLobby();
         if (lobbyLoc != null) {
             player.teleport(lobbyLoc);
         }
-        
+
         player.sendMessage(Component.text("§aVous avez quitté le mode spectateur."));
     }
 
@@ -205,35 +219,36 @@ public class Game {
 
     public void addProtection(Player player) {
         int protectionTime = Main.getInstance().getRespawnProtectionTime();
-        if (protectionTime <= 0) return;
+        if (protectionTime <= 0)
+            return;
 
         protectedPlayers.add(player);
-        
-        player.setGameMode(org.bukkit.GameMode.ADVENTURE);
+
+        player.setGameMode(GameMode.ADVENTURE);
         player.setAllowFlight(false);
         player.setFlying(false);
-        
+
         for (Player online : Bukkit.getOnlinePlayers()) {
             if (online.getWorld().equals(player.getWorld())) {
                 online.hidePlayer(Main.getInstance(), player);
                 player.hidePlayer(Main.getInstance(), online);
             }
         }
-        
+
         final int remainingTime = protectionTime;
         BukkitTask task = Bukkit.getScheduler().runTaskTimer(Main.getInstance(), () -> {
             if (!protectedPlayers.contains(player)) {
                 return;
             }
-            
+
             int currentTime = Main.getInstance().getRespawnProtectionTime() - remainingTime + 1;
             if (currentTime > 0 && currentTime <= protectionTime) {
                 player.sendActionBar(Component.text("§aProtection: " + currentTime + "s"));
             }
         }, 0, 20L);
-        
+
         runningTasks.add(task);
-        
+
         Bukkit.getScheduler().runTaskLater(Main.getInstance(), () -> {
             removeProtection(player);
             player.sendActionBar(Component.text(""));
@@ -243,9 +258,9 @@ public class Game {
 
     public void removeProtection(Player player) {
         protectedPlayers.remove(player);
-        
-        player.setGameMode(org.bukkit.GameMode.SURVIVAL);
-        
+
+        player.setGameMode(GameMode.SURVIVAL);
+
         for (Player online : Bukkit.getOnlinePlayers()) {
             if (online.getWorld().equals(player.getWorld())) {
                 online.showPlayer(Main.getInstance(), player);
@@ -362,7 +377,7 @@ public class Game {
         if (team == null)
             return;
 
-        org.bukkit.Color color = team.getColor().getColor();
+        Color color = team.getColor().getColor();
 
         ItemStack helmet = new ItemStack(Material.LEATHER_HELMET);
         LeatherArmorMeta helmetMeta = (LeatherArmorMeta) helmet.getItemMeta();
@@ -567,40 +582,8 @@ public class Game {
         return null;
     }
 
-    public String getName() {
-        return name;
-    }
-
-    public GameState getState() {
-        return state;
-    }
-
-    public void setState(GameState state) {
-        this.state = state;
-    }
-
-    public Location getLobby() {
-        return lobby;
-    }
-
-    public void setLobby(Location lobby) {
-        this.lobby = lobby;
-    }
-
-    public GameCycle getCycle() {
-        return cycle;
-    }
-
-    public Map<String, Team> getTeams() {
-        return teams;
-    }
-
     public Team getTeam(String name) {
         return teams.get(name);
-    }
-
-    public List<Player> getFreePlayers() {
-        return freePlayers;
     }
 
     public PlayerStatistic getPlayerStatistic(Player player) {

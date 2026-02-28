@@ -7,10 +7,12 @@ import io.github.rush.game.Team;
 import io.github.rush.game.TeamColor;
 import io.papermc.paper.datacomponent.DataComponentTypes;
 import io.papermc.paper.datacomponent.item.ItemLore;
+import io.papermc.paper.registry.RegistryAccess;
+import io.papermc.paper.registry.RegistryKey;
+import io.papermc.paper.registry.keys.BannerPatternKeys;
 import net.kyori.adventure.text.Component;
 import org.bukkit.DyeColor;
 import org.bukkit.Material;
-import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
 import org.bukkit.block.banner.Pattern;
 import org.bukkit.block.banner.PatternType;
@@ -162,7 +164,9 @@ public class TeamSelectionGUI {
 
         meta.displayName(Component.text(color.getTextColor() + "Équipe " + color.name()));
 
-        final PatternType snoutType = Registry.BANNER_PATTERN.get(NamespacedKey.minecraft("piglin"));
+        final Registry<PatternType> bannerRegistry = RegistryAccess.registryAccess()
+                .getRegistry(RegistryKey.BANNER_PATTERN);
+        final PatternType snoutType = bannerRegistry.get(BannerPatternKeys.PIGLIN);
 
         if (snoutType != null) {
             meta.addPattern(new Pattern(DyeColor.WHITE, snoutType));

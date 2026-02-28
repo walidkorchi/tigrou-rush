@@ -69,10 +69,10 @@ public class ScoreboardManager {
     }
 
     public void updateLobbyScoreboard(Player player) {
-        FastBoard board = getOrCreateBoard(player);
-
-        String title = TextUtils.convertHexToLegacy(
+        final FastBoard board = getOrCreateBoard(player);
+        final String title = TextUtils.convertHexToLegacy(
                 "&#B8291BT&#C0301Ci&#C8361Eg&#D03D1Fr&#D84320o&#DF4A22u&#E75023R&#EF5724u&#F75D26s&#FF6427h");
+
         board.updateTitle(title);
 
         final PlayerStatistic stat = plugin.getPlayerStatisticManager().loadStatistic(player.getUniqueId());
@@ -87,12 +87,12 @@ public class ScoreboardManager {
 
         final double ratio = calculateRatio(totalKills, totalDeaths, totalAssists);
 
-        String progressBar = generateProgressBar(playerLevel);
-        String tierColor = playerLevel.getTierColor();
-        String tierIcon = playerLevel.getTierIcon();
-        int level = playerLevel.getLevel();
-        int currentXP = playerLevel.getCurrentXP();
-        int nextLevelXP = playerLevel.getXPForNextLevel();
+        final String progressBar = generateProgressBar(playerLevel);
+        final String tierColor = playerLevel.getTierColor();
+        final String tierIcon = playerLevel.getTierIcon();
+        final int level = playerLevel.getLevel();
+        final int currentXP = playerLevel.getCurrentXP();
+        final int nextLevelXP = playerLevel.getXPForNextLevel();
 
         final List<String> lines = new ArrayList<>();
 
@@ -111,19 +111,21 @@ public class ScoreboardManager {
     }
 
     private String generateProgressBar(PlayerLevel playerLevel) {
-        int currentXP = playerLevel.getCurrentXP();
-        int nextLevelXP = playerLevel.getXPForNextLevel();
+        final int currentXP = playerLevel.getCurrentXP();
+        final int nextLevelXP = playerLevel.getXPForNextLevel();
 
         double progress = nextLevelXP > 0 ? (double) currentXP / nextLevelXP : 0.0;
+
         progress = Math.min(1.0, Math.max(0.0, progress));
 
-        int totalBars = 15;
-        int filledBars = (int) (totalBars * progress);
+        final int totalBars = 15;
+        final int filledBars = (int) (totalBars * progress);
+        final StringBuilder bar = new StringBuilder();
 
-        StringBuilder bar = new StringBuilder();
         for (int i = 0; i < filledBars; i++) {
-            bar.append("§a▮");
+            bar.append("§6■");
         }
+
         for (int i = filledBars; i < totalBars; i++) {
             bar.append("§8■");
         }
@@ -139,12 +141,13 @@ public class ScoreboardManager {
         lines.add("");
 
         if (playerTeam != null) {
-            String bedStatus = !playerTeam.isBedDestroyed() ? "✅" : "❌";
+            final String bedStatus = !playerTeam.isBedDestroyed() ? "✅" : "❌";
+
             lines.add("§eLit: §f" + bedStatus);
 
-            int islandNum = playerTeam.getColor().getIslandNumber();
-            lines.add("§eÎle: §f" + islandNum);
+            final int islandNum = playerTeam.getColor().getIslandNumber();
 
+            lines.add("§eÎle: §f" + islandNum);
             lines.add("");
             lines.add("§e§nÉquipes§r");
 
@@ -152,9 +155,9 @@ public class ScoreboardManager {
                 if (team.getPlayers().isEmpty())
                     continue;
 
-                String teamLetter = getTeamLetter(team.getColor());
-                int playerCount = team.getPlayers().size();
-                String bedEmoji = !team.isBedDestroyed() ? "✅" : "❌";
+                final String teamLetter = getTeamLetter(team.getColor());
+                final int playerCount = team.getPlayers().size();
+                final String bedEmoji = !team.isBedDestroyed() ? "✅" : "❌";
 
                 lines.add(teamLetter + ": §f" + playerCount + " " + bedEmoji);
             }
@@ -178,19 +181,23 @@ public class ScoreboardManager {
     private double calculateRatio(int kills, int deaths, int assists) {
         if (deaths == 0) {
             return kills * 2 + assists;
+        } else {
+            return Math.round((kills * 2.0 + assists - deaths) * 10.0) / 10.0;
         }
-        return Math.round((kills * 2.0 + assists - deaths) * 10.0) / 10.0;
     }
 
     public void removeScoreboard(Player player) {
         lobbyPlayers.remove(player);
-        FastBoard board = plugin.getFastBoard(player);
+
+        final FastBoard board = plugin.getFastBoard(player);
+
         if (board != null && !board.isDeleted()) {
             try {
                 board.delete();
             } catch (IllegalStateException ignored) {
             }
         }
+
         plugin.setFastBoard(player, null);
     }
 
@@ -212,7 +219,8 @@ public class ScoreboardManager {
             animationFrame = 0;
         }
 
-        String gameWorld = plugin.getGameWorld();
+        final String gameWorld = plugin.getGameWorld();
+
         if (gameWorld == null)
             return;
 
@@ -227,7 +235,8 @@ public class ScoreboardManager {
                 continue;
             }
 
-            Game game = plugin.getGameManager().getCurrentGame();
+            final Game game = plugin.getGameManager().getCurrentGame();
+
             if (game != null && game.getState() == GameState.RUNNING) {
                 if (game.isSpectator(player)) {
                     updateSpectatorScoreboard(player, game);
@@ -241,11 +250,12 @@ public class ScoreboardManager {
     }
 
     public void updateSpectatorScoreboard(Player player, Game game) {
-        FastBoard board = getOrCreateBoard(player);
+        final FastBoard board = getOrCreateBoard(player);
 
         board.updateTitle("§6§lRush - Spectateur");
 
-        List<String> lines = new ArrayList<>();
+        final List<String> lines = new ArrayList<>();
+
         lines.add("");
         lines.add("§e§nÉquipes§r");
 
@@ -253,26 +263,29 @@ public class ScoreboardManager {
             if (team.getPlayers().isEmpty() && !game.getSpectators().isEmpty())
                 continue;
 
-            String teamLetter = getTeamLetter(team.getColor());
-            int playerCount = team.getPlayers().size();
-            String bedEmoji = !team.isBedDestroyed() ? "✅" : "❌";
+            final String teamLetter = getTeamLetter(team.getColor());
+            final int playerCount = team.getPlayers().size();
+            final String bedEmoji = !team.isBedDestroyed() ? "✅" : "❌";
 
             lines.add(teamLetter + ": §f" + playerCount + " " + bedEmoji);
         }
 
         lines.add("");
-        long spectatorCount = game.getSpectators().size();
-        lines.add("§7Spectateurs: §f" + spectatorCount);
 
+        final long spectatorCount = game.getSpectators().size();
+
+        lines.add("§7Spectateurs: §f" + spectatorCount);
         board.updateLines(lines);
     }
 
     public FastBoard getOrCreateBoard(Player player) {
         FastBoard board = plugin.getFastBoard(player);
+
         if (board == null || board.isDeleted()) {
             board = new FastBoard(player);
             plugin.setFastBoard(player, board);
         }
+
         return board;
     }
 }

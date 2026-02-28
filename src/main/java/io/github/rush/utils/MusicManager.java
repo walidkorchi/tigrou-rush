@@ -1,7 +1,6 @@
 package io.github.rush.utils;
 
 import dev.geco.gmusic.GMusicMain;
-import dev.geco.gmusic.api.GMusicAPI;
 import dev.geco.gmusic.model.Song;
 import dev.geco.gmusic.service.RadioService;
 import org.bukkit.entity.Player;
@@ -29,7 +28,7 @@ public class MusicManager {
 
     private void initialize() {
         try {
-            final GMusicMain gMusic = GMusicAPI.getInstance().getInstance();
+            final GMusicMain gMusic = GMusicMain.getInstance();
 
             radioService = gMusic.getRadioService();
             lobbySong = gMusic.getSongService().getSongById(LOBBY_SONG_ID);

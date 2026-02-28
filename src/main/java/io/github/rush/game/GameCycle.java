@@ -2,8 +2,6 @@ package io.github.rush.game;
 
 import io.github.rush.Main;
 import org.bukkit.Bukkit;
-import org.bukkit.entity.Player;
-import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.scheduler.BukkitTask;
 
 public class GameCycle {
@@ -40,22 +38,11 @@ public class GameCycle {
         game.setState(GameState.STOPPED);
     }
 
-    public void onPlayerDies(Player player, Player killer) {
-        game.onPlayerDeath(player, killer);
-    }
-
-    public void onPlayerRespawn(PlayerRespawnEvent event, Player player) {
-        game.getPlayerTeam(player);
-    }
-
     public void onGameEnd() {
         if (gameTask != null) {
             gameTask.cancel();
         }
-        game.saveStats();
-    }
 
-    public int getTimeLeft() {
-        return timeLeft;
+        game.saveStats();
     }
 }
