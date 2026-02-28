@@ -35,7 +35,6 @@ public class TeamSelectionGUI {
                 final ItemStack wool = createWoolItem(color);
                 final TeamColor selectedColor = color;
 
-                System.out.println("called");
                 gui.addItem(i, wool, p -> selectTeam(p, selectedColor));
             }
 
@@ -74,14 +73,13 @@ public class TeamSelectionGUI {
         ItemMeta meta = wool.getItemMeta();
         meta.displayName(Component.text(color.getTextColor() + color.name() + " Team"));
         wool.setItemMeta(meta);
-        wool.setData(DataComponentTypes.LORE, ItemLore.lore(List.of(Component.text("§7Clic droit pour choisir une équipe"))));
+        wool.setData(DataComponentTypes.LORE,
+                ItemLore.lore(List.of(Component.text("§7Clic droit pour choisir une équipe"))));
         return wool;
     }
 
     private static void selectTeam(Player player, TeamColor color) {
         final Game game = Main.getInstance().getGameManager().getCurrentGame();
-
-        System.out.println("Vous avez rejoint l'équipe " + color.name());
 
         game.getPlayerTeam(player);
         game.joinTeam(player, color);
@@ -126,7 +124,8 @@ public class TeamSelectionGUI {
         }
 
         dye.setItemMeta(meta);
-        dye.setData(DataComponentTypes.LORE, ItemLore.lore(List.of(Component.text(ready ? "§7Clic droit pour annuler" : "§7Clic droit pour se déclarer prêt"))));
+        dye.setData(DataComponentTypes.LORE, ItemLore.lore(
+                List.of(Component.text(ready ? "§7Clic droit pour annuler" : "§7Clic droit pour se déclarer prêt"))));
         return dye;
     }
 
