@@ -32,6 +32,7 @@ public class Game {
     private final List<Player> freePlayers = new ArrayList<>();
     private final Map<Player, PlayerStatistic> playerStats = new HashMap<>();
     private final Set<Player> spectators = new HashSet<>();
+    private final Set<Player> protectedPlayers = new HashSet<>();
 
     private int timeLeft = 0;
     private final int maxPlayers = 8;
@@ -190,6 +191,61 @@ public class Game {
         }
         
         player.sendMessage(Component.text("§aVous avez quitté le mode spectateur."));
+    }
+
+    public boolean isProtected(Player player) {
+        return protectedPlayers.contains(player);
+    }
+
+    public void addProtection(Player player) {
+        int protectionTime = Main.getInstance().getRespawnProtectionTime();
+        if (protectionTime <= 0) return;
+
+        protectedPlayers.add(player);
+        
+        player.setGameMode(org.bukkit.GameMode.ADVENTURE);
+        player.setAllowFlight(false);
+        player.setFlying(false);
+        
+        for (Player online : Bukkit.getOnlinePlayers()) {
+            if (online.getWorld().equals(player.getWorld())) {
+                online.hidePlayer(Main.getInstance(), player);
+                player.hidePlayer(Main.getInstance(), online);
+            }
+        }
+        
+        final int remainingTime = protectionTime;
+        BukkitTask task = Bukkit.getScheduler().runTaskTimer(Main.getInstance(), () -> {
+            if (!protectedPlayers.contains(player)) {
+                return;
+            }
+            
+            int currentTime = Main.getInstance().getRespawnProtectionTime() - remainingTime + 1;
+            if (currentTime > 0 && currentTime <= protectionTime) {
+                player.sendActionBar(Component.text("§aProtection: " + currentTime + "s"));
+            }
+        }, 0, 20L);
+        
+        runningTasks.add(task);
+        
+        Bukkit.getScheduler().runTaskLater(Main.getInstance(), () -> {
+            removeProtection(player);
+            player.sendActionBar(Component.text(""));
+            player.sendMessage(Component.text("§aProtection terminée! Vous pouvez bouger."));
+        }, protectionTime * 20L);
+    }
+
+    public void removeProtection(Player player) {
+        protectedPlayers.remove(player);
+        
+        player.setGameMode(org.bukkit.GameMode.SURVIVAL);
+        
+        for (Player online : Bukkit.getOnlinePlayers()) {
+            if (online.getWorld().equals(player.getWorld())) {
+                online.showPlayer(Main.getInstance(), player);
+                player.showPlayer(Main.getInstance(), online);
+            }
+        }
     }
 
     public void setPlayerReady(Player player, boolean ready) {

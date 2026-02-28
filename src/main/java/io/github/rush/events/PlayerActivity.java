@@ -16,12 +16,14 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryInteractEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
@@ -147,6 +149,7 @@ public class PlayerActivity implements Listener {
                             player.teleport(spawn);
                         }
                     }
+                    game.addProtection(player);
                 }
             }
         }.runTaskLater(Main.getInstance(), 20L);
@@ -247,5 +250,42 @@ public class PlayerActivity implements Listener {
         }
 
         return false;
+    }
+
+    @EventHandler
+    public void onPlayerDamage(EntityDamageEvent event) {
+        if (!plugin.isGameStarted()) {
+            return;
+        }
+
+        if (!(event.getEntity() instanceof Player player)) {
+            return;
+        }
+
+        Game game = Main.getInstance().getGameManager().getCurrentGame();
+        if (game != null && game.isProtected(player)) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler
+    public void onPlayerMove(PlayerMoveEvent event) {
+        if (!plugin.isGameStarted()) {
+            return;
+        }
+
+        Player player = event.getPlayer();
+        Game game = Main.getInstance().getGameManager().getCurrentGame();
+        
+        if (game != null && game.isProtected(player)) {
+            Location from = event.getFrom();
+            Location to = event.getTo();
+            
+            if (from.getBlockX() != to.getBlockX() || 
+                from.getBlockY() != to.getBlockY() || 
+                from.getBlockZ() != to.getBlockZ()) {
+                event.setTo(from);
+            }
+        }
     }
 }

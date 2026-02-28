@@ -34,7 +34,7 @@ schematicFilename: rush_island.schem
 islandOffset: 40
 
 # Respawn protection time in seconds (0 to disable)
-respawn-protection: 0
+respawn-protection: 6
 
 # Villager spawn offsets (distance from island center)
 villagerSpeedOffset: 13
