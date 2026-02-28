@@ -17,6 +17,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.FoodLevelChangeEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryInteractEvent;
@@ -56,8 +57,8 @@ public class PlayerActivity implements Listener {
         int readyCount = 0;
         for (Player player : plugin.getServer().getOnlinePlayers()) {
             if (player.getWorld().getName().equals(gameWorld)) {
-                if (plugin.getGameManager() != null 
-                        && plugin.getGameManager().getCurrentGame() != null 
+                if (plugin.getGameManager() != null
+                        && plugin.getGameManager().getCurrentGame() != null
                         && plugin.getGameManager().getCurrentGame().isPlayerReady(player)) {
                     readyCount++;
                 }
@@ -127,7 +128,7 @@ public class PlayerActivity implements Listener {
 
         Player player = pd.getEntity();
         Game game = Main.getInstance().getGameManager().getCurrentGame();
-        
+
         pd.setDroppedExp(0);
         pd.deathMessage(null);
         player.getInventory().clear();
@@ -153,6 +154,15 @@ public class PlayerActivity implements Listener {
                 }
             }
         }.runTaskLater(Main.getInstance(), 20L);
+    }
+
+    @EventHandler
+    public void onHunger(FoodLevelChangeEvent event) {
+        if (event.getEntity() instanceof Player player) {
+            if (!isPlayerInQueue(player)) {
+                event.setCancelled(true);
+            }
+        }
     }
 
     @EventHandler
@@ -276,14 +286,14 @@ public class PlayerActivity implements Listener {
 
         Player player = event.getPlayer();
         Game game = Main.getInstance().getGameManager().getCurrentGame();
-        
+
         if (game != null && game.isProtected(player)) {
             Location from = event.getFrom();
             Location to = event.getTo();
-            
-            if (from.getBlockX() != to.getBlockX() || 
-                from.getBlockY() != to.getBlockY() || 
-                from.getBlockZ() != to.getBlockZ()) {
+
+            if (from.getBlockX() != to.getBlockX() ||
+                    from.getBlockY() != to.getBlockY() ||
+                    from.getBlockZ() != to.getBlockZ()) {
                 event.setTo(from);
             }
         }

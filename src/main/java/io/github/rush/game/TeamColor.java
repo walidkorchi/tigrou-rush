@@ -5,9 +5,9 @@ import org.bukkit.Color;
 import org.bukkit.DyeColor;
 
 public enum TeamColor {
-    GREEN(Color.fromRGB(85, 255, 85), NamedTextColor.GREEN, DyeColor.LIME, 1),
+    GREEN(Color.fromRGB(0, 170, 0), NamedTextColor.DARK_GREEN, DyeColor.GREEN, 1),
     RED(Color.fromRGB(255, 85, 85), NamedTextColor.RED, DyeColor.RED, 2),
-    BLUE(Color.fromRGB(85, 85, 255), NamedTextColor.BLUE, DyeColor.LIGHT_BLUE, 3),
+    BLUE(Color.fromRGB(0, 0, 170), NamedTextColor.DARK_BLUE, DyeColor.BLUE, 3),
     YELLOW(Color.fromRGB(255, 255, 85), NamedTextColor.YELLOW, DyeColor.YELLOW, 4),
     AQUA(Color.fromRGB(85, 255, 255), NamedTextColor.AQUA, DyeColor.CYAN, 5),
     BLACK(Color.BLACK, NamedTextColor.BLACK, DyeColor.BLACK, 6),
