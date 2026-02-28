@@ -138,11 +138,41 @@ public class ScoreboardManager {
             
             Game game = plugin.getGameManager().getCurrentGame();
             if (game != null && game.getState() == GameState.RUNNING) {
-                updateGameScoreboard(player, game);
+                if (game.isSpectator(player)) {
+                    updateSpectatorScoreboard(player, game);
+                } else {
+                    updateGameScoreboard(player, game);
+                }
             } else {
                 updateLobbyScoreboard(player);
             }
         }
+    }
+
+    public void updateSpectatorScoreboard(Player player, Game game) {
+        FastBoard board = getOrCreateBoard(player);
+        
+        board.updateTitle("§6§lRush - Spectateur");
+        
+        List<String> lines = new ArrayList<>();
+        lines.add("");
+        lines.add("§e§nÉquipes§r");
+        
+        for (Team team : game.getTeams().values()) {
+            if (team.getPlayers().isEmpty() && !game.getSpectators().isEmpty()) continue;
+            
+            String teamLetter = getTeamLetter(team.getColor());
+            int playerCount = team.getPlayers().size();
+            String bedEmoji = !team.isBedDestroyed() ? "✅" : "❌";
+            
+            lines.add(teamLetter + ": §f" + playerCount + " " + bedEmoji);
+        }
+        
+        lines.add("");
+        long spectatorCount = game.getSpectators().size();
+        lines.add("§7Spectateurs: §f" + spectatorCount);
+        
+        board.updateLines(lines);
     }
 
     public FastBoard getOrCreateBoard(Player player) {

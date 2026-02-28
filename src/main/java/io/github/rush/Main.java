@@ -29,6 +29,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Rotation;
 import org.bukkit.World;
+import org.bukkit.block.Block;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.ItemFrame;
@@ -354,7 +355,7 @@ public class Main extends JavaPlugin {
         return merchantVillagers.get(type);
     }
 
-    public boolean isBlockOnIsland(org.bukkit.block.Block block) {
+    public boolean isBlockOnIsland(Block block) {
         if (!gameStarted)
             return false;
 
@@ -389,69 +390,21 @@ public class Main extends JavaPlugin {
         return Main.instance;
     }
 
-    public Object getBugsnag() {
-        return null;
-    }
-
-    public String getCurrentVersion() {
-        return "1.21.11";
-    }
-
-    public boolean getBooleanConfig(String path, boolean defaultValue) {
-        return getConfig().getBoolean(path, defaultValue);
-    }
-
-    public String getStringConfig(String path, String defaultValue) {
-        return getConfig().getString(path, defaultValue);
-    }
-
-    public Class<?> getVersionRelatedClass(String className) {
-        return null;
-    }
-
-    public boolean statisticsEnabled() {
-        return false;
-    }
-
     public Location getSpectatorSpawn() {
         return new Location(
-            Bukkit.getWorld(getConfig().getString("lobbyWorld", "world")),
-            0, 100, 0
-        );
+                Bukkit.getWorld(getConfig().getString("gameWorld")),
+                0, 100, 0);
     }
 
-    public boolean isHologramsEnabled() {
-        return false;
-    }
-
-    public Object getHolographicInteractor() {
+    public Location getMainLobby() {
         return null;
     }
 
-    public void toMainLobby(org.bukkit.entity.Player player) {
-    }
-
-    public org.bukkit.Location getMainLobby() {
-        return null;
-    }
-
-    public static String _l(org.bukkit.command.CommandSender sender, String key) {
-        return key;
-    }
-
-    public static String _l(org.bukkit.command.CommandSender sender, String key, java.util.Map<String, String> params) {
-        return key;
-    }
-
-    public int getIntConfig(String path, int defaultValue) {
-        return getConfig().getInt(path, defaultValue);
-    }
-
-    public io.github.rush.game.GameManager getGameManager() {
+    public GameManager getGameManager() {
         return this.gameManager;
     }
 
-    public io.github.rush.scoreboard.ScoreboardManager getScoreboardManager() {
+    public ScoreboardManager getScoreboardManager() {
         return this.scoreboardManager;
     }
 
