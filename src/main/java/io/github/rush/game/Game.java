@@ -3,6 +3,7 @@ package io.github.rush.game;
 import io.github.rush.Main;
 import io.github.rush.statistics.PlayerStatistic;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -389,7 +390,12 @@ public class Game {
 
         long readyCount = playerReady.values().stream().filter(r -> r).count();
         NamedTextColor color = readyCount >= minPlayers ? NamedTextColor.GREEN : NamedTextColor.RED;
-        Component message = Component.text("(" + readyCount + "/" + maxPlayers + ")").color(color);
+        TextComponent.Builder builder = Component.text()
+                .content("Joueurs prêts (")
+                .color(NamedTextColor.WHITE);
+        builder.append(Component.text(readyCount + "/" + maxPlayers).color(color));
+        builder.append(Component.text(")").color(NamedTextColor.WHITE));
+        Component message = builder.build();
 
         for (Player player : Main.getInstance().getServer().getOnlinePlayers()) {
             if (player.getWorld().getName().equals(gameWorld)) {
