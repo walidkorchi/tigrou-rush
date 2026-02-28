@@ -4,12 +4,13 @@ import io.github.rush.Main;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
+import org.bukkit.scheduler.BukkitTask;
 
 public class GameLobbyCountdown {
 
     private final Game game;
     private int counter = 60;
-    private org.bukkit.scheduler.BukkitTask task;
+    private BukkitTask task;
 
     public GameLobbyCountdown(Game game) {
         this.game = game;
@@ -45,8 +46,8 @@ public class GameLobbyCountdown {
 
     private boolean canStart() {
         long readyCount = game.getFreePlayers().stream()
-            .filter(p -> true)
-            .count();
+                .filter(p -> true)
+                .count();
         return readyCount >= 2 && game.getTeamCount() >= 2;
     }
 

@@ -3,6 +3,7 @@ package io.github.rush.game;
 import io.github.rush.Main;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
+import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.scheduler.BukkitTask;
 
 public class GameCycle {
@@ -43,7 +44,7 @@ public class GameCycle {
         game.onPlayerDeath(player, killer);
     }
 
-    public void onPlayerRespawn(org.bukkit.event.player.PlayerRespawnEvent event, Player player) {
+    public void onPlayerRespawn(PlayerRespawnEvent event, Player player) {
         game.getPlayerTeam(player);
     }
 

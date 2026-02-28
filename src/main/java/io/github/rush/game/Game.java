@@ -23,8 +23,6 @@ public class Game {
     private GameCycle cycle;
     private Location lobby;
 
-    private boolean isOver = false;
-    private boolean isStopping = false;
     private final List<BukkitTask> runningTasks = new ArrayList<>();
     private final List<BukkitTask> spawnerTasks = new ArrayList<>();
     private final List<ResourceSpawner> resourceSpawners = new ArrayList<>();
@@ -206,7 +204,6 @@ public class Game {
         }
 
         state = GameState.RUNNING;
-        isOver = false;
 
         for (Team team : teams.values()) {
             if (!team.getPlayers().isEmpty()) {
@@ -318,12 +315,13 @@ public class Game {
 
     private void endGame(Team winner) {
         state = GameState.STOPPED;
-        isOver = true;
 
         if (winner != null) {
             String winMessage = "Victoire de l'équipe " + winner.getColor().name();
             for (Player player : getPlayers()) {
-                player.sendTitle(winMessage, "", 20, 60, 20);
+                player.showTitle(net.kyori.adventure.title.Title.title(
+                        Component.text(winMessage),
+                        Component.empty()));
             }
         }
 
@@ -409,8 +407,9 @@ public class Game {
     private void updatePlayerList() {
         for (Player player : freePlayers) {
             Boolean ready = playerReady.get(player);
-            String prefix = (ready != null && ready) ? "§a" : "§c";
-            player.setPlayerListName(prefix + player.getName());
+            boolean isReady = ready != null && ready;
+            player.playerListName(
+                    Component.text(player.getName()).color(isReady ? NamedTextColor.GREEN : NamedTextColor.RED));
         }
     }
 

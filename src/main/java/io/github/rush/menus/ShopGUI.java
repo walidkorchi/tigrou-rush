@@ -9,6 +9,7 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.ArrayList;
@@ -26,31 +27,27 @@ public class ShopGUI {
         GUI gui = new GUI(MAIN_MENU_TITLE, 2);
 
         ItemStack swords = createMenuItem(
-            Material.IRON_SWORD,
-            "§cArmes",
-            "§7Acheter des épées"
-        );
+                Material.IRON_SWORD,
+                "§cArmes",
+                "§7Acheter des épées");
         gui.addItem(0, swords, p -> openCategory(p, Category.WEAPONS));
 
         ItemStack armor = createMenuItem(
-            Material.LEATHER_CHESTPLATE,
-            "§9Armure",
-            "§7Acheter de l'armure"
-        );
+                Material.LEATHER_CHESTPLATE,
+                "§9Armure",
+                "§7Acheter de l'armure");
         gui.addItem(1, armor, p -> openCategory(p, Category.ARMOR));
 
         ItemStack potions = createMenuItem(
-            Material.POTION,
-            "§5Potions",
-            "§7Acheter des potions"
-        );
+                Material.POTION,
+                "§5Potions",
+                "§7Acheter des potions");
         gui.addItem(2, potions, p -> openCategory(p, Category.POTIONS));
 
         ItemStack blocks = createMenuItem(
-            Material.SANDSTONE,
-            "§eBlocs",
-            "§7Acheter des blocs"
-        );
+                Material.SANDSTONE,
+                "§eBlocs",
+                "§7Acheter des blocs");
         gui.addItem(3, blocks, p -> openCategory(p, Category.BLOCKS));
 
         gui.openGUI(player);
@@ -93,7 +90,8 @@ public class ShopGUI {
         }
 
         if (currencyCount < costAmount) {
-            player.sendMessage(Component.text("§cPas assez de " + currency.name().toLowerCase().replace("_", " ") + "!").color(NamedTextColor.RED));
+            player.sendMessage(Component.text("§cPas assez de " + currency.name().toLowerCase().replace("_", " ") + "!")
+                    .color(NamedTextColor.RED));
             return;
         }
 
@@ -103,9 +101,13 @@ public class ShopGUI {
         }
 
         if (trade.durability() != null) {
-            short maxDurability = resultItem.getType().getMaxDurability();
-            int damage = (int) (maxDurability * (trade.durability() / 100.0));
-            resultItem.setDurability((short) damage);
+            ItemMeta meta = resultItem.getItemMeta();
+            if (meta instanceof Damageable damageable) {
+                short maxDurability = resultItem.getType().getMaxDurability();
+                int damage = (int) (maxDurability * (trade.durability() / 100.0));
+                damageable.setDamage(damage);
+                resultItem.setItemMeta((ItemMeta) damageable);
+            }
         }
 
         player.getInventory().removeItem(new ItemStack(currency, costAmount));
@@ -130,9 +132,13 @@ public class ShopGUI {
         }
 
         if (trade.durability() != null) {
-            short maxDurability = item.getType().getMaxDurability();
-            int damage = (int) (maxDurability * (trade.durability() / 100.0));
-            item.setDurability((short) damage);
+            ItemMeta meta = item.getItemMeta();
+            if (meta instanceof Damageable damageable) {
+                short maxDurability = item.getType().getMaxDurability();
+                int damage = (int) (maxDurability * (trade.durability() / 100.0));
+                damageable.setDamage(damage);
+                item.setItemMeta((ItemMeta) damageable);
+            }
         }
 
         ItemMeta meta = item.getItemMeta();
