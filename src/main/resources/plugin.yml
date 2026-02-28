@@ -5,3 +5,8 @@ api-version: 1.21
 softdepend:
   - WorldEdit
   - GMusic
+
+commands:
+  rush:levels:
+    description: Commands for testing the level system
+    usage: /rush:levels
