@@ -1,12 +1,15 @@
 package io.github.rush.events;
 
 import io.github.rush.Main;
+import io.github.rush.game.Game;
 import io.github.rush.game.GameState;
+import io.github.rush.game.Team;
 import io.github.rush.menus.GUI;
 import io.github.rush.menus.TeamSelectionGUI;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
@@ -120,14 +123,31 @@ public class PlayerActivity implements Listener {
             return;
         }
 
+        Player player = pd.getEntity();
+        Game game = Main.getInstance().getGameManager().getCurrentGame();
+        
         pd.setDroppedExp(0);
         pd.deathMessage(null);
-        pd.getEntity().getInventory().clear();
+        player.getInventory().clear();
+
+        Team team = game.getPlayerTeam(player);
+        boolean bedDestroyed = team != null && team.isBedDestroyed();
+        boolean isSpectator = bedDestroyed || game.isSpectator(player);
 
         new BukkitRunnable() {
             @Override
             public void run() {
-                pd.getEntity().spigot().respawn();
+                if (isSpectator) {
+                    game.addSpectator(player);
+                } else {
+                    player.spigot().respawn();
+                    if (team != null) {
+                        Location spawn = team.getSpawnLocation();
+                        if (spawn != null) {
+                            player.teleport(spawn);
+                        }
+                    }
+                }
             }
         }.runTaskLater(Main.getInstance(), 20L);
     }
@@ -136,6 +156,19 @@ public class PlayerActivity implements Listener {
     public void onPlayerInteract(PlayerInteractEvent pie) {
         Player player = pie.getPlayer();
         ItemStack item = player.getInventory().getItemInMainHand();
+
+        if (plugin.isGameStarted()) {
+            Game game = Main.getInstance().getGameManager().getCurrentGame();
+            if (game != null && game.isSpectator(player)) {
+                if (pie.getAction() == Action.RIGHT_CLICK_AIR || pie.getAction() == Action.RIGHT_CLICK_BLOCK) {
+                    if (item != null && item.getType() == Material.COMPASS) {
+                        game.removeSpectator(player);
+                        pie.setCancelled(true);
+                        return;
+                    }
+                }
+            }
+        }
 
         if (pie.getAction() == Action.RIGHT_CLICK_AIR || pie.getAction() == Action.RIGHT_CLICK_BLOCK) {
             if (item != null && item.getType() == Material.WHITE_BANNER) {

@@ -31,6 +31,7 @@ public class Game {
     private final Map<String, Team> teams = new HashMap<>();
     private final List<Player> freePlayers = new ArrayList<>();
     private final Map<Player, PlayerStatistic> playerStats = new HashMap<>();
+    private final Set<Player> spectators = new HashSet<>();
 
     private int timeLeft = 0;
     private final int maxPlayers = 8;
@@ -118,6 +119,7 @@ public class Game {
     public void removePlayer(Player player) {
         freePlayers.remove(player);
         playerReady.remove(player);
+        spectators.remove(player);
 
         for (Team team : teams.values()) {
             if (team.isInTeam(player)) {
@@ -127,6 +129,67 @@ public class Game {
         }
 
         updatePlayerList();
+    }
+
+    public void addSpectator(Player player) {
+        spectators.add(player);
+        Team team = getPlayerTeam(player);
+        if (team != null) {
+            team.removePlayer(player);
+        }
+        freePlayers.remove(player);
+        playerReady.remove(player);
+        
+        player.setGameMode(org.bukkit.GameMode.SPECTATOR);
+        player.setAllowFlight(true);
+        player.setFlying(true);
+        
+        player.getInventory().clear();
+        ItemStack compass = new ItemStack(Material.COMPASS);
+        ItemMeta meta = compass.getItemMeta();
+        meta.displayName(Component.text("§cQuitter le spectator"));
+        compass.setItemMeta(meta);
+        player.getInventory().setItem(0, compass);
+        
+        for (Player online : Bukkit.getOnlinePlayers()) {
+            player.hidePlayer(Main.getInstance(), online);
+        }
+        
+        Location spawn = Main.getInstance().getSpectatorSpawn();
+        if (spawn != null) {
+            player.teleport(spawn);
+        }
+        
+        player.sendMessage(Component.text("§cVotre lit a été détruit! Vous êtes maintenant spectateur."));
+        updatePlayerList();
+    }
+
+    public boolean isSpectator(Player player) {
+        return spectators.contains(player);
+    }
+
+    public Collection<Player> getSpectators() {
+        return Collections.unmodifiableCollection(spectators);
+    }
+
+    public void removeSpectator(Player player) {
+        spectators.remove(player);
+        player.setGameMode(org.bukkit.GameMode.ADVENTURE);
+        player.setAllowFlight(false);
+        player.setFlying(false);
+        
+        for (Player online : Bukkit.getOnlinePlayers()) {
+            player.showPlayer(Main.getInstance(), online);
+        }
+        
+        player.getInventory().clear();
+        
+        Location lobbyLoc = Main.getInstance().getMainLobby();
+        if (lobbyLoc != null) {
+            player.teleport(lobbyLoc);
+        }
+        
+        player.sendMessage(Component.text("§aVous avez quitté le mode spectateur."));
     }
 
     public void setPlayerReady(Player player, boolean ready) {

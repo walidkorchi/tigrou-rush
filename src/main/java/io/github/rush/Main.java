@@ -413,8 +413,11 @@ public class Main extends JavaPlugin {
         return false;
     }
 
-    public boolean spectationEnabled() {
-        return false;
+    public Location getSpectatorSpawn() {
+        return new Location(
+            Bukkit.getWorld(getConfig().getString("lobbyWorld", "world")),
+            0, 100, 0
+        );
     }
 
     public boolean isHologramsEnabled() {
