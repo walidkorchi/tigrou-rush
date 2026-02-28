@@ -185,9 +185,13 @@ public class ScoreboardManager {
     public void removeScoreboard(Player player) {
         lobbyPlayers.remove(player);
         FastBoard board = plugin.getFastBoard(player);
-        if (board != null) {
-            board.delete();
+        if (board != null && !board.isDeleted()) {
+            try {
+                board.delete();
+            } catch (IllegalStateException ignored) {
+            }
         }
+        plugin.setFastBoard(player, null);
     }
 
     public void removeAllScoreboards() {
@@ -214,6 +218,11 @@ public class ScoreboardManager {
 
         for (Player player : plugin.getServer().getOnlinePlayers()) {
             if (!player.getWorld().getName().equals(gameWorld)) {
+                removeScoreboard(player);
+                continue;
+            }
+
+            if (!plugin.getPlayerSettingsManager().isScoreboardEnabled(player.getUniqueId())) {
                 removeScoreboard(player);
                 continue;
             }
@@ -260,7 +269,7 @@ public class ScoreboardManager {
 
     public FastBoard getOrCreateBoard(Player player) {
         FastBoard board = plugin.getFastBoard(player);
-        if (board == null) {
+        if (board == null || board.isDeleted()) {
             board = new FastBoard(player);
             plugin.setFastBoard(player, board);
         }

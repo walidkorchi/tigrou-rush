@@ -20,6 +20,7 @@ import io.github.rush.entities.*;
 import io.github.rush.events.*;
 import io.github.rush.objects.*;
 import io.github.rush.game.*;
+import io.github.rush.settings.PlayerSettingsManager;
 import io.github.rush.statistics.*;
 import io.github.rush.scoreboard.ScoreboardManager;
 import io.github.rush.utils.MusicManager;
@@ -57,6 +58,8 @@ public class Main extends JavaPlugin {
     private GameManager gameManager = null;
     @Getter
     private ScoreboardManager scoreboardManager = null;
+    @Getter
+    private PlayerSettingsManager playerSettingsManager = null;
     @Getter
     private MusicManager musicManager = null;
     private boolean gameStarted = false;
@@ -97,6 +100,7 @@ public class Main extends JavaPlugin {
         instance = this;
 
         scoreboardManager = new ScoreboardManager(this);
+        playerSettingsManager = new PlayerSettingsManager(this);
         playerStatisticManager = new PlayerStatisticManager(this);
         playerLevelManager = new PlayerLevelManager(this);
         gameManager = new GameManager(this);

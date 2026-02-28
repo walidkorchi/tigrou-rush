@@ -5,6 +5,7 @@ import io.github.rush.game.Game;
 import io.github.rush.game.GameState;
 import io.github.rush.game.Team;
 import io.github.rush.menus.GUI;
+import io.github.rush.menus.PlayerSettingsGUI;
 import io.github.rush.menus.TeamSelectionGUI;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
@@ -29,6 +30,7 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitRunnable;
 
@@ -90,11 +92,23 @@ public class PlayerActivity implements Listener {
 
         player.getInventory().clear();
         player.getInventory().setItem(0, TeamSelectionGUI.createBannerItem());
-        plugin.getMusicManager().playForPlayer(player);
+        player.getInventory().setItem(8, createSettingsItem());
+
+        if (plugin.getMusicManager() != null) {
+            plugin.getMusicManager().playForPlayer(player);
+        }
 
         if (player.getWorld().getName().equals(plugin.getGameWorld())) {
             sendActionBarToAll();
         }
+    }
+
+    private static ItemStack createSettingsItem() {
+        ItemStack repeater = new ItemStack(Material.REPEATER);
+        ItemMeta meta = repeater.getItemMeta();
+        meta.displayName(Component.text("§f§lParamètres"));
+        repeater.setItemMeta(meta);
+        return repeater;
     }
 
     @EventHandler
@@ -207,6 +221,12 @@ public class PlayerActivity implements Listener {
 
             if (item != null && (item.getType() == Material.LIME_DYE || item.getType() == Material.RED_DYE)) {
                 TeamSelectionGUI.toggleReady(player);
+                pie.setCancelled(true);
+                return;
+            }
+
+            if (item != null && item.getType() == Material.REPEATER) {
+                PlayerSettingsGUI.openPlayerSettings(player);
                 pie.setCancelled(true);
                 return;
             }
