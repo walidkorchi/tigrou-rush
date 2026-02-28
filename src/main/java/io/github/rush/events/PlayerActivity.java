@@ -4,9 +4,12 @@ import io.github.rush.Main;
 import io.github.rush.game.Game;
 import io.github.rush.game.GameState;
 import io.github.rush.game.Team;
+import io.github.rush.game.TeamColor;
 import io.github.rush.menus.GUI;
 import io.github.rush.menus.PlayerSettingsGUI;
 import io.github.rush.menus.TeamSelectionGUI;
+import io.github.rush.statistics.PlayerLevel;
+import io.github.rush.statistics.PlayerLevelManager;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -22,6 +25,7 @@ import org.bukkit.event.entity.FoodLevelChangeEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryInteractEvent;
+import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
@@ -325,6 +329,61 @@ public class PlayerActivity implements Listener {
                     from.getBlockZ() != to.getBlockZ()) {
                 event.setTo(from);
             }
+        }
+    }
+
+    @EventHandler
+    public void onAsyncPlayerChat(AsyncPlayerChatEvent event) {
+        Player player = event.getPlayer();
+        PlayerLevelManager levelManager = Main.getInstance().getPlayerLevelManager();
+        PlayerLevel playerLevel = levelManager.loadPlayerLevel(player.getUniqueId());
+        
+        int level = playerLevel.getLevel();
+        String tierIcon = playerLevel.getTierIcon();
+        
+        String levelStr = String.valueOf(level);
+        if (level < 10) levelStr = "0" + level;
+        
+        String message = event.getMessage();
+        boolean isGlobal = message.startsWith("@");
+        if (isGlobal) {
+            message = message.substring(1).trim();
+        }
+        
+        String format;
+        
+        if (isPlayerInQueue(player)) {
+            format = "§7[§e" + levelStr + tierIcon + "§7][§9Lobby§7]§f" + player.getName() + " §f> " + message;
+            event.setFormat(format);
+        } else if (plugin.isGameStarted()) {
+            Game game = Main.getInstance().getGameManager().getCurrentGame();
+            Team team = game.getPlayerTeam(player);
+            
+            if (team != null) {
+                TeamColor color = team.getColor();
+                String teamColorCode = color.getTextColor().toString();
+                
+                if (isGlobal) {
+                    format = "§7[§e" + levelStr + tierIcon + "§7][" + teamColorCode + color.name() + "§7]§f" + player.getName() + " §f> " + message;
+                    event.setFormat(format);
+                } else {
+                    format = "§7[§e" + levelStr + tierIcon + "§7][" + teamColorCode + color.name() + "§7]§f" + player.getName() + " §f> " + message;
+                    event.setFormat(format);
+                    event.getRecipients().clear();
+                    for (Player recipient : plugin.getServer().getOnlinePlayers()) {
+                        Team recipientTeam = game.getPlayerTeam(recipient);
+                        if (recipientTeam != null && recipientTeam.equals(team)) {
+                            event.getRecipients().add(recipient);
+                        }
+                    }
+                }
+            } else {
+                format = "§7[§e" + levelStr + tierIcon + "§7]§f" + player.getName() + " §f> " + message;
+                event.setFormat(format);
+            }
+        } else {
+            format = "§7[§e" + levelStr + tierIcon + "§7]§f" + player.getName() + " §f> " + message;
+            event.setFormat(format);
         }
     }
 }
