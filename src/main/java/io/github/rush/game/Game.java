@@ -410,7 +410,7 @@ public class Game {
 
         loadIslandsAndSetSpawns();
 
-        TeamColor[] teamOrder = { TeamColor.RED, TeamColor.BLUE, TeamColor.GREEN, TeamColor.YELLOW };
+        TeamColor[] teamOrder = TeamColor.firstN(4);
         for (int i = 0; i < teamOrder.length; i++) {
             Team team = teams.get(teamOrder[i].name());
             if (team != null && (!team.getPlayers().isEmpty() || !team.getMannequinIds().isEmpty())) {
@@ -460,16 +460,18 @@ public class Game {
             plugin.loadSchematicsSync();
         }
 
-        List<Island> islands = plugin.getIslands();
-        TeamColor[] teamOrder = { TeamColor.RED, TeamColor.BLUE, TeamColor.GREEN, TeamColor.YELLOW };
+        final List<Island> islands = plugin.getIslands();
+        final TeamColor[] teamOrder = TeamColor.firstN(4);
 
         for (int i = 0; i < teamOrder.length && i < islands.size(); i++) {
-            Team team = teams.get(teamOrder[i].name());
+            final Team team = teams.get(teamOrder[i].name());
+
             if (team == null)
                 continue;
 
-            Island island = islands.get(i);
-            Location spawnLoc = new Location(gameWorld, island.getX(), island.getY() + 2, island.getZ());
+            final Island island = islands.get(i);
+            final Location spawnLoc = new Location(gameWorld, island.getX(), Main.getISLAND_Y() + 2, island.getZ());
+
             team.setSpawnLocation(spawnLoc);
         }
     }
@@ -611,8 +613,8 @@ public class Game {
     }
 
     private void startResourceSpawners() {
-        TeamColor[] teamOrder = { TeamColor.RED, TeamColor.BLUE, TeamColor.GREEN, TeamColor.YELLOW };
-        
+        TeamColor[] teamOrder = TeamColor.firstN(4);
+
         for (int i = 0; i < teamOrder.length; i++) {
             Team team = teams.get(teamOrder[i].name());
             if (team == null || team.getPlayers().isEmpty()) {
@@ -629,8 +631,8 @@ public class Game {
                     BukkitTask task = Bukkit.getScheduler().runTaskTimer(
                             Main.getInstance(),
                             spawner,
-                            spawner.getIntervalTicks(),
-                            spawner.getIntervalTicks());
+                            spawner.getResourceType().getSpawnIntervalTicks(),
+                            spawner.getResourceType().getSpawnIntervalTicks());
                     spawnerTasks.add(task);
                 }
             }

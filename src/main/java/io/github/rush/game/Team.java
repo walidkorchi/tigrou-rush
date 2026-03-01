@@ -3,6 +3,8 @@ package io.github.rush.game;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
+import org.bukkit.block.data.type.Bed;
 import org.bukkit.entity.Player;
 
 import lombok.Getter;
@@ -105,6 +107,13 @@ public class Team {
         if (bedLocation != null && bedLocation.getWorld() != null) {
             Block bedBlock = bedLocation.getBlock();
             if (bedBlock != null && bedBlock.getType().name().endsWith("_BED")) {
+                Bed bedData = (Bed) bedBlock.getBlockData();
+                if (bedData != null) {
+                    Block headBlock = bedBlock.getRelative(bedData.getFacing());
+                    if (headBlock != null && headBlock.getType().name().endsWith("_BED")) {
+                        headBlock.setType(Material.AIR);
+                    }
+                }
                 bedBlock.setType(Material.AIR);
             }
         }
@@ -182,18 +191,45 @@ public class Team {
         int y = spawnLocation.getBlockY() - 2;
         int z = spawnLocation.getBlockZ();
 
-        int bedOffset = 5;
+        int bedOffset = 2;
 
+        BlockFace bedFacing;
         switch (islandIndex) {
-            case 0 -> x += bedOffset;
-            case 1 -> x -= bedOffset;
-            case 2 -> z += bedOffset;
-            case 3 -> z -= bedOffset;
+            case 0 -> {
+                x += bedOffset;
+                bedFacing = BlockFace.EAST;
+            }
+            case 1 -> {
+                x -= bedOffset;
+                bedFacing = BlockFace.WEST;
+            }
+            case 2 -> {
+                z += bedOffset;
+                bedFacing = BlockFace.SOUTH;
+            }
+            case 3 -> {
+                z -= bedOffset;
+                bedFacing = BlockFace.NORTH;
+            }
+            default -> {
+                return;
+            }
         }
 
         Block bedFoot = spawnLocation.getWorld().getBlockAt(x, y, z);
 
-        bedFoot.setType(bedMaterial);
+        Bed footBedData = (Bed) bedMaterial.createBlockData();
+        footBedData.setPart(Bed.Part.FOOT);
+        footBedData.setFacing(bedFacing);
+        bedFoot.setBlockData(footBedData);
+
+        Block bedHead = bedFoot.getRelative(bedFacing);
+
+        Bed headBedData = (Bed) bedMaterial.createBlockData();
+        headBedData.setPart(Bed.Part.HEAD);
+        headBedData.setFacing(bedFacing);
+        bedHead.setBlockData(headBedData);
+
         bedLocation = bedFoot.getLocation();
     }
 

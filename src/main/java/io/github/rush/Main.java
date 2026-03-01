@@ -25,12 +25,15 @@ import io.github.rush.settings.PlayerSettingsManager;
 import io.github.rush.statistics.*;
 import io.github.rush.scoreboard.ScoreboardManager;
 import io.github.rush.utils.MusicManager;
+import io.papermc.paper.datacomponent.DataComponentTypes;
+import io.papermc.paper.datacomponent.item.PotionContents;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import fr.mrmicky.fastboard.FastBoard;
 import net.kyori.adventure.text.Component;
 import org.bukkit.entity.Player;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.Rotation;
 import org.bukkit.World;
 import org.bukkit.block.Block;
@@ -41,6 +44,7 @@ import org.bukkit.entity.Villager;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.potion.PotionType;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -79,7 +83,9 @@ public class Main extends JavaPlugin {
     @Getter
     private static Main instance = null;
 
-    private static final int ISLAND_Y = 64;
+    @Getter
+    private static int ISLAND_Y = 0;
+    private static int DISTANCE_HEIGHT_LIMIT = 12;
 
     @Getter
     private List<Island> islands;
@@ -130,14 +136,15 @@ public class Main extends JavaPlugin {
             if (gameManager != null && gameManager.getCurrentGame() != null) {
                 gameManager.getCurrentGame().autoStart();
             }
-        }, 0L, 600L);
+        }, 0L, 100L);
 
         int islandOffset = getConfig().getInt("islandOffset");
+
         islands = List.of(
-                new Island(-islandOffset, ISLAND_Y, 0, 0),
-                new Island(islandOffset, ISLAND_Y, 0, 180),
-                new Island(0, ISLAND_Y, -islandOffset, 270),
-                new Island(0, ISLAND_Y, islandOffset, 90));
+                new Island(-48, 0, -90),
+                new Island(48, 0, 90),
+                new Island(0, -48, 180),
+                new Island(0, 48, 0));
     }
 
     public void loadSchematics(CommandSender sender) {
@@ -186,8 +193,8 @@ public class Main extends JavaPlugin {
         final World world = Bukkit.getWorld(getGameWorld());
         final Island island = islands.get(islandIndex);
 
-        final int speedOffset = getConfig().getInt("villagerSpeedOffset", 13);
-        final int regularOffset = getConfig().getInt("villagerRegularOffset", 12);
+        final int speedOffset = getConfig().getInt("villagerSpeedOffset", 13 - 8);
+        final int regularOffset = getConfig().getInt("villagerRegularOffset", 12 - 8);
         List<Integer> spread = getConfig().getIntegerList("villagerSpreadDistance");
 
         if (spread == null || spread.isEmpty()) {
@@ -203,8 +210,7 @@ public class Main extends JavaPlugin {
         final int perpZ = -dir[0];
         final float facingYaw = yawValues[islandIndex];
 
-        final MerchantType[] regularTypes = { MerchantType.WEAPONSMITH, MerchantType.BUILDER,
-                MerchantType.ALCHEMIST, MerchantType.ARMORSMITH };
+        final MerchantType[] regularTypes = MerchantType.firstN(4);
 
         // spawn speed villagers (2) at direction * speedOffset ± spread[0]
         for (int i = 0; i < 2; i++) {
@@ -212,7 +218,7 @@ public class Main extends JavaPlugin {
             final int speedX = island.getX() + (dir[0] * speedOffset) + (perpX * sign);
             final int speedZ = island.getZ() + (dir[1] * speedOffset) + (perpZ * sign);
 
-            final Location speedLoc = new Location(world, speedX + 0.5, island.getY() + 0.5, speedZ + 0.5, facingYaw,
+            final Location speedLoc = new Location(world, speedX + 0.5, ISLAND_Y + 0.5, speedZ + 0.5, facingYaw,
                     0);
             final Villager speedVillager = world.spawn(speedLoc, Villager.class);
 
@@ -232,9 +238,10 @@ public class Main extends JavaPlugin {
             final int regX = island.getX() + (dir[0] * regularOffset) + (perpX * spread.get(spreadIdx) * sign);
             final int regZ = island.getZ() + (dir[1] * regularOffset) + (perpZ * spread.get(spreadIdx) * sign);
 
-            final Location villagerLoc = new Location(world, regX + 0.5, island.getY() + 1, regZ + 0.5, facingYaw,
+            final Location villagerLoc = new Location(world, regX + 0.5, ISLAND_Y + 1, regZ + 0.5, facingYaw,
                     0);
             final Villager villager = world.spawn(villagerLoc, Villager.class);
+
             spawnedVillagers.add(villager);
 
             villager.setAI(false);
@@ -248,37 +255,43 @@ public class Main extends JavaPlugin {
                     + (perpX * spread.get(spreadIdx) * sign);
             final int frameZ = island.getZ() + (dir[1] * (regularOffset + 2))
                     + (perpZ * spread.get(spreadIdx) * sign);
-            final Location frameLoc = new Location(world, frameX + 0.5, island.getY() + 1, frameZ + 0.5);
 
-            final ItemFrame itemFrame = world.spawn(frameLoc, ItemFrame.class);
-
-            itemFrame.setRotation(Rotation.NONE);
-            itemFrame.setInvulnerable(true);
-            itemFrame.setVisibleByDefault(false);
-            itemFrame.setFixed(true);
-
-            ItemStack displayItem = switch (regularTypes[i]) {
-                case WEAPONSMITH -> new ItemStack(org.bukkit.Material.IRON_SWORD);
-                case ARMORSMITH -> new ItemStack(org.bukkit.Material.IRON_CHESTPLATE);
-                case ALCHEMIST -> {
-                    org.bukkit.inventory.ItemStack potion = new org.bukkit.inventory.ItemStack(org.bukkit.Material.POTION);
-                    io.papermc.paper.datacomponent.item.PotionContents potionContents = 
-                        io.papermc.paper.datacomponent.item.PotionContents.potionContents()
-                            .potion(org.bukkit.potion.PotionType.HEALING)
-                            .build();
-                    potion.setData(io.papermc.paper.datacomponent.DataComponentTypes.POTION_CONTENTS, potionContents);
-                    yield potion;
-                }
-                case BUILDER -> new ItemStack(org.bukkit.Material.SANDSTONE);
-                default -> null;
-            };
-
-            if (displayItem != null) {
-                itemFrame.setItem(displayItem);
-            }
+            placeIslandItemFrames(i, world, island, regularTypes, frameX, frameZ);
         }
 
         pastedRegions.add(island);
+    }
+
+    public void placeIslandItemFrames(int i, World world, Island island, MerchantType[] regularTypes, int frameX,
+            int frameZ) {
+        final Location frameLoc = new Location(world, frameX + 0.5, ISLAND_Y + 1, frameZ + 0.5);
+        final ItemFrame itemFrame = world.spawn(frameLoc, ItemFrame.class);
+
+        itemFrame.setRotation(Rotation.NONE);
+        itemFrame.setInvulnerable(true);
+        itemFrame.setVisibleByDefault(false);
+        itemFrame.setFixed(true);
+
+        ItemStack displayItem = switch (regularTypes[i]) {
+            case WEAPONSMITH -> new ItemStack(Material.IRON_SWORD);
+            case ARMORSMITH -> new ItemStack(Material.IRON_CHESTPLATE);
+            case ALCHEMIST -> {
+                ItemStack potion = new ItemStack(Material.POTION);
+                PotionContents potionContents = PotionContents.potionContents()
+                        .potion(PotionType.HEALING)
+                        .build();
+
+                potion.setData(DataComponentTypes.POTION_CONTENTS, potionContents);
+
+                yield potion;
+            }
+            case BUILDER -> new ItemStack(Material.SANDSTONE);
+            default -> null;
+        };
+
+        if (displayItem != null) {
+            itemFrame.setItem(displayItem);
+        }
     }
 
     public Integer getRespawnProtectionTime() {
@@ -316,12 +329,11 @@ public class Main extends JavaPlugin {
         final int radius = getConfig().getInt("islandOffset", 40) + 20;
         final int centerX = region.getX();
         final int centerZ = region.getZ();
-        final int centerY = region.getY();
 
         final com.sk89q.worldedit.world.World worldEditWorld = BukkitAdapter.adapt(world);
 
-        final BlockVector3 min = BlockVector3.at(centerX - radius, centerY - 5, centerZ - radius);
-        final BlockVector3 max = BlockVector3.at(centerX + radius, centerY + 20, centerZ + radius);
+        final BlockVector3 min = BlockVector3.at(centerX - radius, ISLAND_Y - 5, centerZ - radius);
+        final BlockVector3 max = BlockVector3.at(centerX + radius, ISLAND_Y + 20, centerZ + radius);
         final CuboidRegion cuboidRegion = new CuboidRegion(worldEditWorld, min, max);
 
         try (final EditSession editSession = WorldEdit.getInstance().newEditSession(worldEditWorld)) {
@@ -331,7 +343,7 @@ public class Main extends JavaPlugin {
         }
     }
 
-    private void pasteSchematic(Island info) {
+    private void pasteSchematic(Island island) {
         final String schematic = getConfig().getString("schematicFilename");
         final File schematicFile = new File(getDataFolder().getParentFile(), "WorldEdit/schematics/" + schematic);
 
@@ -354,10 +366,10 @@ public class Main extends JavaPlugin {
             }
 
             final com.sk89q.worldedit.world.World worldEditWorld = BukkitAdapter.adapt(bukkitWorld);
-            final int minX = info.getX();
-            final int maxX = info.getX() + dimensions.x();
-            final int minZ = info.getZ();
-            final int maxZ = info.getZ() + dimensions.z();
+            final int minX = island.getX();
+            final int maxX = island.getX() + dimensions.x();
+            final int minZ = island.getZ();
+            final int maxZ = island.getZ() + dimensions.z();
 
             for (int cx = minX >> 4; cx <= maxX >> 4; cx++) {
                 for (int cz = minZ >> 4; cz <= maxZ >> 4; cz++) {
@@ -365,17 +377,20 @@ public class Main extends JavaPlugin {
                 }
             }
 
+            // TODO: change build height limit message
+            ISLAND_Y = bukkitWorld.getMaxHeight() - DISTANCE_HEIGHT_LIMIT;
+
             try (EditSession editSession = WorldEdit.getInstance().newEditSession(worldEditWorld)) {
                 final ClipboardHolder holder = new ClipboardHolder(clipboard);
 
-                if (info.getRotation() != 0) {
-                    AffineTransform transform = new AffineTransform().rotateY(info.getRotation());
+                if (island.getRotation() != 0) {
+                    AffineTransform transform = new AffineTransform().rotateY(island.getRotation());
                     holder.setTransform(holder.getTransform().combine(transform));
                 }
 
                 final Operation operation = holder
                         .createPaste(editSession)
-                        .to(com.sk89q.worldedit.math.BlockVector3.at(info.getX(), info.getY(), info.getZ()))
+                        .to(BlockVector3.at(island.getX(), ISLAND_Y, island.getZ()))
                         .ignoreAirBlocks(false)
                         .build();
 
@@ -383,7 +398,7 @@ public class Main extends JavaPlugin {
             }
 
             getLogger().info(
-                    "Pasted schematic: " + schematic + " at (" + info.getX() + ", " + info.getY() + ", " + info.getZ()
+                    "Pasted schematic: " + schematic + " at (" + island.getX() + ", " + ISLAND_Y + ", " + island.getZ()
                             + ")");
 
         } catch (IOException | WorldEditException event) {

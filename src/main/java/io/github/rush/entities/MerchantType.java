@@ -4,8 +4,6 @@ import io.papermc.paper.datacomponent.item.PotionContents;
 import org.bukkit.Material;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Villager.Profession;
-import org.bukkit.potion.PotionEffect;
-import org.bukkit.potion.PotionEffectType;
 import org.bukkit.potion.PotionType;
 
 import java.util.ArrayList;
@@ -22,8 +20,7 @@ public enum MerchantType {
                     .withSecondCost(Material.DIAMOND, 1)
                     .withDurability(15),
             new Trade(Material.FLINT_AND_STEEL, Material.GOLD_INGOT, 1),
-            new Trade(Material.TNT, Material.IRON_INGOT, 5),
-            new Trade(Material.TNT, Material.DIAMOND, 1)))),
+            new Trade(Material.TNT, Material.IRON_INGOT, 5)))),
     BUILDER(Profession.CARTOGRAPHER, new ArrayList<>(List.of(
             new Trade(Material.SANDSTONE, Material.COPPER_INGOT, 1, 4),
             new Trade(Material.END_STONE, Material.IRON_INGOT, 2, 4),
@@ -56,6 +53,14 @@ public enum MerchantType {
 
     public List<Trade> getTrades() {
         return trades;
+    }
+
+    public static MerchantType[] firstN(int n) {
+        MerchantType[] values = MerchantType.values();
+        int length = Math.min(n, values.length);
+        MerchantType[] result = new MerchantType[length];
+        System.arraycopy(values, 0, result, 0, length);
+        return result;
     }
 
     private static Material createHealingPotion() {

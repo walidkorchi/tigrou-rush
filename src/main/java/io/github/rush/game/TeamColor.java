@@ -49,6 +49,14 @@ public enum TeamColor {
         return this.islandNumber;
     }
 
+    public static TeamColor[] firstN(int n) {
+        TeamColor[] values = TeamColor.values();
+        int length = Math.min(n, values.length);
+        TeamColor[] result = new TeamColor[length];
+        System.arraycopy(values, 0, result, 0, length);
+        return result;
+    }
+
     public String getChatColor() {
         return this.textColor.toString();
     }
