@@ -50,26 +50,42 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
 import lombok.Getter;
+import lombok.Setter;
 
 public class Main extends JavaPlugin {
 
+    @Getter
     private PlayerStatisticManager playerStatisticManager = null;
+
     @Getter
     private PlayerLevelManager playerLevelManager = null;
+
     @Getter
     private GameManager gameManager = null;
+
     @Getter
     private ScoreboardManager scoreboardManager = null;
+
     @Getter
     private PlayerSettingsManager playerSettingsManager = null;
+
     @Getter
     private MusicManager musicManager = null;
+
+    @Getter
+    @Setter
     private boolean gameStarted = false;
+
+    @Getter
     private static Main instance = null;
 
     private static final int ISLAND_Y = 64;
 
-    private List<Island> schematics;
+    @Getter
+    private List<Island> islands;
+
+    @Getter
+    private boolean islandsLoaded = false;
 
     private final List<Villager> spawnedVillagers = new ArrayList<>();
     private final List<Island> pastedRegions = new ArrayList<>();
@@ -83,18 +99,6 @@ public class Main extends JavaPlugin {
 
     public void setFastBoard(Player player, FastBoard board) {
         playerBoards.put(player, board);
-    }
-
-    private static final class Island {
-        final int x, y, z;
-        final int rotation;
-
-        Island(int x, int y, int z, int rotation) {
-            this.x = x;
-            this.y = y;
-            this.z = z;
-            this.rotation = rotation;
-        }
     }
 
     @Override
@@ -129,7 +133,7 @@ public class Main extends JavaPlugin {
         }, 0L, 600L);
 
         int islandOffset = getConfig().getInt("islandOffset");
-        schematics = List.of(
+        islands = List.of(
                 new Island(-islandOffset, ISLAND_Y, 0, 0),
                 new Island(islandOffset, ISLAND_Y, 0, 180),
                 new Island(0, ISLAND_Y, -islandOffset, 270),
@@ -146,19 +150,41 @@ public class Main extends JavaPlugin {
         }
 
         Bukkit.getScheduler().runTask(this, () -> {
-            int index = 0;
-            for (Island schematic : schematics) {
-                pasteSchematic(schematic);
-                spawnMerchantsInIsland(index);
-                index++;
-            }
+            loadSchematicsInternal();
             sender.sendMessage(Component.text("Schematics loaded!"));
         });
     }
 
+    public void loadSchematicsSync() {
+        final Plugin worldEdit = Bukkit.getPluginManager().getPlugin("WorldEdit");
+
+        if (worldEdit == null || !worldEdit.isEnabled()) {
+            getLogger().severe("WorldEdit is not loaded!");
+            return;
+        }
+
+        loadSchematicsInternal();
+    }
+
+    private void loadSchematicsInternal() {
+        if (islandsLoaded) {
+            return;
+        }
+
+        int index = 0;
+
+        for (Island island : islands) {
+            pasteSchematic(island);
+            spawnMerchantsInIsland(index);
+            index++;
+        }
+
+        islandsLoaded = true;
+    }
+
     private void spawnMerchantsInIsland(int islandIndex) {
         final World world = Bukkit.getWorld(getGameWorld());
-        final Island schematic = schematics.get(islandIndex);
+        final Island island = islands.get(islandIndex);
 
         final int speedOffset = getConfig().getInt("villagerSpeedOffset", 13);
         final int regularOffset = getConfig().getInt("villagerRegularOffset", 12);
@@ -183,10 +209,11 @@ public class Main extends JavaPlugin {
         // spawn speed villagers (2) at direction * speedOffset ± spread[0]
         for (int i = 0; i < 2; i++) {
             final int sign = (i == 0) ? 1 : -1;
-            final int speedX = schematic.x + (dir[0] * speedOffset) + (perpX * sign);
-            final int speedZ = schematic.z + (dir[1] * speedOffset) + (perpZ * sign);
+            final int speedX = island.getX() + (dir[0] * speedOffset) + (perpX * sign);
+            final int speedZ = island.getZ() + (dir[1] * speedOffset) + (perpZ * sign);
 
-            final Location speedLoc = new Location(world, speedX + 0.5, schematic.y + 0.5, speedZ + 0.5, facingYaw, 0);
+            final Location speedLoc = new Location(world, speedX + 0.5, island.getY() + 0.5, speedZ + 0.5, facingYaw,
+                    0);
             final Villager speedVillager = world.spawn(speedLoc, Villager.class);
 
             spawnedVillagers.add(speedVillager);
@@ -202,10 +229,11 @@ public class Main extends JavaPlugin {
         for (int i = 0; i < 4; i++) {
             final int sign = (i < 2) ? 1 : -1;
             final int spreadIdx = (i % 2 == 0) ? 0 : 1;
-            final int regX = schematic.x + (dir[0] * regularOffset) + (perpX * spread.get(spreadIdx) * sign);
-            final int regZ = schematic.z + (dir[1] * regularOffset) + (perpZ * spread.get(spreadIdx) * sign);
+            final int regX = island.getX() + (dir[0] * regularOffset) + (perpX * spread.get(spreadIdx) * sign);
+            final int regZ = island.getZ() + (dir[1] * regularOffset) + (perpZ * spread.get(spreadIdx) * sign);
 
-            final Location villagerLoc = new Location(world, regX + 0.5, schematic.y + 1, regZ + 0.5, facingYaw, 0);
+            final Location villagerLoc = new Location(world, regX + 0.5, island.getY() + 1, regZ + 0.5, facingYaw,
+                    0);
             final Villager villager = world.spawn(villagerLoc, Villager.class);
             spawnedVillagers.add(villager);
 
@@ -216,9 +244,11 @@ public class Main extends JavaPlugin {
             merchantVillagers.put(regularTypes[i], villager);
 
             // Spawn item frame 2 blocks in front of villager with corresponding item
-            final int frameX = schematic.x + (dir[0] * (regularOffset + 2)) + (perpX * spread.get(spreadIdx) * sign);
-            final int frameZ = schematic.z + (dir[1] * (regularOffset + 2)) + (perpZ * spread.get(spreadIdx) * sign);
-            final Location frameLoc = new Location(world, frameX + 0.5, schematic.y + 1, frameZ + 0.5);
+            final int frameX = island.getX() + (dir[0] * (regularOffset + 2))
+                    + (perpX * spread.get(spreadIdx) * sign);
+            final int frameZ = island.getZ() + (dir[1] * (regularOffset + 2))
+                    + (perpZ * spread.get(spreadIdx) * sign);
+            final Location frameLoc = new Location(world, frameX + 0.5, island.getY() + 1, frameZ + 0.5);
 
             final ItemFrame itemFrame = world.spawn(frameLoc, ItemFrame.class);
 
@@ -230,7 +260,15 @@ public class Main extends JavaPlugin {
             ItemStack displayItem = switch (regularTypes[i]) {
                 case WEAPONSMITH -> new ItemStack(org.bukkit.Material.IRON_SWORD);
                 case ARMORSMITH -> new ItemStack(org.bukkit.Material.IRON_CHESTPLATE);
-                case ALCHEMIST -> new ItemStack(org.bukkit.Material.GOLDEN_APPLE);
+                case ALCHEMIST -> {
+                    org.bukkit.inventory.ItemStack potion = new org.bukkit.inventory.ItemStack(org.bukkit.Material.POTION);
+                    io.papermc.paper.datacomponent.item.PotionContents potionContents = 
+                        io.papermc.paper.datacomponent.item.PotionContents.potionContents()
+                            .potion(org.bukkit.potion.PotionType.HEALING)
+                            .build();
+                    potion.setData(io.papermc.paper.datacomponent.DataComponentTypes.POTION_CONTENTS, potionContents);
+                    yield potion;
+                }
                 case BUILDER -> new ItemStack(org.bukkit.Material.SANDSTONE);
                 default -> null;
             };
@@ -240,7 +278,7 @@ public class Main extends JavaPlugin {
             }
         }
 
-        pastedRegions.add(schematic);
+        pastedRegions.add(island);
     }
 
     public Integer getRespawnProtectionTime() {
@@ -274,15 +312,11 @@ public class Main extends JavaPlugin {
         pastedRegions.clear();
     }
 
-    public PlayerStatisticManager getPlayerStatisticManager() {
-        return this.playerStatisticManager;
-    }
-
     private void clearRegion(World world, Island region) {
         final int radius = getConfig().getInt("islandOffset", 40) + 20;
-        final int centerX = region.x;
-        final int centerZ = region.z;
-        final int centerY = region.y;
+        final int centerX = region.getX();
+        final int centerZ = region.getZ();
+        final int centerY = region.getY();
 
         final com.sk89q.worldedit.world.World worldEditWorld = BukkitAdapter.adapt(world);
 
@@ -320,10 +354,10 @@ public class Main extends JavaPlugin {
             }
 
             final com.sk89q.worldedit.world.World worldEditWorld = BukkitAdapter.adapt(bukkitWorld);
-            final int minX = info.x;
-            final int maxX = info.x + dimensions.x();
-            final int minZ = info.z;
-            final int maxZ = info.z + dimensions.z();
+            final int minX = info.getX();
+            final int maxX = info.getX() + dimensions.x();
+            final int minZ = info.getZ();
+            final int maxZ = info.getZ() + dimensions.z();
 
             for (int cx = minX >> 4; cx <= maxX >> 4; cx++) {
                 for (int cz = minZ >> 4; cz <= maxZ >> 4; cz++) {
@@ -334,14 +368,14 @@ public class Main extends JavaPlugin {
             try (EditSession editSession = WorldEdit.getInstance().newEditSession(worldEditWorld)) {
                 final ClipboardHolder holder = new ClipboardHolder(clipboard);
 
-                if (info.rotation != 0) {
-                    AffineTransform transform = new AffineTransform().rotateY(info.rotation);
+                if (info.getRotation() != 0) {
+                    AffineTransform transform = new AffineTransform().rotateY(info.getRotation());
                     holder.setTransform(holder.getTransform().combine(transform));
                 }
 
                 final Operation operation = holder
                         .createPaste(editSession)
-                        .to(com.sk89q.worldedit.math.BlockVector3.at(info.x, info.y, info.z))
+                        .to(com.sk89q.worldedit.math.BlockVector3.at(info.getX(), info.getY(), info.getZ()))
                         .ignoreAirBlocks(false)
                         .build();
 
@@ -349,7 +383,8 @@ public class Main extends JavaPlugin {
             }
 
             getLogger().info(
-                    "Pasted schematic: " + schematic + " at (" + info.x + ", " + info.y + ", " + info.z + ")");
+                    "Pasted schematic: " + schematic + " at (" + info.getX() + ", " + info.getY() + ", " + info.getZ()
+                            + ")");
 
         } catch (IOException | WorldEditException event) {
             getLogger().severe("Failed to paste schematic " + schematic + ": " + event.getMessage());
@@ -360,16 +395,16 @@ public class Main extends JavaPlugin {
         return getConfig().getString("gameWorld");
     }
 
-    public boolean isGameStarted() {
-        return gameStarted;
-    }
-
-    public void setGameStarted(boolean started) {
-        this.gameStarted = started;
-    }
-
     public Villager getMerchantVillager(MerchantType type) {
         return merchantVillagers.get(type);
+    }
+
+    public boolean isMerchantVillager(Villager villager) {
+        return spawnedVillagers.contains(villager);
+    }
+
+    public boolean isSpeedMerchantVillager(Villager villager) {
+        return spawnedVillagers.contains(villager) && !merchantVillagers.containsValue(villager);
     }
 
     public boolean isBlockOnIsland(Block block) {
@@ -381,8 +416,8 @@ public class Main extends JavaPlugin {
         int blockZ = block.getZ();
 
         for (Island island : pastedRegions) {
-            int dx = blockX - island.x;
-            int dz = blockZ - island.z;
+            int dx = blockX - island.getX();
+            int dz = blockZ - island.getZ();
             if (dx * dx + dz * dz <= radius * radius) {
                 return true;
             }
@@ -403,16 +438,13 @@ public class Main extends JavaPlugin {
             return 60 * 60;
     }
 
-    public static Main getInstance() {
-        return Main.instance;
-    }
-
     public Location getSpectatorSpawn() {
         return new Location(
                 Bukkit.getWorld(getConfig().getString("gameWorld")),
                 0, 100, 0);
     }
 
+    // TODO: stub function for now, refactor this
     public Location getMainLobby() {
         return null;
     }

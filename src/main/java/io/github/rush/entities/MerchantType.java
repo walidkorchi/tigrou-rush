@@ -1,8 +1,12 @@
 package io.github.rush.entities;
 
+import io.papermc.paper.datacomponent.item.PotionContents;
 import org.bukkit.Material;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Villager.Profession;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
+import org.bukkit.potion.PotionType;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,7 +32,7 @@ public enum MerchantType {
             new Trade(Material.IRON_PICKAXE, Material.GOLD_INGOT, 1, Map.of(Enchantment.EFFICIENCY, 3))))),
     ALCHEMIST(Profession.CLERIC, new ArrayList<>(List.of(
             new Trade(Material.GOLDEN_APPLE, Material.IRON_INGOT, 1),
-            new Trade(Material.SPLASH_POTION, Material.GOLD_INGOT, 1)))),
+            new Trade(createHealingPotion(), Material.GOLD_INGOT, 1)))),
     ARMORSMITH(Profession.ARMORER, new ArrayList<>(List.of(
             new Trade(Material.LEATHER_CHESTPLATE, Material.IRON_INGOT, 2),
             new Trade(Material.LEATHER_CHESTPLATE, Material.IRON_INGOT, 5, Map.of(Enchantment.PROTECTION, 1)),
@@ -52,5 +56,14 @@ public enum MerchantType {
 
     public List<Trade> getTrades() {
         return trades;
+    }
+
+    private static Material createHealingPotion() {
+        org.bukkit.inventory.ItemStack potion = new org.bukkit.inventory.ItemStack(Material.POTION);
+        PotionContents potionContents = PotionContents.potionContents()
+                .potion(PotionType.HEALING)
+                .build();
+        potion.setData(io.papermc.paper.datacomponent.DataComponentTypes.POTION_CONTENTS, potionContents);
+        return potion.getType();
     }
 }

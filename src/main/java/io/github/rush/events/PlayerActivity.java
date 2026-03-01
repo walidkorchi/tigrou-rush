@@ -62,21 +62,26 @@ public class PlayerActivity implements Listener {
             return;
 
         int readyCount = 0;
-        for (Player player : plugin.getServer().getOnlinePlayers()) {
-            if (player.getWorld().getName().equals(gameWorld)) {
-                if (plugin.getGameManager() != null
-                        && plugin.getGameManager().getCurrentGame() != null
-                        && plugin.getGameManager().getCurrentGame().isPlayerReady(player)) {
-                    readyCount++;
+        int mannequinReadyCount = 0;
+
+        if (plugin.getGameManager() != null && plugin.getGameManager().getCurrentGame() != null) {
+            var game = plugin.getGameManager().getCurrentGame();
+            for (Player player : plugin.getServer().getOnlinePlayers()) {
+                if (player.getWorld().getName().equals(gameWorld)) {
+                    if (game.isPlayerReady(player)) {
+                        readyCount++;
+                    }
                 }
             }
+            mannequinReadyCount = (int) game.getMannequinReadyCount();
         }
 
-        NamedTextColor countColor = readyCount >= 4 ? NamedTextColor.GREEN : NamedTextColor.RED;
+        int totalReady = readyCount + mannequinReadyCount;
+        NamedTextColor countColor = totalReady >= 4 ? NamedTextColor.GREEN : NamedTextColor.RED;
         TextComponent.Builder builder = Component.text()
                 .content("Joueurs prêts (")
                 .color(NamedTextColor.WHITE);
-        builder.append(Component.text(readyCount + "/8").color(countColor));
+        builder.append(Component.text(totalReady + "/8").color(countColor));
         builder.append(Component.text(")").color(NamedTextColor.WHITE));
 
         Component message = builder.build();

@@ -29,7 +29,7 @@ repositories {
 
 dependencies {
     compileOnly("io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT")
-    compileOnly(files("../rush-tl-events/plugins/worldedit-bukkit-7.4.0.jar"))
+    compileOnly("com.sk89q.worldedit:worldedit-bukkit:7.4.0")
     compileOnly(files("../rush-tl-events/plugins/GMusic-2.1.2.jar"))
     implementation("fr.mrmicky:fastboard:2.1.5")
     implementation("org.postgresql:postgresql:42.7.1")

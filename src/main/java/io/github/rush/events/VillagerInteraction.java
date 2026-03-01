@@ -3,7 +3,6 @@ package io.github.rush.events;
 import io.github.rush.Main;
 import io.github.rush.game.Game;
 import io.github.rush.game.GameState;
-import io.github.rush.game.Team;
 import io.github.rush.menus.ShopGUI;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Villager;
@@ -31,22 +30,16 @@ public class VillagerInteraction implements Listener {
             return;
         }
 
-        Team playerTeam = game.getPlayerTeam(player);
-        if (playerTeam == null) {
+        if (!Main.getInstance().isMerchantVillager(villager)) {
             return;
         }
 
-        boolean isSpeedVillager = false;
-        for (Villager speedVillager : playerTeam.getSpeedVillagers()) {
-            if (speedVillager.getUniqueId().equals(villager.getUniqueId())) {
-                isSpeedVillager = true;
-                break;
-            }
-        }
+        event.setCancelled(true);
 
-        if (isSpeedVillager) {
-            event.setCancelled(true);
+        if (Main.getInstance().isSpeedMerchantVillager(villager)) {
             ShopGUI.openMainMenu(player);
+        } else {
+            player.openMerchant(villager, true);
         }
     }
 }

@@ -1,29 +1,46 @@
 package io.github.rush.game;
 
-import io.github.rush.entities.Merchant;
-import io.github.rush.entities.MerchantType;
-import net.kyori.adventure.text.Component;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
-import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
-import org.bukkit.entity.Villager;
+
+import lombok.Getter;
+import lombok.Setter;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class Team {
 
+    @Getter
+    // TODO: unused for now, but we can use it to identify the team in the future
     private final String name;
+
+    @Getter
     private final TeamColor color;
+
+    @Getter
     private final int maxPlayers;
+
     private final List<Player> players = new ArrayList<>();
+    private final Set<UUID> mannequinIds = ConcurrentHashMap.newKeySet();
+
+    @Getter
+    @Setter
     private Location spawnLocation;
+
+    @Getter
+    @Setter
     private Location bedLocation;
+
+    @Getter
     private final List<Location> enderChestLocations = new ArrayList<>();
-    private final List<Villager> regularVillagers = new ArrayList<>();
-    private final List<Villager> speedVillagers = new ArrayList<>();
+
+    @Setter
     private boolean bedDestroyed = false;
 
     public Team(String name, TeamColor color, int maxPlayers) {
@@ -55,14 +72,35 @@ public class Team {
     }
 
     public int getPlayerCount() {
-        return players.size();
+        return players.size() + mannequinIds.size();
+    }
+
+    public boolean addMannequin(UUID uuid) {
+        int total = players.size() + mannequinIds.size();
+        if (total >= maxPlayers) {
+            return false;
+        }
+        mannequinIds.add(uuid);
+        return true;
+    }
+
+    public void removeMannequin(UUID uuid) {
+        mannequinIds.remove(uuid);
+    }
+
+    public boolean isMannequinInTeam(UUID uuid) {
+        return mannequinIds.contains(uuid);
+    }
+
+    public Set<UUID> getMannequinIds() {
+        return Set.copyOf(mannequinIds);
     }
 
     public void reset() {
         players.clear();
+        mannequinIds.clear();
         bedDestroyed = false;
         enderChestLocations.clear();
-        removeVillagers();
 
         if (bedLocation != null && bedLocation.getWorld() != null) {
             Block bedBlock = bedLocation.getBlock();
@@ -72,38 +110,6 @@ public class Team {
         }
         bedLocation = null;
         bedDestroyed = false;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public TeamColor getColor() {
-        return color;
-    }
-
-    public int getMaxPlayers() {
-        return maxPlayers;
-    }
-
-    public Location getSpawnLocation() {
-        return spawnLocation;
-    }
-
-    public void setSpawnLocation(Location location) {
-        this.spawnLocation = location;
-    }
-
-    public Location getBedLocation() {
-        return bedLocation;
-    }
-
-    public void setBedLocation(Location bedLocation) {
-        this.bedLocation = bedLocation;
-    }
-
-    public List<Location> getEnderChestLocations() {
-        return enderChestLocations;
     }
 
     public void addEnderChestLocation(Location location) {
@@ -118,7 +124,7 @@ public class Team {
         return enderChestLocations.size();
     }
 
-    public void placeEnderChests() {
+    public void placeEnderChests(int islandIndex) {
         if (spawnLocation == null) {
             return;
         }
@@ -126,13 +132,22 @@ public class Team {
         int count = getResourceSpawnerCount();
         enderChestLocations.clear();
 
-        double offset = 2.0;
-        double angleStep = Math.PI / 2.0;
+        final int[][] directions = { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } };
+        final int[] dir = directions[islandIndex];
+        final int perpX = dir[1];
+        final int perpZ = -dir[0];
+
+        final int speedOffset = 13;
+        final int enderChestOffset = speedOffset + 1;
+
+        final int[] spread = { 1, -1 };
 
         for (int i = 0; i < count; i++) {
-            double angle = i * angleStep;
-            int x = (int) (spawnLocation.getX() + offset * Math.cos(angle));
-            int z = (int) (spawnLocation.getZ() + offset * Math.sin(angle));
+            final int spreadIdx = i % 2;
+            final int sign = spread[spreadIdx];
+
+            int x = spawnLocation.getBlockX() + (dir[0] * enderChestOffset) + (perpX * sign);
+            int z = spawnLocation.getBlockZ() + (dir[1] * enderChestOffset) + (perpZ * sign);
             int y = spawnLocation.getBlockY();
 
             Block block = spawnLocation.getWorld().getBlockAt(x, y, z);
@@ -153,101 +168,7 @@ public class Team {
         return 4;
     }
 
-    public void spawnVillagers() {
-        if (spawnLocation == null) {
-            return;
-        }
-
-        spawnRegularVillagers();
-        spawnSpeedVillagers();
-    }
-
-    private void spawnRegularVillagers() {
-        regularVillagers.clear();
-
-        MerchantType[] types = {
-                MerchantType.ARMORSMITH,
-                MerchantType.WEAPONSMITH,
-                MerchantType.ALCHEMIST,
-                MerchantType.BUILDER
-        };
-
-        double offset = 12.0;
-        double angleStep = Math.PI / 2.0;
-
-        for (int i = 0; i < types.length; i++) {
-            double angle = i * angleStep;
-            int x = (int) (spawnLocation.getX() + offset * Math.cos(angle));
-            int z = (int) (spawnLocation.getZ() + offset * Math.sin(angle));
-            int y = spawnLocation.getBlockY() + 1;
-
-            Location villagerLoc = new Location(spawnLocation.getWorld(), x + 0.5, y, z + 0.5);
-            Villager villager = (Villager) spawnLocation.getWorld().spawnEntity(villagerLoc, EntityType.VILLAGER);
-
-            villager.setAI(false);
-            villager.setInvulnerable(true);
-            villager.setCollidable(false);
-            villager.setSilent(true);
-            villager.customName(Component.text(color.getTextColor() + types[i].name()));
-            villager.setCustomNameVisible(true);
-
-            Merchant.apply(villager, types[i]);
-
-            regularVillagers.add(villager);
-        }
-    }
-
-    private void spawnSpeedVillagers() {
-        speedVillagers.clear();
-
-        int count = getResourceSpawnerCount();
-        double offset = 13.0;
-        double angleStep = Math.PI / 2.0;
-
-        for (int i = 0; i < count; i++) {
-            double angle = i * angleStep + (Math.PI / 4);
-            int x = (int) (spawnLocation.getX() + offset * Math.cos(angle));
-            int z = (int) (spawnLocation.getZ() + offset * Math.sin(angle));
-            int y = spawnLocation.getBlockY() + 1;
-
-            Location villagerLoc = new Location(spawnLocation.getWorld(), x + 0.5, y, z + 0.5);
-            Villager villager = (Villager) spawnLocation.getWorld().spawnEntity(villagerLoc, EntityType.VILLAGER);
-
-            villager.setAI(false);
-            villager.setInvulnerable(true);
-            villager.setCollidable(false);
-            villager.setSilent(true);
-            villager.customName(Component.text("§eSpeed Marchand"));
-            villager.setCustomNameVisible(true);
-            villager.setBaby();
-
-            Merchant.apply(villager, MerchantType.SPEED);
-
-            speedVillagers.add(villager);
-        }
-    }
-
-    public void removeVillagers() {
-        for (Villager villager : regularVillagers) {
-            if (villager.isValid()) {
-                villager.remove();
-            }
-        }
-        regularVillagers.clear();
-
-        for (Villager villager : speedVillagers) {
-            if (villager.isValid()) {
-                villager.remove();
-            }
-        }
-        speedVillagers.clear();
-    }
-
-    public List<Villager> getSpeedVillagers() {
-        return new ArrayList<>(speedVillagers);
-    }
-
-    public void placeBed() {
+    public void placeBed(int islandIndex) {
         if (spawnLocation == null) {
             return;
         }
@@ -258,12 +179,21 @@ public class Team {
         }
 
         int x = spawnLocation.getBlockX();
-        int y = spawnLocation.getBlockY();
+        int y = spawnLocation.getBlockY() - 2;
         int z = spawnLocation.getBlockZ();
 
-        Block bedFoot = spawnLocation.getWorld().getBlockAt(x, y, z);
-        bedFoot.setType(bedMaterial);
+        int bedOffset = 5;
 
+        switch (islandIndex) {
+            case 0 -> x += bedOffset;
+            case 1 -> x -= bedOffset;
+            case 2 -> z += bedOffset;
+            case 3 -> z -= bedOffset;
+        }
+
+        Block bedFoot = spawnLocation.getWorld().getBlockAt(x, y, z);
+
+        bedFoot.setType(bedMaterial);
         bedLocation = bedFoot.getLocation();
     }
 
@@ -279,10 +209,6 @@ public class Team {
 
     public boolean isBedDestroyed() {
         return bedDestroyed;
-    }
-
-    public void setBedDestroyed(boolean destroyed) {
-        this.bedDestroyed = destroyed;
     }
 
     public boolean isDead(Game game) {

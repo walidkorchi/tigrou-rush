@@ -45,9 +45,9 @@ public class GameLobbyCountdown {
     }
 
     private boolean canStart() {
-        long readyCount = game.getFreePlayers().stream()
-                .filter(p -> true)
-                .count();
+        long playerReadyCount = game.getPlayerReadyCount();
+        long mannequinReadyCount = game.getMannequinReadyCount();
+        long readyCount = playerReadyCount + mannequinReadyCount;
         return readyCount >= 2 && game.getTeamCount() >= 2;
     }
 
