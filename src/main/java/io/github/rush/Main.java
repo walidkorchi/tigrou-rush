@@ -141,10 +141,10 @@ public class Main extends JavaPlugin {
         int islandOffset = getConfig().getInt("islandOffset");
 
         islands = List.of(
-                new Island(-48, 0, -90),
-                new Island(48, 0, 90),
-                new Island(0, -48, 180),
-                new Island(0, 48, 0));
+                new Island(-islandOffset, 0, -90),
+                new Island(islandOffset, 0, 90),
+                new Island(0, -islandOffset, 180),
+                new Island(0, islandOffset, 0));
     }
 
     public void loadSchematics(CommandSender sender) {
@@ -189,21 +189,23 @@ public class Main extends JavaPlugin {
         islandsLoaded = true;
     }
 
+    public void pasteAllSchematics() {
+        for (Island island : islands) {
+            pasteSchematic(island);
+        }
+    }
+
     private void spawnMerchantsInIsland(int islandIndex) {
         final World world = Bukkit.getWorld(getGameWorld());
         final Island island = islands.get(islandIndex);
 
-        final int speedOffset = getConfig().getInt("villagerSpeedOffset", 13 - 8);
-        final int regularOffset = getConfig().getInt("villagerRegularOffset", 12 - 8);
-        List<Integer> spread = getConfig().getIntegerList("villagerSpreadDistance");
-
-        if (spread == null || spread.isEmpty()) {
-            spread = List.of(5, 7);
-        }
+        final int speedOffset = getConfig().getInt("villagerSpeedOffset", 13);
+        final int regularOffset = getConfig().getInt("villagerRegularOffset", speedOffset - 1);
 
         // direction vectors pointing toward center (0,0): {dirX, dirZ}
         final int[][] directions = { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } };
         final float[] yawValues = { -90f, 90f, 0f, 180f };
+        final List<Integer> spread = List.of(5, 7);
 
         final int[] dir = directions[islandIndex];
         final int perpX = dir[1];

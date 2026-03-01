@@ -433,6 +433,10 @@ public class Game {
 
                 if (entity instanceof Mannequin mannequin) {
                     Location spawn = team.getSpawnLocation();
+                    if (team.getBedLocation() != null && !team.isBedDestroyed()) {
+                        Location bedLoc = team.getBedLocation();
+                        spawn = new Location(bedLoc.getWorld(), bedLoc.getX() + 0.5, bedLoc.getY() + 1, bedLoc.getZ() + 0.5);
+                    }
 
                     if (spawn != null) {
                         mannequin.teleport(spawn);
@@ -478,6 +482,10 @@ public class Game {
 
     private void teleportToTeamSpawn(Player player, Team team) {
         Location spawn = team.getSpawnLocation();
+        if (team.getBedLocation() != null && !team.isBedDestroyed()) {
+            Location bedLoc = team.getBedLocation();
+            spawn = new Location(bedLoc.getWorld(), bedLoc.getX() + 0.5, bedLoc.getY() + 1, bedLoc.getZ() + 0.5);
+        }
         if (spawn != null) {
             player.teleport(spawn);
         }
@@ -537,7 +545,14 @@ public class Game {
 
         player.getInventory().clear();
         player.getInventory().setArmorContents(null);
-        player.setRespawnLocation(playerTeam != null ? playerTeam.getSpawnLocation() : lobby);
+
+        Location respawnLocation = lobby;
+        if (playerTeam != null && playerTeam.getBedLocation() != null && !playerTeam.isBedDestroyed()) {
+            respawnLocation = playerTeam.getBedLocation();
+        } else if (playerTeam != null) {
+            respawnLocation = playerTeam.getSpawnLocation();
+        }
+        player.setRespawnLocation(respawnLocation);
 
         if (killer != null) {
             PlayerStatistic killerStat = playerStats.get(killer);

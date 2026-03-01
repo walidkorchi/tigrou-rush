@@ -1,9 +1,13 @@
 package io.github.rush.entities;
 
+import io.papermc.paper.datacomponent.DataComponentTypes;
 import io.papermc.paper.datacomponent.item.PotionContents;
 import org.bukkit.Material;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Villager.Profession;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 import org.bukkit.potion.PotionType;
 
 import java.util.ArrayList;
@@ -18,7 +22,7 @@ public enum MerchantType {
             new Trade(Material.IRON_SWORD, Material.IRON_INGOT, 7, Map.of(Enchantment.SHARPNESS, 3)),
             new Trade(Material.DIAMOND_SWORD, Material.IRON_INGOT, 5, Map.of(Enchantment.SHARPNESS, 2))
                     .withSecondCost(Material.DIAMOND, 1)
-                    .withDurability(15),
+                    .withDurability(85),
             new Trade(Material.FLINT_AND_STEEL, Material.GOLD_INGOT, 1),
             new Trade(Material.TNT, Material.IRON_INGOT, 5)))),
     BUILDER(Profession.CARTOGRAPHER, new ArrayList<>(List.of(
@@ -64,11 +68,12 @@ public enum MerchantType {
     }
 
     private static Material createHealingPotion() {
-        org.bukkit.inventory.ItemStack potion = new org.bukkit.inventory.ItemStack(Material.POTION);
+        ItemStack potion = new ItemStack(Material.SPLASH_POTION);
         PotionContents potionContents = PotionContents.potionContents()
                 .potion(PotionType.HEALING)
+                .addCustomEffect(new PotionEffect(PotionEffectType.INSTANT_HEALTH, 1, 0, true, true, true))
                 .build();
-        potion.setData(io.papermc.paper.datacomponent.DataComponentTypes.POTION_CONTENTS, potionContents);
+        potion.setData(DataComponentTypes.POTION_CONTENTS, potionContents);
         return potion.getType();
     }
 }

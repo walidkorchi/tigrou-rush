@@ -5,6 +5,7 @@ import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.type.Bed;
+import org.bukkit.block.data.type.EnderChest;
 import org.bukkit.entity.Player;
 
 import lombok.Getter;
@@ -146,8 +147,16 @@ public class Team {
         final int perpX = dir[1];
         final int perpZ = -dir[0];
 
+        final BlockFace facingTowardsCenter = switch (islandIndex) {
+            case 0 -> BlockFace.EAST;
+            case 1 -> BlockFace.WEST;
+            case 2 -> BlockFace.SOUTH;
+            case 3 -> BlockFace.NORTH;
+            default -> BlockFace.NORTH;
+        };
+
         final int speedOffset = 13;
-        final int enderChestOffset = speedOffset + 1;
+        final int enderChestOffset = speedOffset - 1;
 
         final int[] spread = { 1, -1 };
 
@@ -157,24 +166,20 @@ public class Team {
 
             int x = spawnLocation.getBlockX() + (dir[0] * enderChestOffset) + (perpX * sign);
             int z = spawnLocation.getBlockZ() + (dir[1] * enderChestOffset) + (perpZ * sign);
-            int y = spawnLocation.getBlockY();
+            int y = spawnLocation.getBlockY() - 2;
 
             Block block = spawnLocation.getWorld().getBlockAt(x, y, z);
-            block.setType(Material.ENDER_CHEST);
+
+            EnderChest enderChestData = (EnderChest) Material.ENDER_CHEST.createBlockData();
+            enderChestData.setFacing(facingTowardsCenter);
+            block.setBlockData(enderChestData);
 
             enderChestLocations.add(block.getLocation());
         }
     }
 
     public int getResourceSpawnerCount() {
-        int playerCount = players.size();
-        if (playerCount <= 1)
-            return 2;
-        if (playerCount == 2)
-            return 2;
-        if (playerCount == 3)
-            return 3;
-        return 4;
+        return Math.max(2, Math.min(4, players.size()));
     }
 
     public void placeBed(int islandIndex) {
@@ -191,7 +196,7 @@ public class Team {
         int y = spawnLocation.getBlockY() - 2;
         int z = spawnLocation.getBlockZ();
 
-        int bedOffset = 2;
+        int bedOffset = -5;
 
         BlockFace bedFacing;
         switch (islandIndex) {
