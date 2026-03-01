@@ -1,0 +1,17 @@
+name: Rush
+version: 1.0.0
+author: Walidoux
+website: https://tl-events.fr
+main: io.github.rush.Main
+api-version: 1.21.11
+
+dependencies:
+  server:
+    WorldEdit:
+      load: BEFORE
+      required: true
+      join-classpath: true
+    GMusic:
+      load: BEFORE
+      required: true
+      join-classpath: true
