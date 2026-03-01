@@ -28,7 +28,7 @@ repositories {
 }
 
 dependencies {
-    implementation("io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT")
+    compileOnly("io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT")
     compileOnly(files("../rush-tl-events/plugins/worldedit-bukkit-7.4.0.jar"))
     compileOnly(files("../rush-tl-events/plugins/GMusic-2.1.2.jar"))
     implementation("fr.mrmicky:fastboard:2.1.5")
