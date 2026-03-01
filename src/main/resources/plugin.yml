@@ -1,12 +1,10 @@
 name: Rush
 version: 1.0.0
+author: Walidoux
+website: https://tl-events.fr
 main: io.github.rush.Main
-api-version: 1.21
+api-version: 1.21.11
+
 softdepend:
   - WorldEdit
   - GMusic
-
-commands:
-  rush:levels:
-    description: Commands for testing the level system
-    usage: /rush:levels

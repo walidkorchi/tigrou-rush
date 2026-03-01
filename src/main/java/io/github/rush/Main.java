@@ -16,6 +16,7 @@ import com.sk89q.worldedit.regions.CuboidRegion;
 import com.sk89q.worldedit.session.ClipboardHolder;
 import com.sk89q.worldedit.world.block.BlockTypes;
 
+import io.github.rush.commands.CommandManager;
 import io.github.rush.entities.*;
 import io.github.rush.events.*;
 import io.github.rush.objects.*;
@@ -24,6 +25,7 @@ import io.github.rush.settings.PlayerSettingsManager;
 import io.github.rush.statistics.*;
 import io.github.rush.scoreboard.ScoreboardManager;
 import io.github.rush.utils.MusicManager;
+import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import fr.mrmicky.fastboard.FastBoard;
 import net.kyori.adventure.text.Component;
 import org.bukkit.entity.Player;
@@ -112,10 +114,9 @@ public class Main extends JavaPlugin {
         Bukkit.getPluginManager().registerEvents(new TNT(this), this);
         Bukkit.getPluginManager().registerEvents(new VillagerInteraction(), this);
 
-        var cmd = getCommand("rush:levels");
-        if (cmd != null) {
-            cmd.setExecutor(new LevelDebugCommand(this));
-        }
+        CommandManager commandManager = new CommandManager();
+        commandManager.registerAll(this);
+        this.getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, commandManager::onCommands);
 
         Bukkit.getScheduler().runTaskTimer(this, () -> {
             scoreboardManager.updateAll();
