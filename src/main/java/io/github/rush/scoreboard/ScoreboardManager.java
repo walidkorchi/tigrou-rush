@@ -89,7 +89,6 @@ public class ScoreboardManager {
 
         final String progressBar = generateProgressBar(playerLevel);
         final String tierColor = playerLevel.getTierColor();
-        final String tierIcon = playerLevel.getTierIcon();
         final int level = playerLevel.getLevel();
         final int currentXP = playerLevel.getCurrentXP();
         final int nextLevelXP = playerLevel.getXPForNextLevel();
@@ -98,10 +97,10 @@ public class ScoreboardManager {
 
         lines.add(getAnimatedSeparator());
         lines.add("");
-        lines.add("§f" + tierIcon + " §7Niveau: " + tierColor + level + " §8[" + currentXP + "/" + nextLevelXP + "§8]");
+        lines.add("§7✪ Niveau: " + tierColor + level + " §8[" + currentXP + "/" + nextLevelXP + "§8]");
         lines.add("§8[" + progressBar + "§8]");
         lines.add("");
-        lines.add("§f◆ §7Statistiques:");
+        lines.add("§f☆ §7Statistiques:");
         lines.add(totalKills + " §c\uD83D\uDDE1 §f" + totalAssists + " §c\u2694 §f" + totalDeaths + " §c☠ §8("
                 + String.format("%.1f", ratio) + ")");
         lines.add("");

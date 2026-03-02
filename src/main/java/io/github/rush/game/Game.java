@@ -12,6 +12,7 @@ import net.kyori.adventure.title.Title;
 
 import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
+import org.bukkit.Sound;
 import org.bukkit.Color;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
@@ -428,6 +429,10 @@ public class Game {
         }
     }
 
+    public void equipPlayer(Player player, Team team) {
+        equipEntity(player, team);
+    }
+
     private void equipEntity(Entity entity, Team team) {
         final ItemStack[] armorAndTool = createTeamArmorAndTool(team.getColor().getColor());
         final EntityEquipment equipment = entity instanceof Player player ? player.getEquipment()
@@ -506,6 +511,12 @@ public class Game {
 
         broadcastMessage("§c" + destroyerName + " §7(" + destroyerTeamName + ") a détruit le lit de l'équipe §c"
                 + team.getColor().name() + "§7!");
+
+        for (Entity entity : getPlayers()) {
+            if (entity instanceof Player player) {
+                player.playSound(player.getLocation(), Sound.ENTITY_ENDER_DRAGON_GROWL, 1.0f, 1.0f);
+            }
+        }
 
         if (team.getPlayers().isEmpty() && destroyerTeam != null) {
             for (Entity entity : destroyerTeam.getPlayers()) {

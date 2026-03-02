@@ -32,13 +32,17 @@ public class TeamSelectionGUI {
     public static void openTeamSelection(Player player) {
         final Game game = Main.getInstance().getGameManager().getCurrentGame();
 
-        if (game.getState() == GameState.WAITING) {
+        if (game == null || game.getState() != GameState.WAITING) {
+            return;
+        }
+
+        {
             final GUI gui = new GUI(TITLE, 2);
             final List<TeamColor> availableColors = getAvailableTeams(game);
 
             for (int i = 0; i < Math.min(4, availableColors.size()); i++) {
                 final TeamColor color = availableColors.get(i);
-                final ItemStack wool = createWoolItem(color);
+                final ItemStack wool = createWoolItem(color, game.getTeam(color.name()));
                 final TeamColor selectedColor = color;
 
                 gui.addItem(i, wool, p -> selectTeam(p, selectedColor));
@@ -68,16 +72,19 @@ public class TeamSelectionGUI {
         return available;
     }
 
-    private static ItemStack createWoolItem(TeamColor color) {
+    private static ItemStack createWoolItem(TeamColor color, Team team) {
         DyeColor dyeColor = color.getDyeColor();
         Material woolMaterial = Material.getMaterial(dyeColor.name() + "_WOOL");
         if (woolMaterial == null) {
             woolMaterial = Material.WHITE_WOOL;
         }
 
+        int current = team != null ? team.getPlayers().size() : 0;
+        int max = team != null ? team.getMaxPlayers() : 4;
+
         ItemStack wool = new ItemStack(woolMaterial);
         ItemMeta meta = wool.getItemMeta();
-        meta.displayName(Component.text(color.getTextColor() + color.name() + " Team"));
+        meta.displayName(Component.text(color.getTextColor() + color.name() + " Team §7(" + current + "/" + max + ")"));
         wool.setItemMeta(meta);
         wool.setData(DataComponentTypes.LORE,
                 ItemLore.lore(List.of(Component.text("§7Clic droit pour choisir une équipe"))));
@@ -86,8 +93,8 @@ public class TeamSelectionGUI {
 
     private static void selectTeam(Player player, TeamColor color) {
         final Game game = Main.getInstance().getGameManager().getCurrentGame();
+        if (game == null) return;
 
-        game.getPlayerTeam(player);
         game.joinTeam(player, color);
 
         player.getInventory().setItem(0, createSlimeballItem());
@@ -144,8 +151,9 @@ public class TeamSelectionGUI {
 
     public static void openLeaveTeamMenu(Player player) {
         Game game = Main.getInstance().getGameManager().getCurrentGame();
+        if (game == null || game.getState() != GameState.WAITING) return;
 
-        if (game.getState() == GameState.WAITING) {
+        {
             game.leaveTeam(player);
 
             player.getInventory().setItem(0, createBannerItem());
@@ -179,8 +187,9 @@ public class TeamSelectionGUI {
 
     public static void toggleReady(Player player) {
         Game game = Main.getInstance().getGameManager().getCurrentGame();
+        if (game == null || game.getState() != GameState.WAITING) return;
 
-        if (game.getState() == GameState.WAITING) {
+        {
             final boolean currentlyReady = game.isPlayerReady(player);
 
             game.setPlayerReady(player, !currentlyReady);

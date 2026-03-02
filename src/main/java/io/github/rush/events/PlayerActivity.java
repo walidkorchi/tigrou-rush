@@ -33,13 +33,11 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
-import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.GameMode;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 
 public class PlayerActivity implements Listener {
@@ -157,20 +155,6 @@ public class PlayerActivity implements Listener {
     }
 
     @EventHandler
-    public void onPlayerRespawn(PlayerRespawnEvent pre) {
-        if (!plugin.isGameStarted()) {
-            return;
-        }
-
-        Player player = pre.getPlayer();
-        player.getInventory().clear();
-        player.getInventory().setHelmet(new ItemStack(Material.LEATHER_HELMET));
-        player.getInventory().setLeggings(new ItemStack(Material.LEATHER_LEGGINGS));
-        player.getInventory().setBoots(new ItemStack(Material.LEATHER_BOOTS));
-        player.getInventory().setItem(0, new ItemStack(Material.WOODEN_PICKAXE));
-    }
-
-    @EventHandler
     public void onPlayerDie(PlayerDeathEvent pd) {
         if (!plugin.isGameStarted()) {
             return;
@@ -178,32 +162,48 @@ public class PlayerActivity implements Listener {
 
         Player player = pd.getEntity();
         Game game = Main.getInstance().getGameManager().getCurrentGame();
-
-        pd.setDroppedExp(0);
-        pd.deathMessage(null);
-        player.getInventory().clear();
+        if (game == null) return;
 
         Team team = game.getPlayerTeam(player);
         boolean bedDestroyed = team != null && team.isBedDestroyed();
-        boolean isSpectator = bedDestroyed || game.isSpectator(player);
 
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                if (isSpectator) {
-                    game.addSpectator(player);
-                } else {
-                    player.spigot().respawn();
-                    if (team != null) {
-                        Location spawn = team.getSpawnLocation();
-                        if (spawn != null) {
-                            player.teleport(spawn);
-                        }
-                    }
-                    game.addProtection(player);
-                }
+        pd.setCancelled(true);
+        pd.setDroppedExp(0);
+        pd.deathMessage(null);
+
+        // Drop inventory except armor (chestplate is droppable per GAME_DESIGN)
+        for (int i = 0; i < player.getInventory().getSize(); i++) {
+            ItemStack item = player.getInventory().getItem(i);
+            if (item != null && !item.getType().isAir()) {
+                player.getWorld().dropItemNaturally(player.getLocation(), item);
             }
-        }.runTaskLater(Main.getInstance(), 20L);
+        }
+
+        player.getInventory().clear();
+        player.getInventory().setArmorContents(null);
+        double maxHealth = player.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH).getValue();
+        player.setHealth(maxHealth);
+        player.setFoodLevel(20);
+        player.setSaturation(20f);
+
+        Player killer = player.getKiller();
+        game.onPlayerDeath(player, killer);
+
+        if (bedDestroyed) {
+            game.addSpectator(player);
+        } else if (team != null) {
+            Location bedLoc = team.getBedLocation();
+            Location spawn = bedLoc != null
+                    ? new Location(bedLoc.getWorld(), bedLoc.getX() + 0.5, bedLoc.getY() + 1, bedLoc.getZ() + 0.5)
+                    : team.getSpawnLocation();
+
+            if (spawn != null) {
+                player.teleport(spawn);
+            }
+
+            game.equipPlayer(player, team);
+            game.addProtection(player);
+        }
     }
 
     @EventHandler
@@ -366,8 +366,6 @@ public class PlayerActivity implements Listener {
         PlayerLevel playerLevel = levelManager.loadPlayerLevel(player.getUniqueId());
 
         int level = playerLevel.getLevel();
-        String tierIcon = playerLevel.getTierIcon();
-
         String levelStr = String.valueOf(level);
         if (level < 10)
             levelStr = "0" + level;
@@ -381,7 +379,7 @@ public class PlayerActivity implements Listener {
         Component formatComponent;
 
         if (isPlayerInQueue(player)) {
-            formatComponent = Component.text("§7[§e" + levelStr + tierIcon + "§7] [§9Lobby§7] §f")
+            formatComponent = Component.text("§7[§e" + levelStr + "§7] [§9Lobby§7] §f")
                     .append(player.displayName())
                     .append(Component.text(" §f> "))
                     .append(Component.text(message));
@@ -395,13 +393,13 @@ public class PlayerActivity implements Listener {
 
                 if (isGlobal) {
                     formatComponent = Component
-                            .text("§7[§e" + levelStr + tierIcon + "§7] [" + teamColorCode + color.name() + "§7] §f")
+                            .text("§7[§e" + levelStr + "§7] [" + teamColorCode + color.name() + "§7] §f")
                             .append(player.displayName())
                             .append(Component.text(" §f> "))
                             .append(Component.text(message));
                 } else {
                     formatComponent = Component
-                            .text("§7[§e" + levelStr + tierIcon + "§7] [" + teamColorCode + color.name() + "§7] §f")
+                            .text("§7[§e" + levelStr + "§7] [" + teamColorCode + color.name() + "§7] §f")
                             .append(player.displayName())
                             .append(Component.text(" §f> "))
                             .append(Component.text(message));
@@ -416,13 +414,13 @@ public class PlayerActivity implements Listener {
                     return;
                 }
             } else {
-                formatComponent = Component.text("§7[§e" + levelStr + tierIcon + "§7] §f")
+                formatComponent = Component.text("§7[§e" + levelStr + "§7] §f")
                         .append(player.displayName())
                         .append(Component.text(" §f> "))
                         .append(Component.text(message));
             }
         } else {
-            formatComponent = Component.text("§7[§e" + levelStr + tierIcon + "§7] §f")
+            formatComponent = Component.text("§7[§e" + levelStr + "§7] §f")
                     .append(player.displayName())
                     .append(Component.text(" §f> "))
                     .append(Component.text(message));

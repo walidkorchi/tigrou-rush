@@ -52,14 +52,16 @@ public class PlayerLevelManager {
         final PlayerLevel playerLevel = loadPlayerLevel(uuid);
 
         playerLevel.addXP(xp);
-        recalculateLevelFromStats(uuid);
+        playerLevel.setLevel(calculateLevel(playerLevel.getTotalXP()));
+        savePlayerLevel(playerLevel);
     }
 
     public void removeXP(UUID uuid, int xp) {
         final PlayerLevel playerLevel = loadPlayerLevel(uuid);
 
         playerLevel.removeXP(xp);
-        recalculateLevelFromStats(uuid);
+        playerLevel.setLevel(calculateLevel(playerLevel.getTotalXP()));
+        savePlayerLevel(playerLevel);
     }
 
     public PlayerLevel loadPlayerLevel(UUID uuid) {

@@ -195,11 +195,29 @@ public class Main extends JavaPlugin {
         }
     }
 
+    private Villager spawnMerchant(World world, Location location, MerchantType type) {
+        final Villager villager = world.spawn(location, Villager.class);
+
+        villager.setAI(false);
+        villager.setInvulnerable(true);
+        villager.setCollidable(false);
+        villager.setSilent(true);
+
+        if (type == MerchantType.SPEED) {
+            villager.setBaby();
+        }
+
+        Merchant.apply(villager, type);
+        spawnedVillagers.add(villager);
+
+        return villager;
+    }
+
     private void spawnMerchantsInIsland(int islandIndex) {
         final World world = Bukkit.getWorld(getGameWorld());
         final Island island = islands.get(islandIndex);
 
-        final int speedOffset = getConfig().getInt("villagerSpeedOffset", 13);
+        final int speedOffset = getConfig().getInt("villagerSpeedOffset");
         final int regularOffset = getConfig().getInt("villagerRegularOffset", speedOffset - 1);
 
         // direction vectors pointing toward center (0,0): {dirX, dirZ}
@@ -220,19 +238,8 @@ public class Main extends JavaPlugin {
             final int speedX = island.getX() + (dir[0] * speedOffset) + (perpX * sign);
             final int speedZ = island.getZ() + (dir[1] * speedOffset) + (perpZ * sign);
 
-            final Location speedLoc = new Location(world, speedX + 0.5, ISLAND_Y + 0.5, speedZ + 0.5, facingYaw,
-                    0);
-            final Villager speedVillager = world.spawn(speedLoc, Villager.class);
-
-            spawnedVillagers.add(speedVillager);
-
-            speedVillager.setAI(false);
-            speedVillager.setInvulnerable(true);
-            speedVillager.setCollidable(false);
-            speedVillager.setSilent(true);
-            speedVillager.setBaby();
-
-            Merchant.apply(speedVillager, MerchantType.SPEED);
+            final Location speedLoc = new Location(world, speedX + 0.5, ISLAND_Y + 0.5, speedZ + 0.5, facingYaw, 0);
+            spawnMerchant(world, speedLoc, MerchantType.SPEED);
         }
 
         // spawn regular villagers (4) at direction * regularOffset ± spread
@@ -242,18 +249,9 @@ public class Main extends JavaPlugin {
             final int regX = island.getX() + (dir[0] * regularOffset) + (perpX * spread.get(spreadIdx) * sign);
             final int regZ = island.getZ() + (dir[1] * regularOffset) + (perpZ * spread.get(spreadIdx) * sign);
 
-            final Location villagerLoc = new Location(world, regX + 0.5, ISLAND_Y + 1, regZ + 0.5, facingYaw,
-                    0);
-            final Villager villager = world.spawn(villagerLoc, Villager.class);
+            final Location villagerLoc = new Location(world, regX + 0.5, ISLAND_Y + 1, regZ + 0.5, facingYaw, 0);
+            final Villager villager = spawnMerchant(world, villagerLoc, regularTypes[i]);
 
-            spawnedVillagers.add(villager);
-
-            villager.setAI(false);
-            villager.setInvulnerable(true);
-            villager.setCollidable(false);
-            villager.setSilent(true);
-
-            Merchant.apply(villager, regularTypes[i]);
             merchantVillagers.put(regularTypes[i], villager);
 
             // Spawn item frame 2 blocks in front of villager with corresponding item
