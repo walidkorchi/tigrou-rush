@@ -28,6 +28,8 @@ public class CommandManager {
         register(new LevelDebugCommand(plugin)::createCommand);
         register(new MannequinCommand()::createCommand);
         register(new ResetIslandsCommand(plugin)::createCommand);
+        register(new ForceStartCommand(plugin)::createCommand);
+        register(new ForceStopCommand(plugin)::createCommand);
     }
 
     public void onCommands(RegistrarEvent<Commands> event) {

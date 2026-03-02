@@ -16,6 +16,8 @@ import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
+import org.bukkit.attribute.Attribute;
+import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Mannequin;
 import org.bukkit.entity.Player;
@@ -301,6 +303,18 @@ public class Game {
         }
     }
 
+    public void forceStart() {
+        if (state == GameState.WAITING) {
+            if (lobbyCountdown != null) {
+                lobbyCountdown.cancel();
+            }
+            lobbyCountdown = new GameLobbyCountdown(this);
+            lobbyCountdown.setCounter(5);
+            lobbyCountdown.broadcastCountdownMessage(5);
+            lobbyCountdown.start();
+        }
+    }
+
     public void autoStart() {
         if (state == GameState.WAITING) {
             final List<Entity> unassigned = freePlayers.stream()
@@ -336,7 +350,7 @@ public class Game {
             for (int i = 0; i < teamOrder.length; i++) {
                 final Team team = teams.get(teamOrder[i].name());
 
-                if (team != null && !team.getPlayers().isEmpty()) {
+                if (team != null) {
                     team.placeBed(i);
                 }
             }
@@ -472,8 +486,22 @@ public class Game {
         }
     }
 
-    public void onBedDestroyed(Team team) {
+    public void onBedDestroyed(Team team, Player destroyer) {
         team.setBedDestroyed(true);
+
+        if (team.getPlayers().isEmpty() && destroyer != null) {
+            Team destroyerTeam = getPlayerTeam(destroyer);
+            if (destroyerTeam != null) {
+                for (Entity entity : destroyerTeam.getPlayers()) {
+                    if (entity instanceof Player player) {
+                        player.getAttribute(Attribute.MAX_HEALTH).addModifier(
+                            new AttributeModifier("extra_hearts", 4.0, AttributeModifier.Operation.ADD_NUMBER)
+                        );
+                        player.sendMessage(Component.text("§a+2 Cœurs permanents!"));
+                    }
+                }
+            }
+        }
 
         for (Entity entity : team.getPlayers()) {
             if (entity instanceof Player player) {
@@ -511,6 +539,46 @@ public class Game {
         Bukkit.getScheduler().runTaskLater(Main.getInstance(), this::resetGame, 400L);
     }
 
+    public void forceStop() {
+        state = GameState.STOPPED;
+
+        runningTasks.forEach(BukkitTask::cancel);
+        runningTasks.clear();
+        stopResourceSpawners();
+
+        List<Entity> allPlayers = new ArrayList<>(getPlayers());
+        for (Entity entity : allPlayers) {
+            removePlayer(entity);
+            if (lobby != null) {
+                entity.teleport(lobby);
+            }
+            if (entity instanceof Player p) {
+                p.setGameMode(org.bukkit.GameMode.ADVENTURE);
+                p.getInventory().clear();
+                p.getInventory().setArmorContents(null);
+            }
+        }
+
+        for (Player spectator : new ArrayList<>(spectators)) {
+            removeSpectator(spectator);
+            if (lobby != null) {
+                spectator.teleport(lobby);
+            }
+        }
+
+        for (Team team : teams.values()) {
+            team.reset();
+        }
+
+        freePlayers.clear();
+        playersReady.clear();
+        playerStats.clear();
+        spectators.clear();
+        protectedPlayers.clear();
+
+        cycle.onGameEnd();
+    }
+
     private void resetGame() {
         for (Entity player : getPlayers()) {
             removePlayer(player);
@@ -539,10 +607,6 @@ public class Game {
         for (int i = 0; i < teamOrder.length; i++) {
             Team team = teams.get(teamOrder[i].name());
             if (team == null) {
-                continue;
-            }
-
-            if (!team.getPlayers().isEmpty()) {
                 continue;
             }
 

@@ -189,7 +189,7 @@ public class TNT implements Listener {
 
         bedBlock.setType(Material.AIR);
         
-        game.onBedDestroyed(team);
+        game.onBedDestroyed(team, tntSource);
     }
 
     private TeamColor getTeamColorFromBed(Bed bed) {

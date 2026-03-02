@@ -61,4 +61,18 @@ public class GameLobbyCountdown {
 
         counter = 60;
     }
+
+    public void setCounter(int counter) {
+        this.counter = counter;
+    }
+
+    public void broadcastCountdownMessage(int seconds) {
+        String message = "§eLa partie commence dans §c" + seconds + " §esecondes!";
+
+        for (Entity entity : game.getPlayers()) {
+            if (entity instanceof Player player) {
+                player.sendMessage(Component.text(message));
+            }
+        }
+    }
 }
