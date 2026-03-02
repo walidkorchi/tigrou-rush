@@ -429,14 +429,14 @@ public class Game {
         }
     }
 
-    public void equipPlayer(Player player, Team team) {
-        equipEntity(player, team);
+    public EntityEquipment getPlayerInventory(Entity entity) {
+        return entity instanceof Player player ? player.getEquipment()
+                : ((Mannequin) entity).getEquipment();
     }
 
-    private void equipEntity(Entity entity, Team team) {
+    public void equipEntity(Entity entity, Team team) {
         final ItemStack[] armorAndTool = createTeamArmorAndTool(team.getColor().getColor());
-        final EntityEquipment equipment = entity instanceof Player player ? player.getEquipment()
-                : ((Mannequin) entity).getEquipment();
+        final EntityEquipment equipment = getPlayerInventory(entity);
 
         equipment.setHelmet(armorAndTool[0]);
         equipment.setLeggings(armorAndTool[2]);
@@ -473,32 +473,36 @@ public class Game {
         return new ItemStack[] { helmet, chestplate, leggings, boots, pickaxe };
     }
 
-    // TODO: not used for now, but kept as reference for future usage
-    public void onPlayerDeath(Player player, Player killer) {
-        Team playerTeam = getPlayerTeam(player);
+    public void onPlayerDeath(Entity entity, Player killer) {
+        final Team playerTeam = getPlayerTeam(entity);
+        final EntityEquipment inventory = getPlayerInventory(entity);
 
-        player.getInventory().clear();
-        player.getInventory().setArmorContents(null);
+        inventory.clear();
+        inventory.setArmorContents(null);
 
         Location respawnLocation = lobby;
+
         if (playerTeam != null && playerTeam.getBedLocation() != null && !playerTeam.isBedDestroyed()) {
             respawnLocation = playerTeam.getBedLocation();
         } else if (playerTeam != null) {
             respawnLocation = playerTeam.getSpawnLocation();
         }
-        player.setRespawnLocation(respawnLocation);
 
-        if (killer != null) {
-            PlayerStatistic killerStat = playerStats.get(killer);
-            if (killerStat != null) {
-                killerStat.setCurrentKills(killerStat.getCurrentKills() + 1);
-                killerStat.setCurrentScore(killerStat.getCurrentScore() + 10);
+        if (entity instanceof Player player) {
+            player.setRespawnLocation(respawnLocation);
+
+            if (killer != null) {
+                PlayerStatistic killerStat = playerStats.get(killer);
+                if (killerStat != null) {
+                    killerStat.setCurrentKills(killerStat.getCurrentKills() + 1);
+                    killerStat.setCurrentScore(killerStat.getCurrentScore() + 10);
+                }
             }
-        }
 
-        PlayerStatistic playerStat = playerStats.get(player);
-        if (playerStat != null) {
-            playerStat.setCurrentDeaths(playerStat.getCurrentDeaths() + 1);
+            PlayerStatistic playerStat = playerStats.get(entity);
+            if (playerStat != null) {
+                playerStat.setCurrentDeaths(playerStat.getCurrentDeaths() + 1);
+            }
         }
     }
 

@@ -17,7 +17,9 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.attribute.Attribute;
 import org.bukkit.block.Block;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -35,15 +37,21 @@ import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.GameMode;
+import org.bukkit.inventory.EntityEquipment;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitTask;
+import org.bukkit.util.BoundingBox;
 
 public class PlayerActivity implements Listener {
 
     private final Main plugin;
+
     private BukkitTask actionBarTask;
+
+    // tolerance for floating-point imprecision in position tracking
+    private static final double EPSILON = 0.05;
 
     public PlayerActivity(Main plugin) {
         this.plugin = plugin;
@@ -125,11 +133,60 @@ public class PlayerActivity implements Listener {
             return;
         }
 
+        // sandstone/endstone are emancipated from island block protection logic
         if (blockType == Material.SANDSTONE || blockType == Material.END_STONE) {
+            final Game game = Main.getInstance().getGameManager().getCurrentGame();
+
+            if (game != null) {
+                final Team breakerTeam = game.getPlayerTeam(player);
+
+                // anti-spleef for same team players
+                for (Player p : block.getWorld().getNearbyPlayers(block.getLocation(), 2)) {
+                    if (p.equals(player) || !isStandingOn(p, block)) {
+                        continue;
+                    }
+
+                    final Team pTeam = game.getPlayerTeam(p);
+
+                    if (pTeam != null && breakerTeam.equals(pTeam)) {
+                        event.setCancelled(true);
+                        return;
+                    }
+                }
+            }
+
             return;
         }
 
         event.setCancelled(true);
+    }
+
+    /**
+     * Checks if a player is physically standing
+     * on a given block bounding boxes only
+     */
+    private boolean isStandingOn(Player player, Block block) {
+        BoundingBox playerBox = player.getBoundingBox();
+        BoundingBox blockBox = block.getBoundingBox();
+
+        // skip empty bounding box (no collision shape)
+        if (blockBox.getVolume() == 0) {
+            return false;
+        }
+
+        double feetY = playerBox.getMinY();
+        double blockTopY = blockBox.getMaxY();
+
+        if (Math.abs(feetY - blockTopY) > EPSILON) {
+            return false;
+        }
+
+        // player's hitbox must overlap the block horizontally
+        // (handles edge-standing on up to 4 blocks)
+        return playerBox.getMinX() < blockBox.getMaxX()
+                && playerBox.getMaxX() > blockBox.getMinX()
+                && playerBox.getMinZ() < blockBox.getMaxZ()
+                && playerBox.getMaxZ() > blockBox.getMinZ();
     }
 
     private static ItemStack createSettingsItem() {
@@ -160,37 +217,33 @@ public class PlayerActivity implements Listener {
             return;
         }
 
-        Player player = pd.getEntity();
+        Entity entity = pd.getEntity();
         Game game = Main.getInstance().getGameManager().getCurrentGame();
-        if (game == null) return;
 
-        Team team = game.getPlayerTeam(player);
-        boolean bedDestroyed = team != null && team.isBedDestroyed();
+        if (game == null)
+            return;
 
         pd.setCancelled(true);
         pd.setDroppedExp(0);
         pd.deathMessage(null);
 
-        // Drop inventory except armor (chestplate is droppable per GAME_DESIGN)
-        for (int i = 0; i < player.getInventory().getSize(); i++) {
-            ItemStack item = player.getInventory().getItem(i);
-            if (item != null && !item.getType().isAir()) {
-                player.getWorld().dropItemNaturally(player.getLocation(), item);
-            }
+        Player killer = null;
+        if (entity instanceof Player player) {
+            player.setHealth(player.getAttribute(Attribute.MAX_HEALTH).getValue());
+            player.setFoodLevel(20);
+            player.setSaturation(20f);
+            killer = player.getKiller();
         }
 
-        player.getInventory().clear();
-        player.getInventory().setArmorContents(null);
-        double maxHealth = player.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH).getValue();
-        player.setHealth(maxHealth);
-        player.setFoodLevel(20);
-        player.setSaturation(20f);
+        game.onPlayerDeath(entity, killer);
 
-        Player killer = player.getKiller();
-        game.onPlayerDeath(player, killer);
+        Team team = game.getPlayerTeam(entity);
+        boolean bedDestroyed = team != null && team.isBedDestroyed();
 
         if (bedDestroyed) {
-            game.addSpectator(player);
+            if (entity instanceof Player player) {
+                game.addSpectator(player);
+            }
         } else if (team != null) {
             Location bedLoc = team.getBedLocation();
             Location spawn = bedLoc != null
@@ -198,11 +251,13 @@ public class PlayerActivity implements Listener {
                     : team.getSpawnLocation();
 
             if (spawn != null) {
-                player.teleport(spawn);
+                entity.teleport(spawn);
             }
 
-            game.equipPlayer(player, team);
-            game.addProtection(player);
+            if (entity instanceof Player player) {
+                game.equipEntity(player, team);
+                game.addProtection(player);
+            }
         }
     }
 
