@@ -228,6 +228,8 @@ public class Main extends JavaPlugin {
 
             speedVillager.setAI(false);
             speedVillager.setInvulnerable(true);
+            speedVillager.setCollidable(false);
+            speedVillager.setSilent(true);
             speedVillager.setBaby();
 
             Merchant.apply(speedVillager, MerchantType.SPEED);
@@ -248,6 +250,8 @@ public class Main extends JavaPlugin {
 
             villager.setAI(false);
             villager.setInvulnerable(true);
+            villager.setCollidable(false);
+            villager.setSilent(true);
 
             Merchant.apply(villager, regularTypes[i]);
             merchantVillagers.put(regularTypes[i], villager);

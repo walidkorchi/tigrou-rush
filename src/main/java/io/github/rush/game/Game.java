@@ -11,6 +11,7 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.title.Title;
 
 import org.bukkit.Bukkit;
+import org.bukkit.NamespacedKey;
 import org.bukkit.Color;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
@@ -18,6 +19,7 @@ import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeModifier;
+import org.bukkit.inventory.EquipmentSlotGroup;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Mannequin;
 import org.bukkit.entity.Player;
@@ -279,6 +281,14 @@ public class Game {
         }
     }
 
+    private void resetPlayerHealth(Player player) {
+        var maxHealth = player.getAttribute(Attribute.MAX_HEALTH);
+        if (maxHealth != null) {
+            maxHealth.removeModifier(NamespacedKey.minecraft("extra_hearts"));
+        }
+        player.setHealth(20.0);
+    }
+
     public void setPlayerReady(Entity entity, boolean ready) {
         playersReady.put(entity, ready);
         checkStartCondition();
@@ -342,6 +352,7 @@ public class Game {
     public void start() {
         if (state == GameState.WAITING) {
             state = GameState.RUNNING;
+            Main.getInstance().setGameStarted(true);
 
             loadIslandsAndSetSpawns();
 
@@ -361,6 +372,7 @@ public class Game {
                 if (team != null) {
                     if (entity instanceof Player player) {
                         player.getInventory().clear();
+                        player.setGameMode(GameMode.SURVIVAL);
                     }
 
                     teleportToTeamSpawn(entity, team);
@@ -422,7 +434,6 @@ public class Game {
                 : ((Mannequin) entity).getEquipment();
 
         equipment.setHelmet(armorAndTool[0]);
-        equipment.setChestplate(armorAndTool[1]);
         equipment.setLeggings(armorAndTool[2]);
         equipment.setBoots(armorAndTool[3]);
         equipment.setItem(EquipmentSlot.HAND, armorAndTool[4]);
@@ -489,16 +500,20 @@ public class Game {
     public void onBedDestroyed(Team team, Player destroyer) {
         team.setBedDestroyed(true);
 
-        if (team.getPlayers().isEmpty() && destroyer != null) {
-            Team destroyerTeam = getPlayerTeam(destroyer);
-            if (destroyerTeam != null) {
-                for (Entity entity : destroyerTeam.getPlayers()) {
-                    if (entity instanceof Player player) {
-                        player.getAttribute(Attribute.MAX_HEALTH).addModifier(
-                            new AttributeModifier("extra_hearts", 4.0, AttributeModifier.Operation.ADD_NUMBER)
-                        );
-                        player.sendMessage(Component.text("§a+2 Cœurs permanents!"));
-                    }
+        String destroyerName = destroyer != null ? destroyer.getName() : "TNT";
+        Team destroyerTeam = destroyer != null ? getPlayerTeam(destroyer) : null;
+        String destroyerTeamName = destroyerTeam != null ? destroyerTeam.getColor().name() : "";
+
+        broadcastMessage("§c" + destroyerName + " §7(" + destroyerTeamName + ") a détruit le lit de l'équipe §c"
+                + team.getColor().name() + "§7!");
+
+        if (team.getPlayers().isEmpty() && destroyerTeam != null) {
+            for (Entity entity : destroyerTeam.getPlayers()) {
+                if (entity instanceof Player player) {
+                    player.getAttribute(Attribute.MAX_HEALTH).addModifier(
+                            new AttributeModifier(NamespacedKey.minecraft("extra_hearts"), 4.0,
+                                    AttributeModifier.Operation.ADD_NUMBER, EquipmentSlotGroup.ANY));
+                    player.sendMessage(Component.text("§a+2 Cœurs permanents!"));
                 }
             }
         }
@@ -524,6 +539,7 @@ public class Game {
 
     private void endGame(Team winner) {
         state = GameState.STOPPED;
+        Main.getInstance().setGameStarted(false);
 
         if (winner != null) {
             String winMessage = "Victoire de l'équipe " + winner.getColor().name();
@@ -541,6 +557,7 @@ public class Game {
 
     public void forceStop() {
         state = GameState.STOPPED;
+        Main.getInstance().setGameStarted(false);
 
         runningTasks.forEach(BukkitTask::cancel);
         runningTasks.clear();
@@ -553,9 +570,10 @@ public class Game {
                 entity.teleport(lobby);
             }
             if (entity instanceof Player p) {
-                p.setGameMode(org.bukkit.GameMode.ADVENTURE);
+                p.setGameMode(GameMode.ADVENTURE);
                 p.getInventory().clear();
                 p.getInventory().setArmorContents(null);
+                resetPlayerHealth(p);
             }
         }
 
@@ -580,10 +598,15 @@ public class Game {
     }
 
     private void resetGame() {
-        for (Entity player : getPlayers()) {
-            removePlayer(player);
+        for (Entity entity : getPlayers()) {
+            removePlayer(entity);
+
             if (lobby != null) {
-                player.teleport(lobby);
+                entity.teleport(lobby);
+            }
+
+            if (entity instanceof Player p) {
+                resetPlayerHealth(p);
             }
         }
 
@@ -596,6 +619,7 @@ public class Game {
         playerStats.clear();
         runningTasks.forEach(BukkitTask::cancel);
         runningTasks.clear();
+
         stopResourceSpawners();
 
         state = GameState.WAITING;
@@ -606,6 +630,7 @@ public class Game {
 
         for (int i = 0; i < teamOrder.length; i++) {
             Team team = teams.get(teamOrder[i].name());
+
             if (team == null) {
                 continue;
             }
@@ -635,6 +660,9 @@ public class Game {
     }
 
     private void updateActionBar() {
+        if (state != GameState.WAITING)
+            return;
+
         String gameWorld = Main.getInstance().getGameWorld();
         if (gameWorld == null)
             return;

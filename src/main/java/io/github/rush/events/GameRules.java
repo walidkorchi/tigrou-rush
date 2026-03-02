@@ -9,9 +9,11 @@ import org.bukkit.entity.Player;
 import org.bukkit.entity.Villager;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
-import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.inventory.CraftItemEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.player.PlayerBedEnterEvent;
@@ -25,6 +27,7 @@ import io.github.rush.entities.MerchantType;
 import io.github.rush.game.Game;
 import io.github.rush.game.GameState;
 
+import java.util.Set;
 import java.util.function.Predicate;
 
 public class GameRules implements Listener {
@@ -48,16 +51,25 @@ public class GameRules implements Listener {
         return worldName.equals(plugin.getGameWorld());
     }
 
+    private static final Set<Material> PLACEABLE_BLOCKS = Set.of(
+            Material.SANDSTONE, Material.END_STONE, Material.TNT);
+
+    private static final Set<Material> BREAKABLE_BLOCKS = Set.of(
+            Material.SANDSTONE, Material.END_STONE);
+
     @EventHandler
     public void onBlockPlace(BlockPlaceEvent event) {
         if (!isGameEventRegistered(event.getBlock().getWorld().getName()))
             return;
 
-        if (event.getBlock().getType() == Material.TNT)
+        if (!PLACEABLE_BLOCKS.contains(event.getBlock().getType())) {
+            event.setCancelled(true);
             return;
+        }
 
-        if (hasNearbyBlock(event.getBlock(), plugin.getConfig().getInt("bedProtectionRadius"),
-                b -> b.getBlockData() instanceof Bed)) {
+        if (event.getBlock().getType() != Material.TNT
+                && hasNearbyBlock(event.getBlock(), plugin.getConfig().getInt("bedProtectionRadius"),
+                        b -> b.getBlockData() instanceof Bed)) {
             event.setCancelled(true);
             event.getPlayer().sendMessage(Component.text("Cannot place blocks near beds!"));
         }
@@ -68,9 +80,20 @@ public class GameRules implements Listener {
         if (!isGameEventRegistered(event.getBlock().getWorld().getName()))
             return;
 
-        if (plugin.isBlockOnIsland(event.getBlock())) {
+        if (!BREAKABLE_BLOCKS.contains(event.getBlock().getType())) {
             event.setCancelled(true);
         }
+    }
+
+    @EventHandler
+    public void onVillagerDamage(EntityDamageByEntityEvent event) {
+        if (!(event.getEntity() instanceof Villager villager))
+            return;
+
+        if (!plugin.isMerchantVillager(villager))
+            return;
+
+        event.setCancelled(true);
     }
 
     @EventHandler
@@ -82,17 +105,21 @@ public class GameRules implements Listener {
     }
 
     @EventHandler
-    public void onVillagerDamage(EntityDamageEvent event) {
-        if (!(event.getEntity() instanceof Villager villager))
+    public void onBedInteract(PlayerInteractEvent event) {
+        if (event.getAction() != Action.RIGHT_CLICK_BLOCK)
             return;
 
-        if (!isGameEventRegistered(villager.getWorld().getName()))
+        Block block = event.getClickedBlock();
+        if (block == null || !(block.getBlockData() instanceof Bed))
+            return;
+
+        if (!isGameEventRegistered(block.getWorld().getName()))
             return;
 
         event.setCancelled(true);
     }
 
-    @EventHandler
+@EventHandler
     public void onVillagerInteract(PlayerInteractEntityEvent event) {
         if (!(event.getRightClicked() instanceof Villager villager))
             return;

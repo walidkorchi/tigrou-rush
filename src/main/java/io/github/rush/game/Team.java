@@ -167,7 +167,7 @@ public class Team {
         int y = spawnLocation.getBlockY() - 2;
         int z = spawnLocation.getBlockZ();
 
-        int bedOffset = -5;
+        int bedOffset = -6;
 
         BlockFace bedFacing;
         switch (islandIndex) {

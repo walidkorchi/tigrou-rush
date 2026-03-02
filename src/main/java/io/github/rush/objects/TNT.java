@@ -108,8 +108,9 @@ public class TNT implements Listener {
             final Block block = blockIterator.next();
             final Material blockType = block.getType();
 
-            if (plugin.isBlockOnIsland(block)) {
+            if (isBed(block)) {
                 blockIterator.remove();
+                handleBedDestruction(block, source);
                 continue;
             }
 
@@ -117,21 +118,11 @@ public class TNT implements Listener {
                 block.setType(Material.AIR);
                 spawnTNT(block.getLocation(), source);
                 blockIterator.remove();
-            } else {
-                blockIterator.remove();
+                continue;
             }
 
-            if (block.getType() == Material.OBSIDIAN) {
-                if (yield > 0) {
-                    block.breakNaturally();
-                } else {
-                    block.setType(Material.AIR);
-                }
-            }
-
-            if (isBed(block)) {
-                handleBedDestruction(block, source);
-            }
+            // Protect island blocks and remove non-island blocks from explosion
+            blockIterator.remove();
         }
     }
 

@@ -14,6 +14,7 @@ import io.papermc.paper.event.player.AsyncChatEvent;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
@@ -371,7 +372,7 @@ public class PlayerActivity implements Listener {
         if (level < 10)
             levelStr = "0" + level;
 
-        String message = event.message().toString();
+        String message = PlainTextComponentSerializer.plainText().serialize(event.message());
         boolean isGlobal = message.startsWith("@");
         if (isGlobal) {
             message = message.substring(1).trim();
@@ -380,7 +381,7 @@ public class PlayerActivity implements Listener {
         Component formatComponent;
 
         if (isPlayerInQueue(player)) {
-            formatComponent = Component.text("§7[§e" + levelStr + tierIcon + "§7][§9Lobby§7]§f")
+            formatComponent = Component.text("§7[§e" + levelStr + tierIcon + "§7] [§9Lobby§7] §f")
                     .append(player.displayName())
                     .append(Component.text(" §f> "))
                     .append(Component.text(message));
@@ -394,13 +395,13 @@ public class PlayerActivity implements Listener {
 
                 if (isGlobal) {
                     formatComponent = Component
-                            .text("§7[§e" + levelStr + tierIcon + "§7][" + teamColorCode + color.name() + "§7]§f")
+                            .text("§7[§e" + levelStr + tierIcon + "§7] [" + teamColorCode + color.name() + "§7] §f")
                             .append(player.displayName())
                             .append(Component.text(" §f> "))
                             .append(Component.text(message));
                 } else {
                     formatComponent = Component
-                            .text("§7[§e" + levelStr + tierIcon + "§7][" + teamColorCode + color.name() + "§7]§f")
+                            .text("§7[§e" + levelStr + tierIcon + "§7] [" + teamColorCode + color.name() + "§7] §f")
                             .append(player.displayName())
                             .append(Component.text(" §f> "))
                             .append(Component.text(message));
@@ -415,13 +416,13 @@ public class PlayerActivity implements Listener {
                     return;
                 }
             } else {
-                formatComponent = Component.text("§7[§e" + levelStr + tierIcon + "§7]§f")
+                formatComponent = Component.text("§7[§e" + levelStr + tierIcon + "§7] §f")
                         .append(player.displayName())
                         .append(Component.text(" §f> "))
                         .append(Component.text(message));
             }
         } else {
-            formatComponent = Component.text("§7[§e" + levelStr + tierIcon + "§7]§f")
+            formatComponent = Component.text("§7[§e" + levelStr + tierIcon + "§7] §f")
                     .append(player.displayName())
                     .append(Component.text(" §f> "))
                     .append(Component.text(message));

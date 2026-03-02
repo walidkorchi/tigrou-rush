@@ -54,6 +54,7 @@ public class ForceStopCommand {
         }
 
         game.forceStop();
+        plugin.clearGame();
 
         for (var player : plugin.getServer().getOnlinePlayers()) {
             player.sendMessage(text("§c⚠ Un administrateur a forcé l'arrêt de la partie!"));
