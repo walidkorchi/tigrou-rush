@@ -15,10 +15,6 @@ public class GameManager {
         this.plugin = plugin;
     }
 
-    public Main getPlugin() {
-        return plugin;
-    }
-
     public Game createGame(String name) {
         if (games.containsKey(name)) {
             return null;
@@ -28,30 +24,31 @@ public class GameManager {
         return game;
     }
 
+    // TODO: not used for now, but kept as reference for future usage
     public Game getGame(String name) {
         return games.get(name);
     }
 
+    // TODO: not used for now, but kept as reference for future usage
     public void addPlayerToGame(Player player, Game game) {
         playerGameMap.put(player, game);
     }
 
+    // TODO: not used for now, but kept as reference for future usage
     public void removePlayerFromGame(Player player) {
         playerGameMap.remove(player);
-    }
-
-    public Game getPlayerGame(Player player) {
-        return playerGameMap.get(player);
     }
 
     public Game getGameOfPlayer(Player player) {
         return playerGameMap.get(player);
     }
 
+    // TODO: not used for now, but kept as reference for future usage
     public Collection<Game> getGames() {
         return games.values();
     }
 
+    // TODO: not used for now, but kept as reference for future usage
     public void removeGame(String name) {
         games.remove(name);
     }

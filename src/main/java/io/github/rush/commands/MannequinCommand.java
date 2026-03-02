@@ -146,7 +146,7 @@ public class MannequinCommand {
             Game game = gameManager.getCurrentGame();
             if (game != null) {
                 Team team = game.getTeam(teamColor.name());
-                boolean joined = game.joinTeamMannequin(mannequin.getUniqueId(), teamColor);
+                boolean joined = game.joinTeam(mannequin, teamColor);
                 if (joined) {
                     if (team != null && team.getSpawnLocation() != null) {
                         mannequin.teleport(team.getSpawnLocation());
@@ -178,7 +178,7 @@ public class MannequinCommand {
 
     private TeamColor getSmallestTeam(Game game) {
         return game.getTeams().values().stream()
-                .min((a, b) -> Integer.compare(a.getPlayerCount(), b.getPlayerCount()))
+                .min((a, b) -> Integer.compare(a.getPlayers().size(), b.getPlayers().size()))
                 .map(t -> t.getColor())
                 .orElse(TeamColor.RED);
     }
@@ -196,7 +196,7 @@ public class MannequinCommand {
         for (var entity : target.getWorld().getEntities()) {
             if (entity instanceof Mannequin) {
                 if (game != null) {
-                    game.leaveTeamMannequin(entity.getUniqueId());
+                    game.leaveTeam(entity);
                 }
                 entity.remove();
                 count++;

@@ -3,6 +3,7 @@ package io.github.rush.game;
 import io.github.rush.Main;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
 
@@ -39,16 +40,17 @@ public class GameLobbyCountdown {
 
     private void broadcastCountdown(int seconds) {
         String message = "§eLa partie commence dans §c" + seconds + " §esecondes!";
-        for (Player player : game.getPlayers()) {
-            player.sendMessage(Component.text(message));
+
+        for (Entity entity : game.getPlayers()) {
+            if (entity instanceof Player player) {
+                player.sendMessage(Component.text(message));
+            }
         }
     }
 
     private boolean canStart() {
-        long playerReadyCount = game.getPlayerReadyCount();
-        long mannequinReadyCount = game.getMannequinReadyCount();
-        long readyCount = playerReadyCount + mannequinReadyCount;
-        return readyCount >= 2 && game.getTeamCount() >= 2;
+        long readyCount = game.getPlayersReadyCount();
+        return readyCount >= game.getMinPlayers() && game.getTeamCount() >= game.getMinTeams();
     }
 
     public void cancel() {

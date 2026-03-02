@@ -6,16 +6,13 @@ import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.type.Bed;
 import org.bukkit.block.data.type.EnderChest;
-import org.bukkit.entity.Player;
+import org.bukkit.entity.Entity;
 
 import lombok.Getter;
 import lombok.Setter;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 public class Team {
 
@@ -29,8 +26,7 @@ public class Team {
     @Getter
     private final int maxPlayers;
 
-    private final List<Player> players = new ArrayList<>();
-    private final Set<UUID> mannequinIds = ConcurrentHashMap.newKeySet();
+    private final List<Entity> players = new ArrayList<>();
 
     @Getter
     @Setter
@@ -52,7 +48,7 @@ public class Team {
         this.maxPlayers = maxPlayers;
     }
 
-    public boolean addPlayer(Player player) {
+    public boolean addPlayer(Entity player) {
         if (players.size() >= maxPlayers) {
             return false;
         }
@@ -62,46 +58,20 @@ public class Team {
         return true;
     }
 
-    public void removePlayer(Player player) {
-        players.remove(player);
+    public void removePlayer(Entity entity) {
+        players.remove(entity);
     }
 
-    public boolean isInTeam(Player player) {
-        return players.contains(player);
+    public boolean isInTeam(Entity entity) {
+        return players.contains(entity);
     }
 
-    public List<Player> getPlayers() {
+    public List<Entity> getPlayers() {
         return new ArrayList<>(players);
-    }
-
-    public int getPlayerCount() {
-        return players.size() + mannequinIds.size();
-    }
-
-    public boolean addMannequin(UUID uuid) {
-        int total = players.size() + mannequinIds.size();
-        if (total >= maxPlayers) {
-            return false;
-        }
-        mannequinIds.add(uuid);
-        return true;
-    }
-
-    public void removeMannequin(UUID uuid) {
-        mannequinIds.remove(uuid);
-    }
-
-    public boolean isMannequinInTeam(UUID uuid) {
-        return mannequinIds.contains(uuid);
-    }
-
-    public Set<UUID> getMannequinIds() {
-        return Set.copyOf(mannequinIds);
     }
 
     public void reset() {
         players.clear();
-        mannequinIds.clear();
         bedDestroyed = false;
         enderChestLocations.clear();
 
@@ -118,6 +88,7 @@ public class Team {
                 bedBlock.setType(Material.AIR);
             }
         }
+
         bedLocation = null;
         bedDestroyed = false;
     }

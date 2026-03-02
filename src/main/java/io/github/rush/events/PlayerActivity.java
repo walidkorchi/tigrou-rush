@@ -37,10 +37,12 @@ import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.scheduler.BukkitTask;
 
 public class PlayerActivity implements Listener {
 
     private final Main plugin;
+    private BukkitTask actionBarTask;
 
     public PlayerActivity(Main plugin) {
         this.plugin = plugin;
@@ -48,9 +50,14 @@ public class PlayerActivity implements Listener {
     }
 
     private void startActionBarTask() {
-        plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
-            if (plugin.isGameStarted())
+        actionBarTask = plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
+            if (plugin.isGameStarted()) {
+                if (actionBarTask != null) {
+                    actionBarTask.cancel();
+                    actionBarTask = null;
+                }
                 return;
+            }
 
             sendActionBarToAll();
         }, 0L, 40L);
@@ -62,26 +69,17 @@ public class PlayerActivity implements Listener {
             return;
 
         int readyCount = 0;
-        int mannequinReadyCount = 0;
 
         if (plugin.getGameManager() != null && plugin.getGameManager().getCurrentGame() != null) {
             var game = plugin.getGameManager().getCurrentGame();
-            for (Player player : plugin.getServer().getOnlinePlayers()) {
-                if (player.getWorld().getName().equals(gameWorld)) {
-                    if (game.isPlayerReady(player)) {
-                        readyCount++;
-                    }
-                }
-            }
-            mannequinReadyCount = (int) game.getMannequinReadyCount();
+            readyCount = (int) game.getPlayersReadyCount();
         }
 
-        int totalReady = readyCount + mannequinReadyCount;
-        NamedTextColor countColor = totalReady >= 4 ? NamedTextColor.GREEN : NamedTextColor.RED;
+        NamedTextColor countColor = readyCount >= 4 ? NamedTextColor.GREEN : NamedTextColor.RED;
         TextComponent.Builder builder = Component.text()
                 .content("Joueurs prêts (")
                 .color(NamedTextColor.WHITE);
-        builder.append(Component.text(totalReady + "/8").color(countColor));
+        builder.append(Component.text(readyCount + "/8").color(countColor));
         builder.append(Component.text(")").color(NamedTextColor.WHITE));
 
         Component message = builder.build();

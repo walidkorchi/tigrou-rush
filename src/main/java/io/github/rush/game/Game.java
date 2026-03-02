@@ -8,6 +8,8 @@ import lombok.Setter;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.title.Title;
+
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.GameMode;
@@ -17,6 +19,7 @@ import org.bukkit.World;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Mannequin;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.EntityEquipment;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -42,36 +45,31 @@ public class Game {
     @Getter
     private final Map<String, Team> teams = new HashMap<>();
     @Getter
-    private final List<Player> freePlayers = new ArrayList<>();
+    private final List<Entity> freePlayers = new ArrayList<>();
     private final Map<Player, PlayerStatistic> playerStats = new HashMap<>();
     private final Set<Player> spectators = new HashSet<>();
     private final Set<Player> protectedPlayers = new HashSet<>();
 
     @Getter
     private int timeLeft = 0;
+    @Getter
     private final int maxPlayers = 8;
+    @Getter
     private final int minPlayers = 2;
+    @Getter
     private final int minTeams = 2;
 
     private GameLobbyCountdown lobbyCountdown;
-    private final Map<Player, Boolean> playerReady = new HashMap<>();
-    private final Map<UUID, Boolean> mannequinReady = new HashMap<>();
-
-    public long getMannequinReadyCount() {
-        return mannequinReady.values().stream().filter(r -> r).count();
-    }
-
-    public long getPlayerReadyCount() {
-        return playerReady.values().stream().filter(r -> r).count();
-    }
+    private final Map<Entity, Boolean> playersReady = new HashMap<>();
 
     public Game(String name) {
         this.state = GameState.WAITING;
         this.cycle = new GameCycle(this);
         this.timeLeft = Main.getInstance().getMaxLength();
 
-        String lobbyWorld = Main.getInstance().getConfig().getString("lobbyWorld", "world");
-        org.bukkit.World world = Bukkit.getWorld(lobbyWorld);
+        String lobbyWorld = Main.getInstance().getConfig().getString("lobbyWorld");
+        World world = Bukkit.getWorld(lobbyWorld);
+
         this.lobby = world != null ? world.getSpawnLocation() : null;
 
         initializeTeams();
@@ -87,119 +85,9 @@ public class Game {
         }
     }
 
-    public boolean addPlayer(Player player) {
-        if (state == GameState.RUNNING) {
-            return false;
-        }
-
-        playerReady.put(player, false);
-        freePlayers.add(player);
-
-        giveLobbyItems(player);
-        updatePlayerList();
-
-        return true;
-    }
-
-    public void joinTeam(Player player, TeamColor color) {
-        Team team = teams.get(color.name());
-        if (team == null) {
-            return;
-        }
-
-        for (Team existingTeam : teams.values()) {
-            if (existingTeam.isInTeam(player)) {
-                existingTeam.removePlayer(player);
-                break;
-            }
-        }
-
-        team.addPlayer(player);
-        if (freePlayers.contains(player)) {
-            freePlayers.remove(player);
-        }
-
-        for (Player existingPlayer : team.getPlayers()) {
-            if (!existingPlayer.equals(player)) {
-                existingPlayer
-                        .sendMessage(Component.text("§a➜ " + player.getName() + " a rejoint l'équipe " + color.name())
-                                .color(color.getTextColor()));
-            }
-        }
-
-        updatePlayerList();
-    }
-
-    public void leaveTeam(Player player) {
-        for (Team team : teams.values()) {
-            if (team.isInTeam(player)) {
-                team.removePlayer(player);
-                break;
-            }
-        }
-
-        if (!freePlayers.contains(player)) {
-            freePlayers.add(player);
-        }
-
-        playerReady.put(player, false);
-        updatePlayerList();
-    }
-
-    public boolean isPlayerReady(Player player) {
-        Boolean ready = playerReady.get(player);
-        return ready != null && ready;
-    }
-
-    public boolean joinTeamMannequin(UUID mannequinId, TeamColor color) {
-        Team team = teams.get(color.name());
-        if (team == null) {
-            return false;
-        }
-
-        for (Team existingTeam : teams.values()) {
-            if (existingTeam.isMannequinInTeam(mannequinId)) {
-                existingTeam.removeMannequin(mannequinId);
-                break;
-            }
-        }
-
-        boolean added = team.addMannequin(mannequinId);
-        if (added) {
-            mannequinReady.put(mannequinId, true);
-            checkStartCondition();
-        }
-        return added;
-    }
-
-    public void leaveTeamMannequin(UUID mannequinId) {
-        for (Team team : teams.values()) {
-            if (team.isMannequinInTeam(mannequinId)) {
-                team.removeMannequin(mannequinId);
-                break;
-            }
-        }
-        mannequinReady.remove(mannequinId);
-        checkStartCondition();
-    }
-
-    public boolean isMannequinReady(UUID mannequinId) {
-        Boolean ready = mannequinReady.get(mannequinId);
-        return ready != null && ready;
-    }
-
-    public Team getMannequinTeam(UUID mannequinId) {
-        for (Team team : teams.values()) {
-            if (team.isMannequinInTeam(mannequinId)) {
-                return team;
-            }
-        }
-        return null;
-    }
-
-    public void removePlayer(Player player) {
+    public void removePlayer(Entity player) {
         freePlayers.remove(player);
-        playerReady.remove(player);
+        playersReady.remove(player);
         spectators.remove(player);
 
         for (Team team : teams.values()) {
@@ -212,6 +100,66 @@ public class Game {
         updatePlayerList();
     }
 
+    public boolean joinTeam(Entity player, TeamColor color) {
+        final Team team = teams.get(color.name());
+
+        if (team == null) {
+            return false;
+        }
+
+        for (Team existingTeam : teams.values()) {
+            if (existingTeam.isInTeam(player)) {
+                existingTeam.removePlayer(player);
+                break;
+            }
+        }
+
+        Boolean added = team.addPlayer(player);
+
+        if (freePlayers.contains(player)) {
+            freePlayers.remove(player);
+        }
+
+        playersReady.put(player, false);
+
+        for (Entity existingPlayer : team.getPlayers()) {
+            if (existingPlayer instanceof Player && !existingPlayer.equals(player)) {
+                existingPlayer
+                        .sendMessage(Component.text("§a➜ " + player.getName() + " a rejoint l'équipe " + color.name())
+                                .color(color.getTextColor()));
+            }
+        }
+
+        updatePlayerList();
+        checkStartCondition();
+
+        return added;
+    }
+
+    public void leaveTeam(Entity entity) {
+        for (Team team : teams.values()) {
+            if (team.isInTeam(entity)) {
+                team.removePlayer(entity);
+                break;
+            }
+        }
+
+        if (!freePlayers.contains(entity)) {
+            freePlayers.add(entity);
+        }
+
+        playersReady.put(entity, false);
+
+        if (entity instanceof Player) {
+            updatePlayerList();
+        }
+    }
+
+    public boolean isPlayerReady(Player player) {
+        Boolean ready = playersReady.get(player);
+        return ready != null && ready;
+    }
+
     public void addSpectator(Player player) {
         spectators.add(player);
         Team team = getPlayerTeam(player);
@@ -219,7 +167,7 @@ public class Game {
             team.removePlayer(player);
         }
         freePlayers.remove(player);
-        playerReady.remove(player);
+        playersReady.remove(player);
 
         player.setGameMode(GameMode.SPECTATOR);
         player.setAllowFlight(true);
@@ -330,125 +278,86 @@ public class Game {
     }
 
     public void setPlayerReady(Player player, boolean ready) {
-        playerReady.put(player, ready);
+        playersReady.put(player, ready);
         checkStartCondition();
-    }
-
-    private void giveLobbyItems(Player player) {
-        player.getInventory().clear();
-
-        ItemStack redWool = new ItemStack(Material.RED_WOOL);
-        ItemMeta redMeta = redWool.getItemMeta();
-        redMeta.displayName(Component.text("Prêt").color(NamedTextColor.RED));
-        redWool.setItemMeta(redMeta);
-
-        ItemStack greenWool = new ItemStack(Material.GREEN_WOOL);
-        ItemMeta greenMeta = greenWool.getItemMeta();
-        greenMeta.displayName(Component.text("Pas prêt").color(NamedTextColor.GREEN));
-        greenWool.setItemMeta(greenMeta);
-
-        player.getInventory().setItem(0, redWool);
-        player.getInventory().setItem(1, greenWool);
     }
 
     public void checkStartCondition() {
-        if (state != GameState.WAITING) {
-            return;
-        }
+        if (state == GameState.WAITING) {
+            long readyCount = getPlayersReadyCount();
 
-        long playerReadyCount = playerReady.values().stream().filter(r -> r).count();
-        long mannequinReadyCount = mannequinReady.values().stream().filter(r -> r).count();
-        long readyCount = playerReadyCount + mannequinReadyCount;
-
-        if (readyCount >= minPlayers && getTeamCount() >= minTeams) {
-            if (lobbyCountdown == null) {
-                lobbyCountdown = new GameLobbyCountdown(this);
-                lobbyCountdown.start();
+            if (readyCount >= minPlayers && getTeamCount() >= minTeams) {
+                if (lobbyCountdown == null) {
+                    lobbyCountdown = new GameLobbyCountdown(this);
+                    lobbyCountdown.start();
+                }
+            } else if (lobbyCountdown != null) {
+                lobbyCountdown.cancel();
+                lobbyCountdown = null;
+                broadcastMessage("§cPas assez de joueurs prêts pour démarrer!");
             }
-        } else if (lobbyCountdown != null) {
-            lobbyCountdown.cancel();
-            lobbyCountdown = null;
-            broadcastMessage("§cPas assez de joueurs prêts pour démarrer!");
-        }
 
-        updateActionBar();
+            updateActionBar();
+        }
     }
 
     public void autoStart() {
-        if (state != GameState.WAITING) {
-            return;
-        }
+        if (state == GameState.WAITING) {
+            final List<Entity> unassigned = freePlayers.stream()
+                    .filter(p -> teams.values().stream().noneMatch(t -> t.isInTeam(p)))
+                    .collect(Collectors.toList());
 
-        List<Player> unassigned = freePlayers.stream()
-                .filter(p -> teams.values().stream().noneMatch(t -> t.isInTeam(p)))
-                .collect(Collectors.toList());
+            if (!unassigned.isEmpty()) {
+                final List<Team> sortedTeams = teams.values().stream()
+                        .sorted(Comparator.comparingInt(t -> t.getPlayers().size()))
+                        .collect(Collectors.toList());
 
-        if (unassigned.isEmpty()) {
-            return;
-        }
+                for (Entity player : unassigned) {
+                    Team smallestTeam = sortedTeams.get(0);
 
-        List<Team> sortedTeams = teams.values().stream()
-                .sorted(Comparator.comparingInt(t -> t.getPlayers().size()))
-                .collect(Collectors.toList());
+                    if (smallestTeam.getPlayers().size() < smallestTeam.getMaxPlayers()) {
+                        smallestTeam.addPlayer(player);
+                    }
+                }
 
-        for (Player player : unassigned) {
-            Team smallestTeam = sortedTeams.get(0);
-            if (smallestTeam.getPlayers().size() < smallestTeam.getMaxPlayers()) {
-                smallestTeam.addPlayer(player);
+                checkStartCondition();
             }
         }
-
-        checkStartCondition();
     }
 
     public void start() {
-        if (state != GameState.WAITING) {
-            return;
-        }
+        if (state == GameState.WAITING) {
+            state = GameState.RUNNING;
 
-        state = GameState.RUNNING;
+            loadIslandsAndSetSpawns();
 
-        loadIslandsAndSetSpawns();
+            final TeamColor[] teamOrder = TeamColor.firstN(4);
 
-        TeamColor[] teamOrder = TeamColor.firstN(4);
-        for (int i = 0; i < teamOrder.length; i++) {
-            Team team = teams.get(teamOrder[i].name());
-            if (team != null && (!team.getPlayers().isEmpty() || !team.getMannequinIds().isEmpty())) {
-                team.placeBed(i);
-            }
-        }
+            for (int i = 0; i < teamOrder.length; i++) {
+                final Team team = teams.get(teamOrder[i].name());
 
-        for (Player player : getPlayers()) {
-            Team team = getPlayerTeam(player);
-            if (team != null) {
-                player.getInventory().clear();
-                teleportToTeamSpawn(player, team);
-                equipEntity(player, team);
-            }
-        }
-
-        for (Team team : teams.values()) {
-            for (UUID mannequinId : team.getMannequinIds()) {
-                Entity entity = Bukkit.getEntity(mannequinId);
-
-                if (entity instanceof Mannequin mannequin) {
-                    Location spawn = team.getSpawnLocation();
-                    if (team.getBedLocation() != null && !team.isBedDestroyed()) {
-                        Location bedLoc = team.getBedLocation();
-                        spawn = new Location(bedLoc.getWorld(), bedLoc.getX() + 0.5, bedLoc.getY() + 1, bedLoc.getZ() + 0.5);
-                    }
-
-                    if (spawn != null) {
-                        mannequin.teleport(spawn);
-                    }
-
-                    equipEntity(mannequin, team);
+                if (team != null && !team.getPlayers().isEmpty()) {
+                    team.placeBed(i);
                 }
             }
-        }
 
-        startResourceSpawners();
-        cycle.onGameStart();
+            for (Entity entity : getPlayers()) {
+                final Team team = getPlayerTeam(entity);
+
+                if (team != null) {
+                    if (entity instanceof Player player) {
+                        player.getInventory().clear();
+                    }
+
+                    teleportToTeamSpawn(entity, team);
+                    equipEntity(entity, team);
+                }
+            }
+
+            startResourceSpawners();
+
+            cycle.onGameStart();
+        }
     }
 
     private void loadIslandsAndSetSpawns() {
@@ -480,35 +389,29 @@ public class Game {
         }
     }
 
-    private void teleportToTeamSpawn(Player player, Team team) {
+    private void teleportToTeamSpawn(Entity player, Team team) {
         Location spawn = team.getSpawnLocation();
+
         if (team.getBedLocation() != null && !team.isBedDestroyed()) {
             Location bedLoc = team.getBedLocation();
             spawn = new Location(bedLoc.getWorld(), bedLoc.getX() + 0.5, bedLoc.getY() + 1, bedLoc.getZ() + 0.5);
         }
+
         if (spawn != null) {
             player.teleport(spawn);
         }
     }
 
     private void equipEntity(Entity entity, Team team) {
-        Color color = team.getColor().getColor();
-        ItemStack[] armorAndTool = createTeamArmorAndTool(color);
+        final ItemStack[] armorAndTool = createTeamArmorAndTool(team.getColor().getColor());
+        final EntityEquipment equipment = entity instanceof Player player ? player.getEquipment()
+                : ((Mannequin) entity).getEquipment();
 
-        if (entity instanceof Player player) {
-            player.getInventory().setHelmet(armorAndTool[0]);
-            player.getInventory().setChestplate(armorAndTool[1]);
-            player.getInventory().setLeggings(armorAndTool[2]);
-            player.getInventory().setBoots(armorAndTool[3]);
-            player.getEquipment().setItem(EquipmentSlot.HAND, armorAndTool[4]);
-            player.updateInventory();
-        } else if (entity instanceof Mannequin mannequin) {
-            mannequin.getEquipment().setHelmet(armorAndTool[0]);
-            mannequin.getEquipment().setChestplate(armorAndTool[1]);
-            mannequin.getEquipment().setLeggings(armorAndTool[2]);
-            mannequin.getEquipment().setBoots(armorAndTool[3]);
-            mannequin.getEquipment().setItem(EquipmentSlot.HAND, armorAndTool[4]);
-        }
+        equipment.setHelmet(armorAndTool[0]);
+        equipment.setChestplate(armorAndTool[1]);
+        equipment.setLeggings(armorAndTool[2]);
+        equipment.setBoots(armorAndTool[3]);
+        equipment.setItem(EquipmentSlot.HAND, armorAndTool[4]);
     }
 
     private ItemStack[] createTeamArmorAndTool(Color color) {
@@ -540,6 +443,7 @@ public class Game {
         return new ItemStack[] { helmet, chestplate, leggings, boots, pickaxe };
     }
 
+    // TODO: not used for now, but kept as reference for future usage
     public void onPlayerDeath(Player player, Player killer) {
         Team playerTeam = getPlayerTeam(player);
 
@@ -571,8 +475,10 @@ public class Game {
     public void onBedDestroyed(Team team) {
         team.setBedDestroyed(true);
 
-        for (Player player : team.getPlayers()) {
-            player.sendMessage(Component.text("§cVotre lit a été détruit!"));
+        for (Entity entity : team.getPlayers()) {
+            if (entity instanceof Player player) {
+                player.sendMessage(Component.text("§cVotre lit a été détruit!"));
+            }
         }
 
         checkGameOver();
@@ -593,10 +499,10 @@ public class Game {
 
         if (winner != null) {
             String winMessage = "Victoire de l'équipe " + winner.getColor().name();
-            for (Player player : getPlayers()) {
-                player.showTitle(net.kyori.adventure.title.Title.title(
-                        Component.text(winMessage),
-                        Component.empty()));
+            for (Entity player : getPlayers()) {
+                if (player instanceof Player) {
+                    player.showTitle(Title.title(Component.text(winMessage), Component.empty()));
+                }
             }
         }
 
@@ -606,7 +512,7 @@ public class Game {
     }
 
     private void resetGame() {
-        for (Player player : getPlayers()) {
+        for (Entity player : getPlayers()) {
             removePlayer(player);
             if (lobby != null) {
                 player.teleport(lobby);
@@ -618,7 +524,7 @@ public class Game {
         }
 
         freePlayers.clear();
-        playerReady.clear();
+        playersReady.clear();
         playerStats.clear();
         runningTasks.forEach(BukkitTask::cancel);
         runningTasks.clear();
@@ -632,7 +538,11 @@ public class Game {
 
         for (int i = 0; i < teamOrder.length; i++) {
             Team team = teams.get(teamOrder[i].name());
-            if (team == null || team.getPlayers().isEmpty()) {
+            if (team == null) {
+                continue;
+            }
+
+            if (!team.getPlayers().isEmpty()) {
                 continue;
             }
 
@@ -665,9 +575,7 @@ public class Game {
         if (gameWorld == null)
             return;
 
-        long playerReadyCount = playerReady.values().stream().filter(r -> r).count();
-        long mannequinReadyCount = mannequinReady.values().stream().filter(r -> r).count();
-        long readyCount = playerReadyCount + mannequinReadyCount;
+        long readyCount = getPlayersReadyCount();
         NamedTextColor color = readyCount >= minPlayers ? NamedTextColor.GREEN : NamedTextColor.RED;
         TextComponent.Builder builder = Component.text()
                 .content("Joueurs prêts (")
@@ -684,35 +592,44 @@ public class Game {
     }
 
     private void broadcastMessage(String message) {
-        for (Player player : getPlayers()) {
-            player.sendMessage(Component.text(message));
+        for (Entity entity : getPlayers()) {
+            if (entity instanceof Player player) {
+                player.sendMessage(Component.text(message));
+            }
         }
     }
 
     private void updatePlayerList() {
-        for (Player player : freePlayers) {
-            Boolean ready = playerReady.get(player);
-            boolean isReady = ready != null && ready;
-            player.playerListName(
-                    Component.text(player.getName()).color(isReady ? NamedTextColor.GREEN : NamedTextColor.RED));
+        for (Entity entity : freePlayers) {
+            if (entity instanceof Player player) {
+                Boolean isReady = playersReady.get(player);
+                player.playerListName(
+                        Component.text(entity.getName()).color(isReady ? NamedTextColor.GREEN : NamedTextColor.RED));
+            }
         }
     }
 
     public int getTeamCount() {
         return (int) teams.values().stream()
-                .filter(t -> !t.getPlayers().isEmpty() || !t.getMannequinIds().isEmpty())
+                .filter(t -> !t.getPlayers().isEmpty())
                 .count();
     }
 
-    public List<Player> getPlayers() {
-        List<Player> allPlayers = new ArrayList<>(freePlayers);
+    public long getPlayersReadyCount() {
+        return playersReady.values().stream().filter(r -> r).count();
+    }
+
+    public List<Entity> getPlayers() {
+        List<Entity> allPlayers = new ArrayList<>(freePlayers);
+
         for (Team team : teams.values()) {
             allPlayers.addAll(team.getPlayers());
         }
+
         return allPlayers;
     }
 
-    public Team getPlayerTeam(Player player) {
+    public Team getPlayerTeam(Entity player) {
         for (Team team : teams.values()) {
             if (team.isInTeam(player)) {
                 return team;
