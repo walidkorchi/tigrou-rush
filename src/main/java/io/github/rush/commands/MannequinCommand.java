@@ -148,6 +148,7 @@ public class MannequinCommand {
                 Team team = game.getTeam(teamColor.name());
                 boolean joined = game.joinTeam(mannequin, teamColor);
                 if (joined) {
+                    game.setPlayerReady(mannequin, true);
                     if (team != null && team.getSpawnLocation() != null) {
                         mannequin.teleport(team.getSpawnLocation());
                     }

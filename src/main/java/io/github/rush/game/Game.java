@@ -155,8 +155,8 @@ public class Game {
         }
     }
 
-    public boolean isPlayerReady(Player player) {
-        Boolean ready = playersReady.get(player);
+    public boolean isPlayerReady(Entity entity) {
+        Boolean ready = playersReady.get(entity);
         return ready != null && ready;
     }
 
@@ -277,8 +277,8 @@ public class Game {
         }
     }
 
-    public void setPlayerReady(Player player, boolean ready) {
-        playersReady.put(player, ready);
+    public void setPlayerReady(Entity entity, boolean ready) {
+        playersReady.put(entity, ready);
         checkStartCondition();
     }
 
