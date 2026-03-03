@@ -3,6 +3,8 @@ package io.github.rush.statistics;
 import io.github.rush.Main;
 import io.github.rush.database.DatabaseManager;
 import jakarta.persistence.EntityManager;
+import org.bukkit.Bukkit;
+import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 
 import java.util.UUID;
@@ -10,7 +12,6 @@ import java.util.UUID;
 public class PlayerLevelManager {
 
     private static final int MAX_LEVEL = 150;
-    private static final int XP_PER_LEVEL = 500;
 
     private final Main plugin;
     private final DatabaseManager databaseManager;
@@ -29,7 +30,13 @@ public class PlayerLevelManager {
     }
 
     public int calculateLevel(int totalXP) {
-        return Math.min(MAX_LEVEL, totalXP / XP_PER_LEVEL);
+        int lvl = 0;
+        int remaining = totalXP;
+        while (lvl < MAX_LEVEL && remaining >= PlayerLevel.getXPForLevel(lvl + 1)) {
+            remaining -= PlayerLevel.getXPForLevel(lvl + 1);
+            lvl++;
+        }
+        return lvl;
     }
 
     public void recalculateLevelFromStats(UUID uuid) {
@@ -38,8 +45,7 @@ public class PlayerLevelManager {
 
         final int totalXP = calculateTotalXP(stat);
         final int level = calculateLevel(totalXP);
-        final int xpForCurrentLevel = (totalXP / XP_PER_LEVEL) * XP_PER_LEVEL;
-        final int currentXP = totalXP - xpForCurrentLevel;
+        final int currentXP = totalXP - PlayerLevel.getCumulativeXP(level);
 
         playerLevel.setTotalXP(totalXP);
         playerLevel.setLevel(level);
@@ -50,17 +56,27 @@ public class PlayerLevelManager {
 
     public void addXP(UUID uuid, int xp) {
         final PlayerLevel playerLevel = loadPlayerLevel(uuid);
+        final int oldLevel = playerLevel.getLevel();
 
         playerLevel.addXP(xp);
-        playerLevel.setLevel(calculateLevel(playerLevel.getTotalXP()));
+        final int level = playerLevel.getLevel();
+        playerLevel.setCurrentXP(playerLevel.getTotalXP() - PlayerLevel.getCumulativeXP(level));
         savePlayerLevel(playerLevel);
+
+        if (level > oldLevel) {
+            final Player player = Bukkit.getPlayer(uuid);
+            if (player != null && player.isOnline()) {
+                player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.0f);
+            }
+        }
     }
 
     public void removeXP(UUID uuid, int xp) {
         final PlayerLevel playerLevel = loadPlayerLevel(uuid);
 
         playerLevel.removeXP(xp);
-        playerLevel.setLevel(calculateLevel(playerLevel.getTotalXP()));
+        final int level = playerLevel.getLevel();
+        playerLevel.setCurrentXP(playerLevel.getTotalXP() - PlayerLevel.getCumulativeXP(level));
         savePlayerLevel(playerLevel);
     }
 

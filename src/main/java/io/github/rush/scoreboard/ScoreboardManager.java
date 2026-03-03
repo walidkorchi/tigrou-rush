@@ -138,6 +138,12 @@ public class ScoreboardManager {
         final List<String> lines = new ArrayList<>();
 
         lines.add("");
+        if (game.isOvertime()) {
+            lines.add("§c§lOVERTIME §f" + game.getFormattedTime());
+        } else {
+            lines.add("§eTemps: §f" + game.getFormattedTime());
+        }
+        lines.add("");
 
         if (playerTeam != null) {
             final String bedStatus = !playerTeam.isBedDestroyed() ? "✅" : "❌";
@@ -255,6 +261,12 @@ public class ScoreboardManager {
 
         final List<String> lines = new ArrayList<>();
 
+        lines.add("");
+        if (game.isOvertime()) {
+            lines.add("§c§lOVERTIME §f" + game.getFormattedTime());
+        } else {
+            lines.add("§eTemps: §f" + game.getFormattedTime());
+        }
         lines.add("");
         lines.add("§e§nÉquipes§r");
 

@@ -147,7 +147,7 @@ public class TNT implements Listener {
         }
 
         TeamColor bedColor = getTeamColorFromBed(bed);
-        
+
         if (bedColor == null) {
             return;
         }
@@ -178,8 +178,20 @@ public class TNT implements Listener {
             }
         }
 
-        bedBlock.setType(Material.AIR);
-        
+        // Remove both halves of the bed (foot and head) to prevent item drops
+        org.bukkit.block.data.type.Bed bedData = (org.bukkit.block.data.type.Bed) bedBlock.getBlockData();
+        Block otherHalf;
+        if (bedData.getPart() == org.bukkit.block.data.type.Bed.Part.FOOT) {
+            otherHalf = bedBlock.getRelative(bedData.getFacing());
+        } else {
+            otherHalf = bedBlock.getRelative(bedData.getFacing().getOppositeFace());
+        }
+
+        bedBlock.setType(Material.AIR, false);
+        if (otherHalf.getType().name().endsWith("_BED")) {
+            otherHalf.setType(Material.AIR, false);
+        }
+
         game.onBedDestroyed(team, tntSource);
     }
 

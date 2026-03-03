@@ -33,8 +33,17 @@ public class PlayerLevel {
     }
 
     public int getXPForNextLevel() {
-        // TODO: add this logic
-        return 100;
+        return getXPForLevel(level + 1);
+    }
+
+    public static int getXPForLevel(int lvl) {
+        // Base 100 XP, +20 per level (level 1 = 100, level 2 = 120, level 50 = 1080, level 150 = 3080)
+        return 80 + (lvl * 20);
+    }
+
+    public static int getCumulativeXP(int lvl) {
+        // Sum of getXPForLevel(1..lvl) = sum(80 + i*20) for i=1..lvl = 80*lvl + 20*lvl*(lvl+1)/2
+        return 80 * lvl + 10 * lvl * (lvl + 1);
     }
 
     public String getTierIcon() {
@@ -48,7 +57,7 @@ public class PlayerLevel {
 
     public String getTierColor() {
         if (level >= MAX_LEVEL) {
-            return "§c[§61§e5§a0§b❉§d]";
+            return "§c[§61§e5§a0§d]";
         }
         if (level >= 145) {
             return "§b";
@@ -108,7 +117,7 @@ public class PlayerLevel {
             return "§f";
         }
         if (level >= 50) {
-            return "§c[§65§e0§a❉§b]";
+            return "§c[§65§e0§b]";
         }
         if (level >= 45) {
             return "§5";
@@ -154,15 +163,25 @@ public class PlayerLevel {
     }
 
     public void addXP(int xp) {
-        // TODO: add this logic
         this.totalXP += xp;
         this.currentXP += xp;
+
+        while (level < MAX_LEVEL && currentXP >= getXPForNextLevel()) {
+            currentXP -= getXPForNextLevel();
+            level++;
+        }
     }
 
     public void removeXP(int xp) {
-        // TODO: add this logic
         this.totalXP = Math.max(0, this.totalXP - xp);
-        this.currentXP = Math.max(0, this.currentXP - xp);
+        this.currentXP -= xp;
+
+        while (currentXP < 0 && level > 0) {
+            level--;
+            currentXP += getXPForLevel(level + 1);
+        }
+
+        this.currentXP = Math.max(0, this.currentXP);
     }
 
     public void setLevel(int level) {

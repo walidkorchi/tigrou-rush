@@ -60,4 +60,22 @@ public enum TeamColor {
     public String getChatColor() {
         return this.textColor.toString();
     }
+
+    public String getSectionColor() {
+        return switch (this) {
+            case GREEN, DARK_GREEN -> "§2";
+            case RED -> "§c";
+            case BLUE, DARK_BLUE -> "§1";
+            case YELLOW -> "§e";
+            case AQUA -> "§b";
+            case BLACK -> "§0";
+            case GOLD -> "§6";
+            case DARK_RED -> "§4";
+            case DARK_PURPLE -> "§5";
+            case GRAY -> "§7";
+            case DARK_GRAY -> "§8";
+            case LIGHT_PURPLE -> "§d";
+            case WHITE -> "§f";
+        };
+    }
 }

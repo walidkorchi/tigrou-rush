@@ -42,6 +42,10 @@ public class Team {
     @Setter
     private boolean bedDestroyed = false;
 
+    @Getter
+    @Setter
+    private int bedsDestroyed = 0;
+
     public Team(String name, TeamColor color, int maxPlayers) {
         this.name = name;
         this.color = color;
@@ -73,6 +77,7 @@ public class Team {
     public void reset() {
         players.clear();
         bedDestroyed = false;
+        bedsDestroyed = 0;
         enderChestLocations.clear();
 
         if (bedLocation != null && bedLocation.getWorld() != null) {

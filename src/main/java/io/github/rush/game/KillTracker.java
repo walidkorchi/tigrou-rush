@@ -1,0 +1,82 @@
+package io.github.rush.game;
+
+import org.bukkit.entity.Player;
+
+import java.util.*;
+
+public class KillTracker {
+
+    private static final double ASSIST_THRESHOLD = 0.25;
+    private static final long LAST_HIT_EXPIRY_MS = 10_000;
+
+    private final Map<UUID, Map<UUID, Double>> damageDealt = new HashMap<>();
+    private final Map<UUID, LastHitRecord> lastHitBy = new HashMap<>();
+
+    public void recordDamage(Player victim, Player attacker, double damage) {
+        UUID victimId = victim.getUniqueId();
+        UUID attackerId = attacker.getUniqueId();
+
+        damageDealt.computeIfAbsent(victimId, k -> new HashMap<>())
+                .merge(attackerId, damage, Double::sum);
+
+        lastHitBy.put(victimId, new LastHitRecord(attackerId, System.currentTimeMillis()));
+    }
+
+    public KillResult resolveKill(Player victim, Player bukkitKiller) {
+        UUID victimId = victim.getUniqueId();
+
+        Player killer = bukkitKiller;
+        if (killer == null) {
+            LastHitRecord record = lastHitBy.get(victimId);
+            if (record != null && System.currentTimeMillis() - record.timestamp <= LAST_HIT_EXPIRY_MS) {
+                killer = victim.getServer().getPlayer(record.attackerId);
+            }
+        }
+
+        if (killer == null) {
+            clearVictim(victimId);
+            return new KillResult(null, List.of());
+        }
+
+        UUID killerId = killer.getUniqueId();
+        Map<UUID, Double> victimDamageMap = damageDealt.getOrDefault(victimId, Map.of());
+        double killerDamage = victimDamageMap.getOrDefault(killerId, 0.0);
+
+        List<Player> assists = new ArrayList<>();
+        if (killerDamage > 0) {
+            double threshold = killerDamage * ASSIST_THRESHOLD;
+            for (Map.Entry<UUID, Double> entry : victimDamageMap.entrySet()) {
+                if (entry.getKey().equals(killerId)) continue;
+                if (entry.getValue() >= threshold) {
+                    Player assistPlayer = victim.getServer().getPlayer(entry.getKey());
+                    if (assistPlayer != null) {
+                        assists.add(assistPlayer);
+                    }
+                }
+            }
+        }
+
+        clearVictim(victimId);
+        return new KillResult(killer, assists);
+    }
+
+    private void clearVictim(UUID victimId) {
+        damageDealt.remove(victimId);
+        lastHitBy.remove(victimId);
+    }
+
+    public void removePlayer(UUID playerId) {
+        damageDealt.remove(playerId);
+        lastHitBy.remove(playerId);
+        damageDealt.values().forEach(map -> map.remove(playerId));
+    }
+
+    public void reset() {
+        damageDealt.clear();
+        lastHitBy.clear();
+    }
+
+    public record KillResult(Player killer, List<Player> assists) {}
+
+    private record LastHitRecord(UUID attackerId, long timestamp) {}
+}

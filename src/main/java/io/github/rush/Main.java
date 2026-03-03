@@ -122,7 +122,6 @@ public class Main extends JavaPlugin {
         Bukkit.getPluginManager().registerEvents(new GameRules(this), this);
         Bukkit.getPluginManager().registerEvents(new PlayerActivity(this), this);
         Bukkit.getPluginManager().registerEvents(new TNT(this), this);
-        Bukkit.getPluginManager().registerEvents(new VillagerInteraction(), this);
 
         CommandManager commandManager = new CommandManager();
         commandManager.registerAll(this);
@@ -442,19 +441,6 @@ public class Main extends JavaPlugin {
             }
         }
         return false;
-    }
-
-    /**
-     * Returns the max length of a game in seconds, fallbacks to 60 minutes if not
-     * defined in plugin config
-     *
-     * @return The length of the game in seconds
-     */
-    public int getMaxLength() {
-        if (this.getConfig().contains("gamelength") && this.getConfig().isInt("gamelength")) {
-            return this.getConfig().getInt("gamelength") * 60;
-        } else
-            return 60 * 60;
     }
 
     public Location getSpectatorSpawn() {

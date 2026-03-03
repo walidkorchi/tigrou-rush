@@ -20,16 +20,20 @@ import org.bukkit.Material;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.Mannequin;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.FoodLevelChangeEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryInteractEvent;
+import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
@@ -37,7 +41,6 @@ import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.GameMode;
-import org.bukkit.inventory.EntityEquipment;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.ItemStack;
@@ -140,15 +143,18 @@ public class PlayerActivity implements Listener {
             if (game != null) {
                 final Team breakerTeam = game.getPlayerTeam(player);
 
-                // anti-spleef for same team players
-                for (Player p : block.getWorld().getNearbyPlayers(block.getLocation(), 2)) {
-                    if (p.equals(player) || !isStandingOn(p, block)) {
+                // anti-spleef for same team players and mannequins
+                for (Entity entity : block.getWorld().getNearbyEntities(block.getLocation(), 2, 2, 2)) {
+                    if (!(entity instanceof Player) && !(entity instanceof Mannequin)) {
+                        continue;
+                    }
+                    if (entity.equals(player) || !isStandingOn(entity, block)) {
                         continue;
                     }
 
-                    final Team pTeam = game.getPlayerTeam(p);
+                    final Team entityTeam = game.getPlayerTeam(entity);
 
-                    if (pTeam != null && breakerTeam.equals(pTeam)) {
+                    if (entityTeam != null && breakerTeam.equals(entityTeam)) {
                         event.setCancelled(true);
                         return;
                     }
@@ -166,7 +172,15 @@ public class PlayerActivity implements Listener {
      * on a given block bounding boxes only
      */
     private boolean isStandingOn(Player player, Block block) {
-        BoundingBox playerBox = player.getBoundingBox();
+        return isStandingOn((Entity) player, block);
+    }
+
+    /**
+     * Checks if an entity is physically standing
+     * on a given block bounding boxes only
+     */
+    private boolean isStandingOn(Entity entity, Block block) {
+        BoundingBox entityBox = entity.getBoundingBox();
         BoundingBox blockBox = block.getBoundingBox();
 
         // skip empty bounding box (no collision shape)
@@ -174,19 +188,19 @@ public class PlayerActivity implements Listener {
             return false;
         }
 
-        double feetY = playerBox.getMinY();
+        double feetY = entityBox.getMinY();
         double blockTopY = blockBox.getMaxY();
 
         if (Math.abs(feetY - blockTopY) > EPSILON) {
             return false;
         }
 
-        // player's hitbox must overlap the block horizontally
+        // entity's hitbox must overlap the block horizontally
         // (handles edge-standing on up to 4 blocks)
-        return playerBox.getMinX() < blockBox.getMaxX()
-                && playerBox.getMaxX() > blockBox.getMinX()
-                && playerBox.getMinZ() < blockBox.getMaxZ()
-                && playerBox.getMaxZ() > blockBox.getMinZ();
+        return entityBox.getMinX() < blockBox.getMaxX()
+                && entityBox.getMaxX() > blockBox.getMinX()
+                && entityBox.getMinZ() < blockBox.getMaxZ()
+                && entityBox.getMaxZ() > blockBox.getMinZ();
     }
 
     private static ItemStack createSettingsItem() {
@@ -198,9 +212,21 @@ public class PlayerActivity implements Listener {
     }
 
     @EventHandler
-    public void onPlayerQuit(PlayerQuitEvent event) {
-        event.quitMessage(Component.text("§c[-] §f" + event.getPlayer().getName()));
-        sendActionBarToAll();
+    public void onPlayerDropItem(PlayerDropItemEvent event) {
+        Player player = event.getPlayer();
+
+        if (isPlayerInQueue(player)) {
+            event.setCancelled(true);
+            return;
+        }
+
+        // Prevent dropping armor during game
+        if (isPlayerInGame(player)) {
+            ItemStack item = event.getItemDrop().getItemStack();
+            if (isArmorItem(item.getType())) {
+                event.setCancelled(true);
+            }
+        }
     }
 
     @EventHandler
@@ -240,11 +266,7 @@ public class PlayerActivity implements Listener {
         Team team = game.getPlayerTeam(entity);
         boolean bedDestroyed = team != null && team.isBedDestroyed();
 
-        if (bedDestroyed) {
-            if (entity instanceof Player player) {
-                game.addSpectator(player);
-            }
-        } else if (team != null) {
+        if (!bedDestroyed && team != null) {
             Location bedLoc = team.getBedLocation();
             Location spawn = bedLoc != null
                     ? new Location(bedLoc.getWorld(), bedLoc.getX() + 0.5, bedLoc.getY() + 1, bedLoc.getZ() + 0.5)
@@ -342,6 +364,42 @@ public class PlayerActivity implements Listener {
 
         if (isPlayerInQueue(player)) {
             event.setCancelled(true);
+            return;
+        }
+
+        // Disable 2x2 crafting grid while in game
+        if (isPlayerInGame(player)) {
+            if (event.getView().getTopInventory().getType() == InventoryType.CRAFTING) {
+                if (event.getRawSlot() >= 0 && event.getRawSlot() <= 4) {
+                    event.setCancelled(true);
+                    return;
+                }
+            }
+        }
+
+        // Prevent taking off armor during game
+        if (isPlayerInGame(player)) {
+            // Check if clicking on armor slots
+            if (event.getSlotType() == InventoryType.SlotType.ARMOR) {
+                event.setCancelled(true);
+                return;
+            }
+            // Check if shift-clicking armor into inventory (trying to unequip)
+            if (event.getAction() == InventoryAction.MOVE_TO_OTHER_INVENTORY) {
+                ItemStack currentItem = event.getCurrentItem();
+                if (currentItem != null && isArmorItem(currentItem.getType())) {
+                    event.setCancelled(true);
+                    return;
+                }
+            }
+            // Prevent dropping armor via click
+            if (event.getAction() == InventoryAction.DROP_ONE_SLOT ||
+                event.getAction() == InventoryAction.DROP_ALL_SLOT) {
+                ItemStack currentItem = event.getCurrentItem();
+                if (currentItem != null && isArmorItem(currentItem.getType())) {
+                    event.setCancelled(true);
+                }
+            }
         }
     }
 
@@ -351,13 +409,6 @@ public class PlayerActivity implements Listener {
             if (isPlayerInQueue(player)) {
                 event.setCancelled(true);
             }
-        }
-    }
-
-    @EventHandler
-    public void onPlayerDropItem(PlayerDropItemEvent event) {
-        if (isPlayerInQueue(event.getPlayer())) {
-            event.setCancelled(true);
         }
     }
 
@@ -377,6 +428,28 @@ public class PlayerActivity implements Listener {
         return false;
     }
 
+    private boolean isPlayerInGame(Player player) {
+        if (player.getWorld().getName().equals(plugin.getGameWorld())) {
+            GameState gameState = GameState.WAITING;
+
+            if (plugin.getGameManager() != null && plugin.getGameManager().getCurrentGame() != null) {
+                gameState = plugin.getGameManager().getCurrentGame().getState();
+            }
+
+            return gameState == GameState.RUNNING;
+        }
+
+        return false;
+    }
+
+    private boolean isArmorItem(Material material) {
+        String name = material.name();
+        return name.endsWith("_HELMET") ||
+               name.endsWith("_CHESTPLATE") ||
+               name.endsWith("_LEGGINGS") ||
+               name.endsWith("_BOOTS");
+    }
+
     @EventHandler
     public void onPlayerDamage(EntityDamageEvent event) {
         if (!plugin.isGameStarted()) {
@@ -394,22 +467,40 @@ public class PlayerActivity implements Listener {
     }
 
     @EventHandler
-    public void onPlayerMove(PlayerMoveEvent event) {
+    public void onPlayerDamageByEntity(EntityDamageByEntityEvent event) {
         if (!plugin.isGameStarted()) {
             return;
         }
 
-        Player player = event.getPlayer();
+        Entity victim = event.getEntity();
+        if (!(victim instanceof Player) && !(victim instanceof Mannequin)) {
+            return;
+        }
+
+        Player attacker = null;
+        if (event.getDamager() instanceof Player p) {
+            attacker = p;
+        } else if (event.getDamager() instanceof org.bukkit.entity.Projectile projectile
+                && projectile.getShooter() instanceof Player p) {
+            attacker = p;
+        }
+
+        if (attacker == null || attacker.equals(victim)) {
+            return;
+        }
+
         Game game = Main.getInstance().getGameManager().getCurrentGame();
+        if (game != null) {
+            Team victimTeam = game.getPlayerTeam(victim);
+            Team attackerTeam = game.getPlayerTeam(attacker);
 
-        if (game != null && game.isProtected(player)) {
-            Location from = event.getFrom();
-            Location to = event.getTo();
+            if (victimTeam != null && victimTeam.equals(attackerTeam)) {
+                event.setCancelled(true);
+                return;
+            }
 
-            if (from.getBlockX() != to.getBlockX() ||
-                    from.getBlockY() != to.getBlockY() ||
-                    from.getBlockZ() != to.getBlockZ()) {
-                event.setTo(from);
+            if (victim instanceof Player playerVictim) {
+                game.getKillTracker().recordDamage(playerVictim, attacker, event.getFinalDamage());
             }
         }
     }

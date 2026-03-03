@@ -1,6 +1,7 @@
 package io.github.rush.game;
 
 import io.github.rush.Main;
+import io.github.rush.menus.TeamSelectionGUI;
 import io.github.rush.objects.Island;
 import io.github.rush.statistics.PlayerStatistic;
 import lombok.Getter;
@@ -19,16 +20,20 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.attribute.Attribute;
+import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.attribute.AttributeModifier;
-import org.bukkit.inventory.EquipmentSlotGroup;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Mannequin;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.EntityEquipment;
 import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.inventory.EquipmentSlotGroup;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.LeatherArmorMeta;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.*;
@@ -54,6 +59,16 @@ public class Game {
     private final Map<Player, PlayerStatistic> playerStats = new HashMap<>();
     private final Set<Player> spectators = new HashSet<>();
     private final Set<Player> protectedPlayers = new HashSet<>();
+    @Getter
+    private final KillTracker killTracker = new KillTracker();
+
+    @Getter
+    private int gameTime = 0;
+    private static final int OVERTIME_SECONDS = 30 * 60;
+
+    @Getter
+    private List<Team> islandAssignment;
+    private static final int[] ISLAND_ORDER = { 0, 2, 1, 3 };
 
     @Getter
     private int timeLeft = 0;
@@ -70,7 +85,6 @@ public class Game {
     public Game(String name) {
         this.state = GameState.WAITING;
         this.cycle = new GameCycle(this);
-        this.timeLeft = Main.getInstance().getMaxLength();
 
         String lobbyWorld = Main.getInstance().getConfig().getString("lobbyWorld");
         World world = Bukkit.getWorld(lobbyWorld);
@@ -232,6 +246,7 @@ public class Game {
 
     public void addProtection(Player player) {
         int protectionTime = Main.getInstance().getRespawnProtectionTime();
+
         if (protectionTime <= 0)
             return;
 
@@ -241,6 +256,21 @@ public class Game {
         player.setAllowFlight(false);
         player.setFlying(false);
 
+        player.addPotionEffect(new PotionEffect(
+                PotionEffectType.SLOWNESS,
+                Integer.MAX_VALUE,
+                9,
+                false,
+                false));
+
+        AttributeInstance jumpAttr = player.getAttribute(Attribute.JUMP_STRENGTH);
+        if (jumpAttr != null) {
+            jumpAttr.addModifier(new AttributeModifier(
+                    new NamespacedKey(Main.getInstance(), "no_jump"),
+                    -jumpAttr.getBaseValue(),
+                    AttributeModifier.Operation.ADD_NUMBER));
+        }
+
         for (Player online : Bukkit.getOnlinePlayers()) {
             if (online.getWorld().equals(player.getWorld())) {
                 online.hidePlayer(Main.getInstance(), player);
@@ -249,6 +279,7 @@ public class Game {
         }
 
         final int remainingTime = protectionTime;
+
         BukkitTask task = Bukkit.getScheduler().runTaskTimer(Main.getInstance(), () -> {
             if (!protectedPlayers.contains(player)) {
                 return;
@@ -273,6 +304,11 @@ public class Game {
         protectedPlayers.remove(player);
 
         player.setGameMode(GameMode.SURVIVAL);
+        player.removePotionEffect(PotionEffectType.SLOWNESS);
+        AttributeInstance jumpAttr = player.getAttribute(Attribute.JUMP_STRENGTH);
+        if (jumpAttr != null) {
+            jumpAttr.removeModifier(new NamespacedKey(Main.getInstance(), "no_jump"));
+        }
 
         for (Player online : Bukkit.getOnlinePlayers()) {
             if (online.getWorld().equals(player.getWorld())) {
@@ -350,20 +386,110 @@ public class Game {
         }
     }
 
+    public boolean isOvertime() {
+        return gameTime >= OVERTIME_SECONDS;
+    }
+
+    public String getFormattedTime() {
+        int minutes = gameTime / 60;
+        int seconds = gameTime % 60;
+        return String.format("%02d:%02d", minutes, seconds);
+    }
+
+    public void incrementGameTime() {
+        gameTime++;
+        if (gameTime == OVERTIME_SECONDS) {
+            broadcastMessage("§c§lOVERTIME! §7Les restrictions de placement sont levées!");
+        }
+    }
+
+    public boolean isBlockInForbiddenZone(Location location) {
+        if (isOvertime() || islandAssignment == null || islandAssignment.size() < 4) {
+            return false;
+        }
+
+        Team teamA = islandAssignment.get(0);
+        Team teamB = islandAssignment.get(3);
+
+        if (teamA.getSpawnLocation() == null || teamB.getSpawnLocation() == null) {
+            return false;
+        }
+
+        double ax = teamA.getSpawnLocation().getX();
+        double az = teamA.getSpawnLocation().getZ();
+        double bx = teamB.getSpawnLocation().getX();
+        double bz = teamB.getSpawnLocation().getZ();
+
+        double midX = (ax + bx) / 2.0;
+        double midZ = (az + bz) / 2.0;
+
+        if (midX == 0 && midZ == 0) {
+            return false;
+        }
+
+        double forbiddenAngle = Math.atan2(midZ, midX);
+        double blockAngle = Math.atan2(location.getZ(), location.getX());
+
+        double diff = blockAngle - forbiddenAngle;
+        while (diff > Math.PI)
+            diff -= 2 * Math.PI;
+        while (diff < -Math.PI)
+            diff += 2 * Math.PI;
+
+        return Math.abs(diff) < Math.PI / 4;
+    }
+
+    private void computeIslandAssignment() {
+        List<Team> teamsWithPlayers = teams.values().stream()
+                .filter(t -> !t.getPlayers().isEmpty())
+                .collect(Collectors.toList());
+
+        List<Team> teamsWithoutPlayers = teams.values().stream()
+                .filter(t -> t.getPlayers().isEmpty())
+                .collect(Collectors.toList());
+
+        Collections.shuffle(teamsWithPlayers);
+        Collections.shuffle(teamsWithoutPlayers);
+
+        islandAssignment = new ArrayList<>(4);
+        for (int i = 0; i < 4; i++) {
+            islandAssignment.add(null);
+        }
+
+        if (teamsWithPlayers.size() >= 2) {
+            islandAssignment.set(0, teamsWithPlayers.get(0));
+            islandAssignment.set(3, teamsWithPlayers.get(1));
+
+            int emptyIdx = 0;
+            for (int i = 2; i < teamsWithPlayers.size(); i++) {
+                if (emptyIdx < 2) {
+                    islandAssignment.set(1 + emptyIdx, teamsWithPlayers.get(i));
+                    emptyIdx++;
+                }
+            }
+            for (Team empty : teamsWithoutPlayers) {
+                if (emptyIdx < 2) {
+                    islandAssignment.set(1 + emptyIdx, empty);
+                    emptyIdx++;
+                }
+            }
+        }
+    }
+
     public void start() {
         if (state == GameState.WAITING) {
             state = GameState.RUNNING;
+            gameTime = 0;
             Main.getInstance().setGameStarted(true);
 
+            computeIslandAssignment();
             loadIslandsAndSetSpawns();
 
-            final TeamColor[] teamOrder = TeamColor.firstN(4);
-
-            for (int i = 0; i < teamOrder.length; i++) {
-                final Team team = teams.get(teamOrder[i].name());
+            for (int i = 0; i < islandAssignment.size(); i++) {
+                final Team team = islandAssignment.get(i);
 
                 if (team != null) {
-                    team.placeBed(i);
+                    team.placeBed(ISLAND_ORDER[i]);
                 }
             }
 
@@ -401,15 +527,14 @@ public class Game {
         }
 
         final List<Island> islands = plugin.getIslands();
-        final TeamColor[] teamOrder = TeamColor.firstN(4);
 
-        for (int i = 0; i < teamOrder.length && i < islands.size(); i++) {
-            final Team team = teams.get(teamOrder[i].name());
+        for (int i = 0; i < islandAssignment.size() && i < islands.size(); i++) {
+            final Team team = islandAssignment.get(i);
 
             if (team == null)
                 continue;
 
-            final Island island = islands.get(i);
+            final Island island = islands.get(ISLAND_ORDER[i]);
             final Location spawnLoc = new Location(gameWorld, island.getX(), Main.getISLAND_Y() + 2, island.getZ());
 
             team.setSpawnLocation(spawnLoc);
@@ -439,41 +564,40 @@ public class Game {
         final EntityEquipment equipment = getPlayerInventory(entity);
 
         equipment.setHelmet(armorAndTool[0]);
-        equipment.setLeggings(armorAndTool[2]);
-        equipment.setBoots(armorAndTool[3]);
-        equipment.setItem(EquipmentSlot.HAND, armorAndTool[4]);
+        equipment.setLeggings(armorAndTool[1]);
+        equipment.setBoots(armorAndTool[2]);
+        equipment.setItem(EquipmentSlot.HAND, armorAndTool[3]);
     }
 
     private ItemStack[] createTeamArmorAndTool(Color color) {
         ItemStack helmet = new ItemStack(Material.LEATHER_HELMET);
         LeatherArmorMeta helmetMeta = (LeatherArmorMeta) helmet.getItemMeta();
         helmetMeta.setColor(color);
+        helmetMeta.addEnchant(Enchantment.PROTECTION, 1, true);
         helmet.setItemMeta(helmetMeta);
-
-        ItemStack chestplate = new ItemStack(Material.LEATHER_CHESTPLATE);
-        LeatherArmorMeta chestMeta = (LeatherArmorMeta) chestplate.getItemMeta();
-        chestMeta.setColor(color);
-        chestplate.setItemMeta(chestMeta);
 
         ItemStack leggings = new ItemStack(Material.LEATHER_LEGGINGS);
         LeatherArmorMeta legsMeta = (LeatherArmorMeta) leggings.getItemMeta();
         legsMeta.setColor(color);
+        legsMeta.addEnchant(Enchantment.PROTECTION, 1, true);
         leggings.setItemMeta(legsMeta);
 
         ItemStack boots = new ItemStack(Material.LEATHER_BOOTS);
         LeatherArmorMeta bootsMeta = (LeatherArmorMeta) boots.getItemMeta();
         bootsMeta.setColor(color);
+        bootsMeta.addEnchant(Enchantment.PROTECTION, 1, true);
         boots.setItemMeta(bootsMeta);
 
         ItemStack pickaxe = new ItemStack(Material.WOODEN_PICKAXE);
         ItemMeta pickMeta = pickaxe.getItemMeta();
         pickMeta.displayName(Component.text("Pickaxe"));
+        pickMeta.addEnchant(Enchantment.EFFICIENCY, 1, true);
         pickaxe.setItemMeta(pickMeta);
 
-        return new ItemStack[] { helmet, chestplate, leggings, boots, pickaxe };
+        return new ItemStack[] { helmet, leggings, boots, pickaxe };
     }
 
-    public void onPlayerDeath(Entity entity, Player killer) {
+    public void onPlayerDeath(Entity entity, Player bukkitKiller) {
         final Team playerTeam = getPlayerTeam(entity);
         final EntityEquipment inventory = getPlayerInventory(entity);
 
@@ -488,22 +612,71 @@ public class Game {
             respawnLocation = playerTeam.getSpawnLocation();
         }
 
+        Player killer = bukkitKiller;
+        List<Player> assists = List.of();
+
         if (entity instanceof Player player) {
             player.setRespawnLocation(respawnLocation);
 
-            if (killer != null) {
-                PlayerStatistic killerStat = playerStats.get(killer);
-                if (killerStat != null) {
-                    killerStat.setCurrentKills(killerStat.getCurrentKills() + 1);
-                    killerStat.setCurrentScore(killerStat.getCurrentScore() + 10);
-                }
-            }
+            KillTracker.KillResult result = killTracker.resolveKill(player, bukkitKiller);
+            killer = result.killer();
+            assists = result.assists();
 
             PlayerStatistic playerStat = playerStats.get(entity);
             if (playerStat != null) {
                 playerStat.setCurrentDeaths(playerStat.getCurrentDeaths() + 1);
             }
         }
+
+        if (killer != null) {
+            PlayerStatistic killerStat = playerStats.get(killer);
+            if (killerStat != null) {
+                killerStat.setCurrentKills(killerStat.getCurrentKills() + 1);
+                killerStat.setCurrentScore(killerStat.getCurrentScore() + 10);
+            }
+
+            for (Player assist : assists) {
+                PlayerStatistic assistStat = playerStats.get(assist);
+                if (assistStat != null) {
+                    assistStat.setCurrentAssists(assistStat.getCurrentAssists() + 1);
+                    assistStat.setCurrentScore(assistStat.getCurrentScore() + 5);
+                }
+            }
+        }
+
+        broadcastKillMessage(entity, playerTeam, killer, assists);
+
+        boolean bedDestroyed = playerTeam != null && playerTeam.isBedDestroyed();
+
+        if (bedDestroyed) {
+            if (entity instanceof Player player) {
+                addSpectator(player);
+            } else {
+                playerTeam.removePlayer(entity);
+            }
+            checkGameOver();
+        }
+    }
+
+    private void broadcastKillMessage(Entity victim, Team victimTeam, Player killer, List<Player> assists) {
+        String victimColor = victimTeam != null ? victimTeam.getColor().getSectionColor() : "§7";
+
+        if (killer == null) {
+            broadcastMessage("⚔ " + victimColor + victim.getName() + "§7 est mort");
+            return;
+        }
+
+        Team killerTeam = getPlayerTeam(killer);
+        String killerColor = killerTeam != null ? killerTeam.getColor().getSectionColor() : "§7";
+
+        List<String> killerNames = new ArrayList<>();
+        killerNames.add(killer.getName());
+        for (Player assist : assists) {
+            killerNames.add(assist.getName());
+        }
+
+        String killersDisplay = killerColor + String.join("§7, " + killerColor, killerNames);
+        broadcastMessage("⚔ " + victimColor + victim.getName() + "§7 a été tué par " + killersDisplay);
     }
 
     public void onBedDestroyed(Team team, Player destroyer) {
@@ -523,12 +696,19 @@ public class Game {
         }
 
         if (team.getPlayers().isEmpty() && destroyerTeam != null) {
+            destroyerTeam.setBedsDestroyed(destroyerTeam.getBedsDestroyed() + 1);
+            double bonusHealth = destroyerTeam.getBedsDestroyed() * 4.0;
             for (Entity entity : destroyerTeam.getPlayers()) {
                 if (entity instanceof Player player) {
-                    player.getAttribute(Attribute.MAX_HEALTH).addModifier(
-                            new AttributeModifier(NamespacedKey.minecraft("extra_hearts"), 4.0,
-                                    AttributeModifier.Operation.ADD_NUMBER, EquipmentSlotGroup.ANY));
-                    player.sendMessage(Component.text("§a+2 Cœurs permanents!"));
+                    var maxHealth = player.getAttribute(Attribute.MAX_HEALTH);
+                    if (maxHealth != null) {
+                        maxHealth.removeModifier(NamespacedKey.minecraft("extra_hearts"));
+                        maxHealth.addModifier(
+                                new AttributeModifier(NamespacedKey.minecraft("extra_hearts"), bonusHealth,
+                                        AttributeModifier.Operation.ADD_NUMBER, EquipmentSlotGroup.ANY));
+                    }
+                    player.sendMessage(
+                            Component.text("§a+" + destroyerTeam.getBedsDestroyed() * 2 + " Cœurs permanents!"));
                 }
             }
         }
@@ -547,8 +727,19 @@ public class Game {
                 .filter(t -> !t.isBedDestroyed())
                 .collect(Collectors.toList());
 
-        if (teamsWithBeds.size() <= 1) {
-            endGame(teamsWithBeds.isEmpty() ? null : teamsWithBeds.get(0));
+        List<Team> teamsWithoutBedsButAlive = teams.values().stream()
+                .filter(t -> t.isBedDestroyed() && !t.getPlayers().isEmpty())
+                .collect(Collectors.toList());
+
+        if (teamsWithBeds.size() == 1 && teamsWithoutBedsButAlive.isEmpty()) {
+            endGame(teamsWithBeds.get(0));
+        } else if (teamsWithBeds.isEmpty()) {
+            List<Team> teamsWithPlayers = teams.values().stream()
+                    .filter(t -> !t.getPlayers().isEmpty())
+                    .collect(Collectors.toList());
+            if (teamsWithPlayers.size() <= 1) {
+                endGame(teamsWithPlayers.isEmpty() ? null : teamsWithPlayers.get(0));
+            }
         }
     }
 
@@ -565,9 +756,47 @@ public class Game {
             }
         }
 
+        sendGameSummary();
+
         cycle.onGameEnd();
 
         Bukkit.getScheduler().runTaskLater(Main.getInstance(), this::resetGame, 400L);
+    }
+
+    private void sendGameSummary() {
+        Component header = Component.text("§6§l――――――――――――――――――")
+                .append(Component.newline())
+                .append(Component.text("§6§lRÉSUMÉ DE LA PARTIE"))
+                .append(Component.newline())
+                .append(Component.text("§6§l――――――――――――――――――"));
+
+        Component duration = Component.text("§eDurée: §f" + getFormattedTime());
+
+        broadcastMessage(header);
+        broadcastMessage(duration);
+        broadcastMessage(Component.text("§7"));
+
+        playerStats.forEach((player, stats) -> {
+            Component playerSummary = Component.text(player.getName() + ": ")
+                    .color(NamedTextColor.GRAY)
+                    .append(Component.text("§a" + stats.getCurrentKills() + " kills §7| "))
+                    .append(Component.text("§c" + stats.getCurrentDeaths() + " morts §7| "))
+                    .append(Component.text("§e" + stats.getCurrentAssists() + " assists"));
+            broadcastMessage(playerSummary);
+        });
+
+        broadcastMessage(Component.text("§6§l――――――――――――――――――"));
+    }
+
+    private void broadcastMessage(Component message) {
+        for (Entity entity : getPlayers()) {
+            if (entity instanceof Player player) {
+                player.sendMessage(message);
+            }
+        }
+        for (Player spectator : spectators) {
+            spectator.sendMessage(message);
+        }
     }
 
     public void forceStop() {
@@ -580,23 +809,33 @@ public class Game {
 
         List<Entity> allPlayers = new ArrayList<>(getPlayers());
         for (Entity entity : allPlayers) {
+
             removePlayer(entity);
+
             if (lobby != null) {
                 entity.teleport(lobby);
             }
+
+            EntityEquipment equipment = getPlayerInventory(entity);
+
+            equipment.clear();
+            equipment.setArmorContents(null);
+
             if (entity instanceof Player p) {
                 p.setGameMode(GameMode.ADVENTURE);
-                p.getInventory().clear();
-                p.getInventory().setArmorContents(null);
                 resetPlayerHealth(p);
+                p.getInventory().setItem(0, TeamSelectionGUI.createBannerItem());
             }
         }
 
         for (Player spectator : new ArrayList<>(spectators)) {
             removeSpectator(spectator);
+
             if (lobby != null) {
                 spectator.teleport(lobby);
             }
+
+            spectator.getInventory().setItem(0, TeamSelectionGUI.createBannerItem());
         }
 
         for (Team team : teams.values()) {
@@ -607,9 +846,12 @@ public class Game {
         playersReady.clear();
         playerStats.clear();
         spectators.clear();
+        killTracker.reset();
         protectedPlayers.clear();
 
         cycle.onGameEnd();
+
+        state = GameState.WAITING;
     }
 
     private void resetGame() {
@@ -641,16 +883,14 @@ public class Game {
     }
 
     private void startResourceSpawners() {
-        TeamColor[] teamOrder = TeamColor.firstN(4);
-
-        for (int i = 0; i < teamOrder.length; i++) {
-            Team team = teams.get(teamOrder[i].name());
+        for (int i = 0; i < islandAssignment.size(); i++) {
+            Team team = islandAssignment.get(i);
 
             if (team == null) {
                 continue;
             }
 
-            team.placeEnderChests(i);
+            team.placeEnderChests(ISLAND_ORDER[i]);
 
             for (Location chestLocation : team.getEnderChestLocations()) {
                 for (ResourceType type : ResourceType.values()) {

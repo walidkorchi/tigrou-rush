@@ -1,5 +1,5 @@
 # World where the rush game takes place
-gameWorld: world_the_end
+gameWorld: world
 
 # World where players spawn when game stops
 lobbyWorld: world

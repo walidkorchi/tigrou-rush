@@ -12,8 +12,8 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
-import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.inventory.CraftItemEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.player.PlayerBedEnterEvent;
@@ -26,6 +26,7 @@ import io.github.rush.Main;
 import io.github.rush.entities.MerchantType;
 import io.github.rush.game.Game;
 import io.github.rush.game.GameState;
+import io.github.rush.menus.ShopGUI;
 
 import java.util.Set;
 import java.util.function.Predicate;
@@ -72,6 +73,14 @@ public class GameRules implements Listener {
                         b -> b.getBlockData() instanceof Bed)) {
             event.setCancelled(true);
             event.getPlayer().sendMessage(Component.text("Cannot place blocks near beds!"));
+            return;
+        }
+
+        Game game = plugin.getGameManager().getCurrentGame();
+        if (game != null && game.getState() == GameState.RUNNING
+                && game.isBlockInForbiddenZone(event.getBlock().getLocation())) {
+            event.setCancelled(true);
+            event.getPlayer().sendMessage(Component.text("§cVous ne pouvez pas placer de blocs dans cette zone avant l'overtime!"));
         }
     }
 
@@ -83,17 +92,6 @@ public class GameRules implements Listener {
         if (!BREAKABLE_BLOCKS.contains(event.getBlock().getType())) {
             event.setCancelled(true);
         }
-    }
-
-    @EventHandler
-    public void onVillagerDamage(EntityDamageByEntityEvent event) {
-        if (!(event.getEntity() instanceof Villager villager))
-            return;
-
-        if (!plugin.isMerchantVillager(villager))
-            return;
-
-        event.setCancelled(true);
     }
 
     @EventHandler
@@ -119,17 +117,13 @@ public class GameRules implements Listener {
         event.setCancelled(true);
     }
 
-@EventHandler
+    @EventHandler
     public void onVillagerInteract(PlayerInteractEntityEvent event) {
         if (!(event.getRightClicked() instanceof Villager villager))
             return;
 
         if (!isGameEventRegistered(villager.getWorld().getName()))
             return;
-
-        // if (villager.getProfession() !=
-        // org.bukkit.entity.Villager.Profession.LIBRARIAN)
-        // return;
 
         event.setCancelled(true);
 
@@ -196,6 +190,46 @@ public class GameRules implements Listener {
             }
         };
         task.runTask(plugin);
+    }
+
+    @EventHandler
+    public void onPlayerInteractEntity(PlayerInteractEntityEvent event) {
+        if (!(event.getRightClicked() instanceof Villager villager)) {
+            return;
+        }
+
+        Player player = event.getPlayer();
+
+        String gameWorld = Main.getInstance().getGameWorld();
+        if (gameWorld == null || !player.getWorld().getName().equals(gameWorld)) {
+            return;
+        }
+
+        Game game = Main.getInstance().getGameManager().getCurrentGame();
+        if (game == null || game.getState() != GameState.RUNNING) {
+            return;
+        }
+
+        if (!Main.getInstance().isMerchantVillager(villager)) {
+            return;
+        }
+
+        event.setCancelled(true);
+
+        if (Main.getInstance().isSpeedMerchantVillager(villager)) {
+            ShopGUI.openMainMenu(player);
+        }
+    }
+
+    @EventHandler
+    public void onVillagerDamage(EntityDamageByEntityEvent event) {
+        if (!(event.getEntity() instanceof Villager villager))
+            return;
+
+        if (!plugin.isMerchantVillager(villager))
+            return;
+
+        event.setCancelled(true);
     }
 
     private boolean hasNearbyBlock(Block center, int radius, Predicate<Block> predicate) {
