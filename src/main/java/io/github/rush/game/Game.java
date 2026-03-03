@@ -749,14 +749,31 @@ public class Game {
 
         if (winner != null) {
             String winMessage = "Victoire de l'équipe " + winner.getColor().name();
-            for (Entity player : getPlayers()) {
-                if (player instanceof Player) {
+            for (Entity entity : getPlayers()) {
+                if (entity instanceof Player player) {
                     player.showTitle(Title.title(Component.text(winMessage), Component.empty()));
                 }
+            }
+            for (Player spectator : spectators) {
+                spectator.showTitle(Title.title(Component.text(winMessage), Component.empty()));
             }
         }
 
         sendGameSummary();
+
+        // Update all leaderboard holograms
+        updateLeaderboardHolograms();
+
+        // Immediately set all players to spectator and remove mannequins
+        for (Team team : teams.values()) {
+            for (Entity entity : team.getPlayers()) {
+                if (entity instanceof Player player) {
+                    player.setGameMode(GameMode.SPECTATOR);
+                } else if (entity instanceof Mannequin mannequin) {
+                    mannequin.remove();
+                }
+            }
+        }
 
         cycle.onGameEnd();
 
@@ -856,15 +873,32 @@ public class Game {
 
     private void resetGame() {
         for (Entity entity : getPlayers()) {
+            if (entity instanceof Player p) {
+                p.setGameMode(GameMode.ADVENTURE);
+                resetPlayerHealth(p);
+                p.getInventory().clear();
+                p.getInventory().setArmorContents(null);
+
+                if (lobby != null) {
+                    p.teleport(lobby);
+                }
+
+                p.getInventory().setItem(0, TeamSelectionGUI.createBannerItem());
+            } else if (entity instanceof Mannequin mannequin) {
+                mannequin.remove();
+            }
+
             removePlayer(entity);
+        }
+
+        for (Player spectator : new ArrayList<>(spectators)) {
+            removeSpectator(spectator);
 
             if (lobby != null) {
-                entity.teleport(lobby);
+                spectator.teleport(lobby);
             }
 
-            if (entity instanceof Player p) {
-                resetPlayerHealth(p);
-            }
+            spectator.getInventory().setItem(0, TeamSelectionGUI.createBannerItem());
         }
 
         for (Team team : teams.values()) {
@@ -874,6 +908,9 @@ public class Game {
         freePlayers.clear();
         playersReady.clear();
         playerStats.clear();
+        spectators.clear();
+        protectedPlayers.clear();
+        killTracker.reset();
         runningTasks.forEach(BukkitTask::cancel);
         runningTasks.clear();
 
@@ -997,6 +1034,13 @@ public class Game {
     public void saveStats() {
         for (PlayerStatistic stat : playerStats.values()) {
             Main.getInstance().getPlayerStatisticManager().saveStatistic(stat);
+        }
+    }
+
+    private void updateLeaderboardHolograms() {
+        if (Main.getInstance().getCommandManager() != null
+                && Main.getInstance().getCommandManager().getLeaderboardCommand() != null) {
+            Main.getInstance().getCommandManager().getLeaderboardCommand().updateAllHolograms();
         }
     }
 }

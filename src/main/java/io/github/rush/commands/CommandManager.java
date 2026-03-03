@@ -14,6 +14,7 @@ import java.util.List;
 public class CommandManager {
 
     private final List<CommandRegistration> commands = new ArrayList<>();
+    private AuthorCommand authorCommand;
 
     @FunctionalInterface
     public interface CommandRegistration {
@@ -24,12 +25,26 @@ public class CommandManager {
         commands.add(registration);
     }
 
+    private LeaderboardCommand leaderboardCommand;
+
     public void registerAll(Main plugin) {
         register(new LevelDebugCommand(plugin)::createCommand);
         register(new MannequinCommand()::createCommand);
         register(new ResetIslandsCommand(plugin)::createCommand);
         register(new ForceStartCommand(plugin)::createCommand);
         register(new ForceStopCommand(plugin)::createCommand);
+        authorCommand = new AuthorCommand();
+        register(authorCommand::createCommand);
+        leaderboardCommand = new LeaderboardCommand();
+        register(leaderboardCommand::createCommand);
+    }
+
+    public LeaderboardCommand getLeaderboardCommand() {
+        return leaderboardCommand;
+    }
+
+    public AuthorCommand getAuthorCommand() {
+        return authorCommand;
     }
 
     public void onCommands(RegistrarEvent<Commands> event) {

@@ -15,15 +15,10 @@ import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.inventory.CraftItemEvent;
-import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.player.PlayerBedEnterEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
-import org.bukkit.inventory.Inventory;
-import org.bukkit.inventory.ItemStack;
-import org.bukkit.scheduler.BukkitRunnable;
 
 import io.github.rush.Main;
-import io.github.rush.entities.MerchantType;
 import io.github.rush.game.Game;
 import io.github.rush.game.GameState;
 import io.github.rush.menus.ShopGUI;
@@ -80,7 +75,8 @@ public class GameRules implements Listener {
         if (game != null && game.getState() == GameState.RUNNING
                 && game.isBlockInForbiddenZone(event.getBlock().getLocation())) {
             event.setCancelled(true);
-            event.getPlayer().sendMessage(Component.text("§cVous ne pouvez pas placer de blocs dans cette zone avant l'overtime!"));
+            event.getPlayer().sendMessage(
+                    Component.text("§cVous ne pouvez pas placer de blocs dans cette zone avant l'overtime!"));
         }
     }
 
@@ -117,25 +113,8 @@ public class GameRules implements Listener {
         event.setCancelled(true);
     }
 
-    @EventHandler
-    public void onVillagerInteract(PlayerInteractEntityEvent event) {
-        if (!(event.getRightClicked() instanceof Villager villager))
-            return;
-
-        if (!isGameEventRegistered(villager.getWorld().getName()))
-            return;
-
-        event.setCancelled(true);
-
-        Inventory inv = Bukkit.createInventory(null, 27, Component.text("Speed Merchant"));
-
-        inv.setItem(0, new ItemStack(Material.IRON_SWORD));
-        inv.setItem(1, new ItemStack(Material.IRON_CHESTPLATE));
-        inv.setItem(2, new ItemStack(Material.GOLDEN_APPLE));
-        inv.setItem(9, new ItemStack(Material.SANDSTONE));
-
-        event.getPlayer().openInventory(inv);
-    }
+    // Removed legacy onVillagerInteract — merchant interaction is handled by
+    // onPlayerInteractEntity
 
     @EventHandler
     public void onCraft(CraftItemEvent cie) {
@@ -151,45 +130,6 @@ public class GameRules implements Listener {
         }
 
         cie.setCancelled(true);
-    }
-
-    @EventHandler
-    public void onInventoryClick(InventoryClickEvent event) {
-        if (!(event.getWhoClicked() instanceof Player player))
-            return;
-
-        if (!Component.text("Speed Merchant").equals(event.getView().title()))
-            return;
-
-        event.setCancelled(true);
-
-        int slot = event.getRawSlot();
-
-        MerchantType type = switch (slot) {
-            case 0 -> MerchantType.WEAPONSMITH;
-            case 1 -> MerchantType.ARMORSMITH;
-            case 2 -> MerchantType.ALCHEMIST;
-            case 9 -> MerchantType.BUILDER;
-            default -> null;
-        };
-
-        if (type == null)
-            return;
-
-        Villager targetVillager = plugin.getMerchantVillager(type);
-        if (targetVillager == null || targetVillager.isDead())
-            return;
-
-        player.closeInventory();
-
-        BukkitRunnable task = new BukkitRunnable() {
-            @Override
-            @SuppressWarnings("deprecation")
-            public void run() {
-                player.openMerchant(targetVillager, true);
-            }
-        };
-        task.runTask(plugin);
     }
 
     @EventHandler
@@ -217,6 +157,10 @@ public class GameRules implements Listener {
         event.setCancelled(true);
 
         if (Main.getInstance().isSpeedMerchantVillager(villager)) {
+            Bukkit.getScheduler().runTask(Main.getInstance(), () -> {
+                player.openMerchant(villager, true);
+            });
+        } else {
             ShopGUI.openMainMenu(player);
         }
     }

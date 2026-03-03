@@ -15,3 +15,11 @@ dependencies:
       load: BEFORE
       required: true
       join-classpath: true
+    packetevents:
+      load: BEFORE
+      required: true
+      join-classpath: true
+    HologramLib:
+      load: BEFORE
+      required: true
+      join-classpath: true

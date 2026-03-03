@@ -32,8 +32,9 @@ public class PlayerSettingsManager {
         String path = playerId.toString();
 
         boolean scoreboardEnabled = config.getBoolean(path + ".scoreboard", true);
+        boolean musicEnabled = config.getBoolean(path + ".music", true);
 
-        PlayerSettings settings = new PlayerSettings(playerId, scoreboardEnabled);
+        PlayerSettings settings = new PlayerSettings(playerId, scoreboardEnabled, musicEnabled);
         settingsCache.put(playerId, settings);
 
         return settings;
@@ -46,6 +47,7 @@ public class PlayerSettingsManager {
         String path = settings.getPlayerId().toString();
 
         config.set(path + ".scoreboard", settings.isScoreboardEnabled());
+        config.set(path + ".music", settings.isMusicEnabled());
 
         try {
             config.save(settingsFile);
@@ -62,6 +64,17 @@ public class PlayerSettingsManager {
     public void setScoreboardEnabled(UUID playerId, boolean enabled) {
         PlayerSettings settings = loadSettings(playerId);
         settings.setScoreboardEnabled(enabled);
+        saveSettings(settings);
+    }
+
+    public boolean isMusicEnabled(UUID playerId) {
+        PlayerSettings settings = loadSettings(playerId);
+        return settings.isMusicEnabled();
+    }
+
+    public void setMusicEnabled(UUID playerId, boolean enabled) {
+        PlayerSettings settings = loadSettings(playerId);
+        settings.setMusicEnabled(enabled);
         saveSettings(settings);
     }
 }

@@ -16,6 +16,7 @@ import com.sk89q.worldedit.regions.CuboidRegion;
 import com.sk89q.worldedit.session.ClipboardHolder;
 import com.sk89q.worldedit.world.block.BlockTypes;
 
+import io.github.rush.commands.AuthorCommand;
 import io.github.rush.commands.CommandManager;
 import io.github.rush.entities.*;
 import io.github.rush.events.*;
@@ -25,6 +26,8 @@ import io.github.rush.settings.PlayerSettingsManager;
 import io.github.rush.statistics.*;
 import io.github.rush.scoreboard.ScoreboardManager;
 import io.github.rush.utils.MusicManager;
+import com.maximde.hologramlib.HologramLib;
+import com.maximde.hologramlib.hologram.HologramManager;
 import io.papermc.paper.datacomponent.DataComponentTypes;
 import io.papermc.paper.datacomponent.item.PotionContents;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
@@ -77,6 +80,12 @@ public class Main extends JavaPlugin {
     private MusicManager musicManager = null;
 
     @Getter
+    private HologramManager hologramManager = null;
+
+    @Getter
+    private CommandManager commandManager = null;
+
+    @Getter
     @Setter
     private boolean gameStarted = false;
 
@@ -119,11 +128,16 @@ public class Main extends JavaPlugin {
         gameManager.createGame("rush");
         musicManager = new MusicManager(this);
 
+        HologramLib.getManager().ifPresentOrElse(
+                manager -> hologramManager = manager,
+                () -> getLogger().severe("Failed to initialize HologramLib manager.")
+        );
+
         Bukkit.getPluginManager().registerEvents(new GameRules(this), this);
         Bukkit.getPluginManager().registerEvents(new PlayerActivity(this), this);
         Bukkit.getPluginManager().registerEvents(new TNT(this), this);
 
-        CommandManager commandManager = new CommandManager();
+        commandManager = new CommandManager();
         commandManager.registerAll(this);
         this.getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, commandManager::onCommands);
 

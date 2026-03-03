@@ -40,7 +40,7 @@ public class Merchant {
             result.addEnchantments(trade.enchantments());
         }
 
-        final MerchantRecipe recipe = new MerchantRecipe(result, 0, 12, false);
+        final MerchantRecipe recipe = new MerchantRecipe(result, 0, Integer.MAX_VALUE, false);
 
         recipe.addIngredient(new ItemStack(trade.currency(), trade.costAmount()));
 

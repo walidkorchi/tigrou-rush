@@ -1,0 +1,261 @@
+package io.github.rush.commands;
+
+import io.github.rush.Main;
+import io.papermc.paper.command.brigadier.Commands;
+import io.papermc.paper.command.brigadier.CommandSourceStack;
+
+import com.destroystokyo.paper.profile.PlayerProfile;
+import com.mojang.brigadier.Command;
+import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+import com.mojang.brigadier.context.CommandContext;
+
+import org.bukkit.Bukkit;
+import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.Particle;
+import org.bukkit.block.Block;
+import org.bukkit.command.CommandSender;
+import org.bukkit.entity.ArmorStand;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.Item;
+import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.SkullMeta;
+import org.bukkit.scheduler.BukkitTask;
+import org.bukkit.entity.Display;
+import org.bukkit.entity.TextDisplay;
+import org.bukkit.util.Vector;
+import org.jspecify.annotations.NullMarked;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+
+import com.maximde.hologramlib.hologram.TextHologram;
+
+import net.kyori.adventure.text.format.NamedTextColor;
+
+import static net.kyori.adventure.text.Component.text;
+
+@NullMarked
+public class AuthorCommand {
+
+    private static final String AUTHOR_NAME = "Walidoux";
+    private static final String ARMOR_STAND_TAG = "author_head";
+    private static final int SEARCH_RADIUS = 5;
+    private static final double PARTICLE_RADIUS = 2;
+    private static final int PARTICLE_STEPS = 40;
+    private static final int PARTICLE_DURATION_TICKS = 50;
+
+    private final Map<UUID, BukkitTask> particleTasks = new HashMap<>();
+    private final Map<UUID, TextHologram> holograms = new HashMap<>();
+    private final Map<Location, UUID> glassBlocks = new HashMap<>();
+
+    public Map<Location, UUID> getGlassBlocks() {
+        return glassBlocks;
+    }
+
+    public LiteralArgumentBuilder<CommandSourceStack> createCommand() {
+        return Commands.literal("author")
+                .then(Commands.literal("add")
+                        .executes(ctx -> runAdd(ctx)))
+                .then(Commands.literal("remove")
+                        .executes(ctx -> runRemove(ctx)));
+    }
+
+    private int runAdd(CommandContext<CommandSourceStack> ctx) {
+        CommandSender sender = ctx.getSource().getSender();
+
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(text("This command must be run by a player.", NamedTextColor.RED));
+            return 0;
+        }
+
+        Block glassBlock = findGlassBeneath(player);
+
+        if (glassBlock == null) {
+            player.sendMessage(text("Aucun bloc de verre trouvé sous vos pieds.", NamedTextColor.RED));
+            return 0;
+        }
+
+        float yaw = getYawFacingPlayer(glassBlock, player);
+
+        Location spawnLoc = glassBlock.getLocation().add(0.5, -1.25, 0.5);
+        spawnLoc.setYaw(yaw);
+
+        ArmorStand armorStand = player.getWorld().spawn(spawnLoc, ArmorStand.class, stand -> {
+            stand.setVisible(false);
+            stand.setGravity(false);
+            stand.setInvulnerable(true);
+            stand.setSmall(false);
+            stand.setBasePlate(false);
+            stand.setArms(false);
+            stand.addScoreboardTag(ARMOR_STAND_TAG);
+        });
+
+        ItemStack skull = new ItemStack(Material.PLAYER_HEAD);
+        SkullMeta meta = (SkullMeta) skull.getItemMeta();
+
+        PlayerProfile profile = Bukkit.createProfile(AUTHOR_NAME);
+        profile.update().thenAccept(updatedProfile -> {
+            Bukkit.getScheduler().runTask(Main.getInstance(), () -> {
+                meta.setPlayerProfile(updatedProfile);
+                skull.setItemMeta(meta);
+                armorStand.getEquipment().setHelmet(skull);
+            });
+        });
+
+        playFancyParticles(armorStand.getUniqueId(), glassBlock.getLocation().add(0.5, 0.5, 0.5));
+
+        spawnHologram(armorStand.getUniqueId(), glassBlock.getLocation().add(0.5, 2.2, 0.5));
+
+        glassBlocks.put(glassBlock.getLocation(), armorStand.getUniqueId());
+
+        player.sendMessage(text("Armor stand de " + AUTHOR_NAME + " placé!", NamedTextColor.GREEN));
+
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private int runRemove(CommandContext<CommandSourceStack> ctx) {
+        CommandSender sender = ctx.getSource().getSender();
+
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(text("This command must be run by a player.", NamedTextColor.RED));
+            return 0;
+        }
+
+        int removed = 0;
+        for (Entity entity : player.getWorld().getEntities()) {
+            if (entity instanceof ArmorStand stand && stand.getScoreboardTags().contains(ARMOR_STAND_TAG)) {
+                BukkitTask task = particleTasks.remove(stand.getUniqueId());
+                if (task != null) {
+                    task.cancel();
+                }
+                TextHologram hologram = holograms.remove(stand.getUniqueId());
+                if (hologram != null && Main.getInstance().getHologramManager() != null) {
+                    Main.getInstance().getHologramManager().remove(hologram);
+                }
+                glassBlocks.values().remove(stand.getUniqueId());
+                stand.remove();
+                removed++;
+            }
+        }
+
+        if (removed > 0) {
+            player.sendMessage(text(removed + " armor stand(s) supprimé(s).", NamedTextColor.GREEN));
+        } else {
+            player.sendMessage(text("Aucun armor stand d'auteur trouvé.", NamedTextColor.RED));
+        }
+
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private float getYawFacingPlayer(Block block, Player player) {
+        double dx = player.getLocation().getX() - (block.getX() + 0.5);
+        double dz = player.getLocation().getZ() - (block.getZ() + 0.5);
+        double angle = Math.toDegrees(Math.atan2(-dx, dz));
+        return (float) angle;
+    }
+
+    private Block findGlassBeneath(Player player) {
+        Location loc = player.getLocation();
+        int playerY = loc.getBlockY();
+        Block closest = null;
+        double closestDist = Double.MAX_VALUE;
+
+        for (int x = -SEARCH_RADIUS; x <= SEARCH_RADIUS; x++) {
+            for (int z = -SEARCH_RADIUS; z <= SEARCH_RADIUS; z++) {
+                Block block = loc.getWorld().getBlockAt(loc.getBlockX() + x, playerY - 1, loc.getBlockZ() + z);
+
+                if (isGlass(block.getType())) {
+                    double dist = block.getLocation().add(0.5, 0, 0.5).distanceSquared(loc);
+                    if (dist < closestDist) {
+                        closestDist = dist;
+                        closest = block;
+                    }
+                }
+            }
+        }
+
+        return closest;
+    }
+
+    private void playFancyParticles(UUID armorStandId, Location center) {
+        BukkitTask task = Bukkit.getScheduler().runTaskTimer(Main.getInstance(), new Runnable() {
+            private int step = 0;
+
+            @Override
+            public void run() {
+                double progress = (double) step / PARTICLE_STEPS;
+
+                // Rising spiral helix with END_ROD particles
+                double spiralAngle = (2 * Math.PI * step * 2) / PARTICLE_STEPS;
+                double spiralHeight = Math.sin(progress * 2 * Math.PI) * 0.5;
+                double spiralX = center.getX() + (PARTICLE_RADIUS * 0.8) * Math.cos(spiralAngle);
+                double spiralZ = center.getZ() + (PARTICLE_RADIUS * 0.8) * Math.sin(spiralAngle);
+                Location spiralLoc = new Location(center.getWorld(), spiralX, center.getY() + spiralHeight, spiralZ);
+                center.getWorld().spawnParticle(Particle.END_ROD, spiralLoc, 1, 0, 0, 0, 0);
+
+                step = (step + 1) % PARTICLE_STEPS;
+            }
+        }, 0L, 1L);
+
+        particleTasks.put(armorStandId, task);
+    }
+
+    private boolean isGlass(Material material) {
+        String name = material.name();
+        return material == Material.GLASS
+                || material == Material.TINTED_GLASS
+                || name.endsWith("_STAINED_GLASS");
+    }
+
+    private void spawnHologram(UUID armorStandId, Location location) {
+        if (Main.getInstance().getHologramManager() == null) {
+            return;
+        }
+
+        TextHologram hologram = new TextHologram("author_" + armorStandId.toString())
+                .setMiniMessageText("<white>Construit & développé</white><br><white>par <gradient:#FFD700:#FF69B4><bold>" + AUTHOR_NAME + "</bold></gradient></white>")
+                .setBillboard(Display.Billboard.CENTER)
+                .setShadow(true)
+                .setScale(1.2F, 1.2F, 1.2F)
+                .setTextOpacity((byte) 255)
+                .setBackgroundColor(org.bukkit.Color.fromARGB(0, 0, 0, 0).asARGB())
+                .setAlignment(TextDisplay.TextAlignment.CENTER)
+                .setViewRange(0.5);
+
+        Main.getInstance().getHologramManager().spawn(hologram, location);
+        holograms.put(armorStandId, hologram);
+    }
+
+    public static void playCookieFountain(Location location) {
+        final int COOKIE_COUNT = 20;
+        final double SPREAD = 0.3;
+        final double UPWARD_VELOCITY = 0.8;
+        final int DESPAWN_TICKS = 40;
+
+        for (int i = 0; i < COOKIE_COUNT; i++) {
+            double angle = (2 * Math.PI * i) / COOKIE_COUNT;
+            double radius = 0.2 + Math.random() * 0.3;
+            double x = location.getX() + radius * Math.cos(angle);
+            double z = location.getZ() + radius * Math.sin(angle);
+            double y = location.getY() + 0.5;
+
+            Location spawnLoc = new Location(location.getWorld(), x, y, z);
+            Item cookie = location.getWorld().spawn(spawnLoc, Item.class, item -> {
+                item.setItemStack(new ItemStack(Material.COOKIE));
+                item.setPickupDelay(Integer.MAX_VALUE);
+                item.setInvulnerable(true);
+                item.setGravity(true);
+            });
+
+            double vx = SPREAD * Math.cos(angle) * (0.5 + Math.random() * 0.5);
+            double vz = SPREAD * Math.sin(angle) * (0.5 + Math.random() * 0.5);
+            double vy = UPWARD_VELOCITY + Math.random() * 0.4;
+            cookie.setVelocity(new Vector(vx, vy, vz));
+
+            Bukkit.getScheduler().runTaskLater(Main.getInstance(), cookie::remove, DESPAWN_TICKS);
+        }
+    }
+}

@@ -24,6 +24,11 @@ repositories {
         url = uri("https://maven.enginehub.org/repo/")
     }
 
+    maven {
+        name = "jitpack"
+        url = uri("https://jitpack.io")
+    }
+
     mavenCentral()
 }
 
@@ -36,6 +41,7 @@ dependencies {
     implementation("org.hibernate.orm:hibernate-core:6.4.1.Final")
     compileOnly("org.projectlombok:lombok:1.18.36")
     annotationProcessor("org.projectlombok:lombok:1.18.36")
+    compileOnly("com.github.HologramLib:HologramLib:1.8.3.2")
 }
 
 java {

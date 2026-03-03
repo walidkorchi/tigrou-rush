@@ -1,6 +1,7 @@
 package io.github.rush.events;
 
 import io.github.rush.Main;
+import io.github.rush.commands.AuthorCommand;
 import io.github.rush.game.Game;
 import io.github.rush.game.GameState;
 import io.github.rush.game.Team;
@@ -28,6 +29,7 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.FoodLevelChangeEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.InventoryAction;
@@ -40,6 +42,7 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
+import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.GameMode;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -113,7 +116,7 @@ public class PlayerActivity implements Listener {
         player.getInventory().setItem(0, TeamSelectionGUI.createBannerItem());
         player.getInventory().setItem(8, createSettingsItem());
 
-        if (plugin.getMusicManager() != null) {
+        if (plugin.getMusicManager() != null && plugin.getPlayerSettingsManager().isMusicEnabled(player.getUniqueId())) {
             plugin.getMusicManager().playForPlayer(player);
         }
 
@@ -261,6 +264,35 @@ public class PlayerActivity implements Listener {
             killer = player.getKiller();
         }
 
+        handleEntityDeath(game, entity, killer);
+    }
+
+    @EventHandler
+    public void onMannequinDie(EntityDeathEvent event) {
+        if (!plugin.isGameStarted()) {
+            return;
+        }
+
+        if (!(event.getEntity() instanceof Mannequin mannequin)) {
+            return;
+        }
+
+        Game game = Main.getInstance().getGameManager().getCurrentGame();
+        if (game == null || game.getPlayerTeam(mannequin) == null) {
+            return;
+        }
+
+        event.setCancelled(true);
+        event.setDroppedExp(0);
+        event.getDrops().clear();
+
+        mannequin.setHealth(mannequin.getAttribute(Attribute.MAX_HEALTH).getValue());
+
+        Player killer = mannequin.getKiller();
+        handleEntityDeath(game, mannequin, killer);
+    }
+
+    private void handleEntityDeath(Game game, Entity entity, Player killer) {
         game.onPlayerDeath(entity, killer);
 
         Team team = game.getPlayerTeam(entity);
@@ -276,8 +308,9 @@ public class PlayerActivity implements Listener {
                 entity.teleport(spawn);
             }
 
+            game.equipEntity(entity, team);
+
             if (entity instanceof Player player) {
-                game.equipEntity(player, team);
                 game.addProtection(player);
             }
         }
@@ -286,7 +319,7 @@ public class PlayerActivity implements Listener {
     @EventHandler
     public void onHunger(FoodLevelChangeEvent event) {
         if (event.getEntity() instanceof Player player) {
-            if (!isPlayerInQueue(player)) {
+            if (isPlayerInQueue(player)) {
                 event.setCancelled(true);
             }
         }
@@ -337,6 +370,21 @@ public class PlayerActivity implements Listener {
                 PlayerSettingsGUI.openPlayerSettings(player);
                 pie.setCancelled(true);
                 return;
+            }
+
+            Block clickedBlock = pie.getClickedBlock();
+            if (clickedBlock != null && isGlass(clickedBlock.getType())) {
+                Location blockLoc = clickedBlock.getLocation();
+                for (Location glassLoc : plugin.getCommandManager().getAuthorCommand().getGlassBlocks().keySet()) {
+                    if (blockLoc.getWorld().equals(glassLoc.getWorld())
+                            && blockLoc.getBlockX() == glassLoc.getBlockX()
+                            && blockLoc.getBlockY() == glassLoc.getBlockY()
+                            && blockLoc.getBlockZ() == glassLoc.getBlockZ()) {
+                        AuthorCommand.playCookieFountain(blockLoc.add(0.5, 0.5, 0.5));
+                        pie.setCancelled(true);
+                        return;
+                    }
+                }
             }
         }
 
@@ -409,6 +457,13 @@ public class PlayerActivity implements Listener {
             if (isPlayerInQueue(player)) {
                 event.setCancelled(true);
             }
+        }
+    }
+
+    @EventHandler
+    public void onPlayerSwapHandItems(PlayerSwapHandItemsEvent event) {
+        if (isPlayerInQueue(event.getPlayer())) {
+            event.setCancelled(true);
         }
     }
 
@@ -573,5 +628,12 @@ public class PlayerActivity implements Listener {
         }
 
         event.renderer((source, sourceDisplayName, msg, viewer) -> formatComponent);
+    }
+
+    private boolean isGlass(Material material) {
+        String name = material.name();
+        return material == Material.GLASS
+                || material == Material.TINTED_GLASS
+                || name.endsWith("_STAINED_GLASS");
     }
 }
