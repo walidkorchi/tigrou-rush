@@ -15,7 +15,9 @@ import java.util.UUID;
 @NoArgsConstructor
 public class PlayerLevel {
 
-    private static final int MAX_LEVEL = 150;
+    private int getMaxLevel() {
+        return PlayerLevelManager.getMaxLevel();
+    }
 
     @Id
     private UUID uuid;
@@ -47,7 +49,7 @@ public class PlayerLevel {
     }
 
     public String getTierIcon() {
-        if (level >= MAX_LEVEL) {
+        if (level >= getMaxLevel()) {
             return "♕";
         } else if (level >= 5) {
             return "✦";
@@ -56,7 +58,7 @@ public class PlayerLevel {
     }
 
     public String getTierColor() {
-        if (level >= MAX_LEVEL) {
+        if (level >= getMaxLevel()) {
             return "§c[§61§e5§a0§d]";
         }
         if (level >= 145) {
@@ -153,9 +155,9 @@ public class PlayerLevel {
         String tierColor = getTierColor();
         String icon = getTierIcon();
 
-        if (level >= 50 && level < MAX_LEVEL) {
+        if (level >= 50 && level < getMaxLevel()) {
             return tierColor + level + icon;
-        } else if (level >= MAX_LEVEL) {
+        } else if (level >= getMaxLevel()) {
             return tierColor + icon;
         }
 
@@ -166,7 +168,7 @@ public class PlayerLevel {
         this.totalXP += xp;
         this.currentXP += xp;
 
-        while (level < MAX_LEVEL && currentXP >= getXPForNextLevel()) {
+        while (level < getMaxLevel() && currentXP >= getXPForNextLevel()) {
             currentXP -= getXPForNextLevel();
             level++;
         }
@@ -185,7 +187,7 @@ public class PlayerLevel {
     }
 
     public void setLevel(int level) {
-        this.level = Math.min(level, MAX_LEVEL);
+        this.level = Math.min(level, getMaxLevel());
     }
 
     public void setCurrentXP(int currentXP) {

@@ -15,6 +15,17 @@ database:
 # Radius around beds where block placement is prevented
 bedProtectionRadius: 3
 
+# Maximum player level (default: 150)
+maxLevel: 150
+
+# XP calculation multipliers for player levels
+xpMultipliers:
+  wins: 100
+  losses: 20
+  kills: 15
+  assists: 5
+  deaths: -10
+
 # minecraft defaults it to 4s
 explodeTicks: 80
 

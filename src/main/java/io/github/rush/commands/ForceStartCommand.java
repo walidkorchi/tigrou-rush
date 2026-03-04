@@ -11,6 +11,7 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 
 import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Player;
 import org.jspecify.annotations.NullMarked;
 
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -34,14 +35,15 @@ public class ForceStartCommand {
 
     private int runForceStart(CommandContext<CommandSourceStack> ctx) {
         CommandSender sender = ctx.getSource().getSender();
-
         GameManager gameManager = plugin.getGameManager();
+
         if (gameManager == null) {
             sender.sendMessage(text("Game manager not available.", NamedTextColor.RED));
             return Command.SINGLE_SUCCESS;
         }
 
         Game game = gameManager.getCurrentGame();
+
         if (game == null) {
             sender.sendMessage(text("No active game found.", NamedTextColor.RED));
             return Command.SINGLE_SUCCESS;
@@ -49,8 +51,7 @@ public class ForceStartCommand {
 
         game.forceStart();
 
-        String adminName = sender.getName();
-        for (var player : plugin.getServer().getOnlinePlayers()) {
+        for (Player player : plugin.getServer().getOnlinePlayers()) {
             player.sendMessage(text("§c⚠ Un administrateur a forcé le démarrage de la partie!"));
         }
 

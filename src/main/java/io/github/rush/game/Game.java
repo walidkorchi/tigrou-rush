@@ -73,35 +73,72 @@ public class Game {
     @Getter
     private int timeLeft = 0;
     @Getter
-    private final int maxPlayers = 8;
+    private final int maxPlayers;
     @Getter
     private final int minPlayers = 2;
     @Getter
     private final int minTeams = 2;
+    @Getter
+    private final String worldName;
 
     private GameLobbyCountdown lobbyCountdown;
     private final Map<Entity, Boolean> playersReady = new HashMap<>();
 
+    @Setter
+    @Getter
+    private GameRoom gameRoom = null;
+
+    /**
+     * Legacy constructor for single-game mode.
+     */
     public Game(String name) {
         this.state = GameState.WAITING;
         this.cycle = new GameCycle(this);
+        this.worldName = Main.getInstance().getConfig().getString("gameWorld");
+        this.maxPlayers = 8;
 
         String lobbyWorld = Main.getInstance().getConfig().getString("lobbyWorld");
         World world = Bukkit.getWorld(lobbyWorld);
 
         this.lobby = world != null ? world.getSpawnLocation() : null;
 
-        initializeTeams();
+        initializeTeams(4, 4);
     }
 
-    private void initializeTeams() {
+    /**
+     * Constructor for multi-game mode with configurable team sizes.
+     */
+    public Game(String name, String worldName, Location lobby, int islandCount, int playersPerTeam) {
+        this.state = GameState.WAITING;
+        this.cycle = new GameCycle(this);
+        this.worldName = worldName;
+        this.lobby = lobby;
+        this.maxPlayers = islandCount * playersPerTeam;
+
+        initializeTeams(islandCount, playersPerTeam);
+    }
+
+    /**
+     * Returns true if this game is running in a GameRoom (multi-game mode).
+     */
+    public boolean isGameRoomMode() {
+        return gameRoom != null;
+    }
+
+    private void initializeTeams(int islandCount, int playersPerTeam) {
         List<TeamColor> colors = List.of(
                 TeamColor.RED, TeamColor.BLUE, TeamColor.GREEN, TeamColor.YELLOW);
 
-        for (TeamColor color : colors) {
-            Team team = new Team(color.name(), color, 4);
+        int teamCount = Math.min(islandCount, colors.size());
+        for (int i = 0; i < teamCount; i++) {
+            TeamColor color = colors.get(i);
+            Team team = new Team(color.name(), color, playersPerTeam);
             teams.put(color.name(), team);
         }
+    }
+
+    public int getTotalPlayerCount() {
+        return getPlayers().size();
     }
 
     public void removePlayer(Entity player) {
@@ -480,7 +517,11 @@ public class Game {
         if (state == GameState.WAITING) {
             state = GameState.RUNNING;
             gameTime = 0;
-            Main.getInstance().setGameStarted(true);
+
+            // Only set global game started flag for legacy mode
+            if (!isGameRoomMode()) {
+                Main.getInstance().setGameStarted(true);
+            }
 
             computeIslandAssignment();
             loadIslandsAndSetSpawns();
@@ -499,6 +540,7 @@ public class Game {
                 if (team != null) {
                     if (entity instanceof Player player) {
                         player.getInventory().clear();
+                        player.getEnderChest().clear();
                         player.setGameMode(GameMode.SURVIVAL);
                     }
 
@@ -510,23 +552,46 @@ public class Game {
             startResourceSpawners();
 
             cycle.onGameStart();
+
+            // Notify GameManager that game started (for GameRoom mode)
+            if (isGameRoomMode()) {
+                Main.getInstance().getGameManager().onGameRoomStarted(gameRoom);
+            }
         }
     }
 
     private void loadIslandsAndSetSpawns() {
-        Main plugin = Main.getInstance();
-        World gameWorld = Bukkit.getWorld(plugin.getGameWorld());
+        World gameWorld;
+        List<Island> islands;
+        int islandY;
 
-        if (gameWorld == null) {
-            plugin.getLogger().warning("Game world not found, cannot load islands");
-            return;
+        if (isGameRoomMode()) {
+            // GameRoom mode: use room's own world and islands
+            gameWorld = gameRoom.getWorld();
+            islands = gameRoom.getIslands();
+            islandY = gameRoom.getIslandY();
+
+            // Load islands if not already loaded
+            if (!gameRoom.isIslandsLoaded()) {
+                Main.getInstance().getGameManager().loadIslandsForGameRoom(gameRoom);
+            }
+        } else {
+            // Legacy mode: use Main's world and islands
+            Main plugin = Main.getInstance();
+            gameWorld = Bukkit.getWorld(plugin.getGameWorld());
+
+            if (gameWorld == null) {
+                plugin.getLogger().warning("Game world not found, cannot load islands");
+                return;
+            }
+
+            if (!plugin.isIslandsLoaded()) {
+                plugin.loadSchematicsSync();
+            }
+
+            islands = plugin.getIslands();
+            islandY = Main.getISLAND_Y();
         }
-
-        if (!plugin.isIslandsLoaded()) {
-            plugin.loadSchematicsSync();
-        }
-
-        final List<Island> islands = plugin.getIslands();
 
         for (int i = 0; i < islandAssignment.size() && i < islands.size(); i++) {
             final Team team = islandAssignment.get(i);
@@ -535,7 +600,7 @@ public class Game {
                 continue;
 
             final Island island = islands.get(ISLAND_ORDER[i]);
-            final Location spawnLoc = new Location(gameWorld, island.getX(), Main.getISLAND_Y() + 2, island.getZ());
+            final Location spawnLoc = new Location(gameWorld, island.getX(), islandY + 2, island.getZ());
 
             team.setSpawnLocation(spawnLoc);
         }
@@ -757,7 +822,13 @@ public class Game {
             for (Player spectator : spectators) {
                 spectator.showTitle(Title.title(Component.text(winMessage), Component.empty()));
             }
+
+            // Update winstreaks: increment for winners, reset for losers
+            updateWinStreaks(winner);
         }
+
+        // Clear all players' ender chests
+        clearAllEnderChests();
 
         sendGameSummary();
 
@@ -777,7 +848,12 @@ public class Game {
 
         cycle.onGameEnd();
 
-        Bukkit.getScheduler().runTaskLater(Main.getInstance(), this::resetGame, 400L);
+        // Notify GameManager that game ended (for GameRoom mode)
+        if (isGameRoomMode()) {
+            Main.getInstance().getGameManager().onGameRoomEnded(gameRoom);
+        } else {
+            Bukkit.getScheduler().runTaskLater(Main.getInstance(), this::resetGame, 400L);
+        }
     }
 
     private void sendGameSummary() {
@@ -858,6 +934,9 @@ public class Game {
         for (Team team : teams.values()) {
             team.reset();
         }
+
+        // Clear all players' ender chests
+        clearAllEnderChests();
 
         freePlayers.clear();
         playersReady.clear();
@@ -1042,5 +1121,67 @@ public class Game {
                 && Main.getInstance().getCommandManager().getLeaderboardCommand() != null) {
             Main.getInstance().getCommandManager().getLeaderboardCommand().updateAllHolograms();
         }
+    }
+
+    private void updateWinStreaks(Team winner) {
+        for (Entity entity : getPlayers()) {
+            if (entity instanceof Player player) {
+                PlayerStatistic stats = playerStats.get(player);
+                if (stats != null) {
+                    Team playerTeam = getPlayerTeam(player);
+                    if (playerTeam != null && playerTeam.equals(winner)) {
+                        // Winner: increment winstreak
+                        stats.setWinStreak(stats.getWinStreak() + 1);
+                    } else {
+                        // Loser: reset winstreak to 0
+                        stats.setWinStreak(0);
+                    }
+                }
+            }
+        }
+    }
+
+    private void clearAllEnderChests() {
+        for (Entity entity : getPlayers()) {
+            if (entity instanceof Player player) {
+                player.getEnderChest().clear();
+            }
+        }
+        for (Player spectator : spectators) {
+            spectator.getEnderChest().clear();
+        }
+    }
+
+    /**
+     * Stops the game and cleans up all resources.
+     * Called during plugin shutdown or when a game room is removed.
+     */
+    public void stop() {
+        // Cancel all running tasks
+        for (BukkitTask task : runningTasks) {
+            task.cancel();
+        }
+        runningTasks.clear();
+
+        // Stop resource spawners
+        stopResourceSpawners();
+
+        // Reset kill tracker
+        killTracker.reset();
+
+        // Clear all collections
+        freePlayers.clear();
+        playersReady.clear();
+        playerStats.clear();
+        spectators.clear();
+        protectedPlayers.clear();
+
+        // Reset teams
+        for (Team team : teams.values()) {
+            team.getPlayers().clear();
+        }
+
+        // Set state to stopped
+        state = GameState.STOPPED;
     }
 }

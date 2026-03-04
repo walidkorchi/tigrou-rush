@@ -33,10 +33,11 @@ public class CommandManager {
         register(new ResetIslandsCommand(plugin)::createCommand);
         register(new ForceStartCommand(plugin)::createCommand);
         register(new ForceStopCommand(plugin)::createCommand);
-        authorCommand = new AuthorCommand();
+        authorCommand = new AuthorCommand(plugin);
         register(authorCommand::createCommand);
         leaderboardCommand = new LeaderboardCommand();
         register(leaderboardCommand::createCommand);
+        register(new SettingsCommand()::createCommand);
     }
 
     public LeaderboardCommand getLeaderboardCommand() {

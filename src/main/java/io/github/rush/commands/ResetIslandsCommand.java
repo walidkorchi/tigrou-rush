@@ -8,7 +8,6 @@ import com.mojang.brigadier.Command;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 
-import org.bukkit.command.CommandSender;
 import org.jspecify.annotations.NullMarked;
 
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -31,11 +30,8 @@ public class ResetIslandsCommand {
     }
 
     private int runResetIslands(CommandContext<CommandSourceStack> ctx) {
-        CommandSender sender = ctx.getSource().getSender();
-
         plugin.pasteAllSchematics();
-
-        sender.sendMessage(text("All island schematics have been reset.", NamedTextColor.GREEN));
+        ctx.getSource().getSender().sendMessage(text("All island schematics have been reset.", NamedTextColor.GREEN));
 
         return Command.SINGLE_SUCCESS;
     }

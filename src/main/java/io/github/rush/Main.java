@@ -16,8 +16,8 @@ import com.sk89q.worldedit.regions.CuboidRegion;
 import com.sk89q.worldedit.session.ClipboardHolder;
 import com.sk89q.worldedit.world.block.BlockTypes;
 
-import io.github.rush.commands.AuthorCommand;
 import io.github.rush.commands.CommandManager;
+import io.github.rush.config.ConfigManager;
 import io.github.rush.entities.*;
 import io.github.rush.events.*;
 import io.github.rush.objects.*;
@@ -35,6 +35,7 @@ import fr.mrmicky.fastboard.FastBoard;
 import net.kyori.adventure.text.Component;
 import org.bukkit.entity.Player;
 import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Rotation;
@@ -42,6 +43,7 @@ import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.ItemFrame;
 import org.bukkit.entity.Villager;
 import org.bukkit.inventory.ItemStack;
@@ -86,6 +88,9 @@ public class Main extends JavaPlugin {
     private CommandManager commandManager = null;
 
     @Getter
+    private ConfigManager configManager = null;
+
+    @Getter
     @Setter
     private boolean gameStarted = false;
 
@@ -120,6 +125,9 @@ public class Main extends JavaPlugin {
     public void onEnable() {
         instance = this;
 
+        // Initialize config manager first (other managers may depend on it)
+        configManager = new ConfigManager(this);
+
         scoreboardManager = new ScoreboardManager(this);
         playerSettingsManager = new PlayerSettingsManager(this);
         playerStatisticManager = new PlayerStatisticManager(this);
@@ -130,16 +138,21 @@ public class Main extends JavaPlugin {
 
         HologramLib.getManager().ifPresentOrElse(
                 manager -> hologramManager = manager,
-                () -> getLogger().severe("Failed to initialize HologramLib manager.")
-        );
+                () -> getLogger().severe("Failed to initialize HologramLib manager."));
 
         Bukkit.getPluginManager().registerEvents(new GameRules(this), this);
         Bukkit.getPluginManager().registerEvents(new PlayerActivity(this), this);
         Bukkit.getPluginManager().registerEvents(new TNT(this), this);
+        Bukkit.getPluginManager().registerEvents(new WorldChat(), this);
 
         commandManager = new CommandManager();
         commandManager.registerAll(this);
         this.getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, commandManager::onCommands);
+
+        // Restore author displays with particles after server restart
+        if (commandManager.getAuthorCommand() != null) {
+            commandManager.getAuthorCommand().restoreExistingAuthors();
+        }
 
         Bukkit.getScheduler().runTaskTimer(this, () -> {
             scoreboardManager.updateAll();
@@ -470,11 +483,76 @@ public class Main extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        getLogger().info("Shutting down Rush plugin...");
+
+        // Cancel all scheduled tasks
+        Bukkit.getScheduler().cancelTasks(this);
+        getLogger().info("Cancelled all scheduled tasks.");
+
+        // Clean up PlayerActivity action bar task
+        // Note: The task is cancelled by the above call, but we need to clean up
+        // references
+
+        // Stop all running games and clean up players
+        if (gameManager != null) {
+            // Clean up legacy games
+            for (Game game : new ArrayList<>(gameManager.getGames())) {
+                if (game.getState() == GameState.RUNNING || game.getState() == GameState.WAITING) {
+                    for (Entity entity : new ArrayList<>(game.getPlayers())) {
+                        if (entity instanceof Player player) {
+                            game.removePlayer(entity);
+                            player.teleport(getMainLobby() != null ? getMainLobby()
+                                    : Bukkit.getWorlds().get(0).getSpawnLocation());
+                            player.getInventory().clear();
+                            player.setGameMode(GameMode.ADVENTURE);
+                        }
+                    }
+                    game.stop();
+                }
+            }
+
+            // Clean up GameRooms - teleport players out, then remove worlds
+            for (GameRoom room : new ArrayList<>(gameManager.getAllGameRooms())) {
+                gameManager.removeGameRoom(room.getId());
+            }
+            getLogger().info("Cleaned up all game rooms.");
+        }
+
+        // Remove all scoreboards
+        if (scoreboardManager != null) {
+            for (Player player : new ArrayList<>(playerBoards.keySet())) {
+                scoreboardManager.removeScoreboard(player);
+            }
+            scoreboardManager.removeAllScoreboards();
+            getLogger().info("Removed all scoreboards.");
+        }
+
+        // Clean up holograms from AuthorCommand
+        if (commandManager != null && commandManager.getAuthorCommand() != null) {
+            commandManager.getAuthorCommand().cleanupAll();
+            getLogger().info("Cleaned up author holograms.");
+        }
+
+        // Clean up holograms from LeaderboardCommand
+        if (commandManager != null && commandManager.getLeaderboardCommand() != null) {
+            commandManager.getLeaderboardCommand().cleanupAll();
+            getLogger().info("Cleaned up leaderboard holograms.");
+        }
+
+        // Clear villagers and game entities
+        clearGame();
+
+        // Clear player boards map
+        playerBoards.clear();
+
+        // Close database managers (must be last)
         if (playerStatisticManager != null) {
             playerStatisticManager.close();
         }
         if (playerLevelManager != null) {
             playerLevelManager.close();
         }
+
+        getLogger().info("Rush plugin shutdown complete.");
     }
 }

@@ -3,6 +3,8 @@ package io.github.rush.statistics;
 import io.github.rush.Main;
 import io.github.rush.database.DatabaseManager;
 import jakarta.persistence.EntityManager;
+import lombok.Getter;
+
 import org.bukkit.Bukkit;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
@@ -11,31 +13,60 @@ import java.util.UUID;
 
 public class PlayerLevelManager {
 
-    private static final int MAX_LEVEL = 150;
-
     private final Main plugin;
+    @Getter
     private final DatabaseManager databaseManager;
+
+    @Getter
+    private static int maxLevel;
+    @Getter
+    private static int xpWins;
+    @Getter
+    private static int xpLosses;
+    @Getter
+    private static int xpKills;
+    @Getter
+    private static int xpAssists;
+    @Getter
+    private static int xpDeaths;
 
     public PlayerLevelManager(Main plugin) {
         this.plugin = plugin;
         this.databaseManager = new DatabaseManager(plugin);
+
+        loadConfig();
+    }
+
+    private void loadConfig() {
+        maxLevel = plugin.getConfig().getInt("maxLevel");
+        xpWins = plugin.getConfig().getInt("xpMultipliers.wins");
+        xpLosses = plugin.getConfig().getInt("xpMultipliers.losses");
+        xpKills = plugin.getConfig().getInt("xpMultipliers.kills");
+        xpAssists = plugin.getConfig().getInt("xpMultipliers.assists");
+        xpDeaths = plugin.getConfig().getInt("xpMultipliers.deaths");
+    }
+
+    public static void setMaxLevel(int level) {
+        maxLevel = Math.max(1, level);
     }
 
     public int calculateTotalXP(PlayerStatistic stat) {
-        return (stat.getWins() * 100) +
-                (stat.getLoses() * 20) +
-                (stat.getKills() * 15) +
-                (stat.getAssists() * 5) -
-                (stat.getDeaths() * 10);
+        return (stat.getWins() * xpWins) +
+                (stat.getLoses() * xpLosses) +
+                (stat.getKills() * xpKills) +
+                (stat.getAssists() * xpAssists) -
+                (stat.getDeaths() * xpDeaths);
     }
 
     public int calculateLevel(int totalXP) {
         int lvl = 0;
         int remaining = totalXP;
-        while (lvl < MAX_LEVEL && remaining >= PlayerLevel.getXPForLevel(lvl + 1)) {
+
+        while (lvl < maxLevel && remaining >= PlayerLevel.getXPForLevel(lvl + 1)) {
             remaining -= PlayerLevel.getXPForLevel(lvl + 1);
             lvl++;
         }
+
         return lvl;
     }
 
@@ -59,12 +90,15 @@ public class PlayerLevelManager {
         final int oldLevel = playerLevel.getLevel();
 
         playerLevel.addXP(xp);
+
         final int level = playerLevel.getLevel();
+
         playerLevel.setCurrentXP(playerLevel.getTotalXP() - PlayerLevel.getCumulativeXP(level));
         savePlayerLevel(playerLevel);
 
         if (level > oldLevel) {
             final Player player = Bukkit.getPlayer(uuid);
+
             if (player != null && player.isOnline()) {
                 player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.0f);
             }
@@ -75,7 +109,9 @@ public class PlayerLevelManager {
         final PlayerLevel playerLevel = loadPlayerLevel(uuid);
 
         playerLevel.removeXP(xp);
+
         final int level = playerLevel.getLevel();
+
         playerLevel.setCurrentXP(playerLevel.getTotalXP() - PlayerLevel.getCumulativeXP(level));
         savePlayerLevel(playerLevel);
     }
@@ -85,9 +121,11 @@ public class PlayerLevelManager {
 
         try {
             PlayerLevel playerLevel = em.find(PlayerLevel.class, uuid);
+
             if (playerLevel == null) {
                 playerLevel = new PlayerLevel(uuid);
             }
+
             return playerLevel;
         } finally {
             em.close();
@@ -115,11 +153,8 @@ public class PlayerLevelManager {
         }
     }
 
-    public DatabaseManager getDatabaseManager() {
-        return databaseManager;
-    }
-
     public void close() {
         databaseManager.close();
     }
+
 }

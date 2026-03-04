@@ -2,10 +2,16 @@ package io.github.rush.settings;
 
 import java.util.UUID;
 
+import lombok.Getter;
+import lombok.Setter;
+
 public class PlayerSettings {
 
+    @Getter
     private final UUID playerId;
+    @Setter
     private boolean scoreboardEnabled;
+    @Setter
     private boolean musicEnabled;
 
     public PlayerSettings(UUID playerId) {
@@ -20,23 +26,11 @@ public class PlayerSettings {
         this.musicEnabled = musicEnabled;
     }
 
-    public UUID getPlayerId() {
-        return playerId;
-    }
-
     public boolean isScoreboardEnabled() {
         return scoreboardEnabled;
     }
 
-    public void setScoreboardEnabled(boolean scoreboardEnabled) {
-        this.scoreboardEnabled = scoreboardEnabled;
-    }
-
     public boolean isMusicEnabled() {
         return musicEnabled;
-    }
-
-    public void setMusicEnabled(boolean musicEnabled) {
-        this.musicEnabled = musicEnabled;
     }
 }

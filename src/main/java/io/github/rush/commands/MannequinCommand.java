@@ -5,6 +5,7 @@ import io.github.rush.game.Game;
 import io.github.rush.game.GameManager;
 import io.github.rush.game.Team;
 import io.github.rush.game.TeamColor;
+import io.github.rush.menus.TeamSelectionGUI;
 import io.papermc.paper.command.brigadier.Commands;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.argument.ArgumentTypes;
@@ -16,15 +17,13 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import org.bukkit.Bukkit;
-import org.bukkit.DyeColor;
-import org.bukkit.Material;
+import org.bukkit.Location;
 import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Mannequin;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.EquipmentSlot;
-import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.BannerMeta;
 import com.destroystokyo.paper.profile.PlayerProfile;
 import org.jspecify.annotations.NullMarked;
 
@@ -65,7 +64,7 @@ public class MannequinCommand {
     }
 
     private int runSpawn(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
-        CommandSender sender = ctx.getSource().getSender();
+        final CommandSender sender = ctx.getSource().getSender();
 
         if (!(sender instanceof Player player)) {
             sender.sendMessage(text("This command must be run by a player", NamedTextColor.RED));
@@ -78,11 +77,11 @@ public class MannequinCommand {
     }
 
     private int runSpawnAtPlayer(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
-        PlayerSelectorArgumentResolver targetResolver = ctx.getArgument("target", PlayerSelectorArgumentResolver.class);
-        Player target = targetResolver.resolve(ctx.getSource()).getFirst();
-        CommandSender sender = ctx.getSource().getSender();
+        final PlayerSelectorArgumentResolver targetResolver = ctx.getArgument("target",
+                PlayerSelectorArgumentResolver.class);
+        final Location targetLoc = targetResolver.resolve(ctx.getSource()).getFirst().getLocation();
 
-        spawnMannequinAsync(target.getLocation(), sender, null);
+        spawnMannequinAsync(targetLoc, ctx.getSource().getSender(), null);
 
         return Command.SINGLE_SUCCESS;
     }
@@ -98,7 +97,7 @@ public class MannequinCommand {
         return Command.SINGLE_SUCCESS;
     }
 
-    private void spawnMannequinAsync(org.bukkit.Location location, CommandSender sender, String teamName) {
+    private void spawnMannequinAsync(Location location, CommandSender sender, String teamName) {
         Set<String> existingNames = new HashSet<>();
         for (var entity : location.getWorld().getEntities()) {
             if (entity instanceof Mannequin m && m.customName().toString() != null) {
@@ -152,7 +151,7 @@ public class MannequinCommand {
                     if (team != null && team.getSpawnLocation() != null) {
                         mannequin.teleport(team.getSpawnLocation());
                     }
-                    mannequin.getEquipment().setItem(EquipmentSlot.HEAD, createTeamBanner(teamColor));
+                    mannequin.getEquipment().setItem(EquipmentSlot.HEAD, TeamSelectionGUI.createTeamBanner(teamColor));
                     sender.sendMessage(text("Spawned mannequin \"" + name + "\" on team " + teamColor.name(),
                             NamedTextColor.GREEN));
                 } else {
@@ -163,18 +162,6 @@ public class MannequinCommand {
         }
 
         sender.sendMessage(text("Spawned mannequin \"" + name + "\" (no game running)", NamedTextColor.YELLOW));
-    }
-
-    private ItemStack createTeamBanner(TeamColor color) {
-        DyeColor dyeColor = color.getDyeColor();
-        Material bannerMaterial = Material.getMaterial(dyeColor.name() + "_BANNER");
-        ItemStack banner = new ItemStack(bannerMaterial);
-        BannerMeta meta = (BannerMeta) banner.getItemMeta();
-
-        meta.displayName(Component.text(color.getTextColor() + "Team " + color.name()));
-
-        banner.setItemMeta(meta);
-        return banner;
     }
 
     private TeamColor getSmallestTeam(Game game) {
@@ -194,7 +181,8 @@ public class MannequinCommand {
         Game game = gameManager != null ? gameManager.getCurrentGame() : null;
 
         int count = 0;
-        for (var entity : target.getWorld().getEntities()) {
+
+        for (Entity entity : target.getWorld().getEntities()) {
             if (entity instanceof Mannequin) {
                 if (game != null) {
                     game.leaveTeam(entity);

@@ -2,6 +2,7 @@ package io.github.rush.commands;
 
 import io.github.rush.Main;
 import io.papermc.paper.command.brigadier.Commands;
+import lombok.Getter;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 
 import com.mojang.brigadier.Command;
@@ -27,10 +28,13 @@ public class LeaderboardCommand {
         KILLS("kills", "Top Kills", "kills"),
         WINS("wins", "Top Victoires", "victoires"),
         LEVEL("level", "Top Niveau", "niveau"),
-        DEATHS("deaths", "Top Morts", "morts");
+        WINSTREAK("winstreak", "Top Win Streak", "victoires consécutives");
 
+        @Getter
         private final String arg;
+        @Getter
         private final String title;
+        @Getter
         private final String suffix;
 
         LeaderboardType(String arg, String title, String suffix) {
@@ -39,26 +43,16 @@ public class LeaderboardCommand {
             this.suffix = suffix;
         }
 
-        public String getArg() {
-            return arg;
-        }
-
-        public String getTitle() {
-            return title;
-        }
-
-        public String getSuffix() {
-            return suffix;
-        }
-
         public static LeaderboardType fromString(String arg) {
             for (LeaderboardType type : values()) {
                 if (type.arg.equalsIgnoreCase(arg)) {
                     return type;
                 }
             }
+
             return null;
         }
+
     }
 
     private final Map<Location, LeaderboardHologram> holograms = new HashMap<>();
@@ -71,8 +65,8 @@ public class LeaderboardCommand {
                         .executes(ctx -> spawnLeaderboard(ctx, LeaderboardType.WINS)))
                 .then(Commands.literal("level")
                         .executes(ctx -> spawnLeaderboard(ctx, LeaderboardType.LEVEL)))
-                .then(Commands.literal("deaths")
-                        .executes(ctx -> spawnLeaderboard(ctx, LeaderboardType.DEATHS)))
+                .then(Commands.literal("winstreak")
+                        .executes(ctx -> spawnLeaderboard(ctx, LeaderboardType.WINSTREAK)))
                 .then(Commands.literal("remove")
                         .executes(ctx -> removeNearest(ctx)));
     }
@@ -147,6 +141,21 @@ public class LeaderboardCommand {
         return holograms;
     }
 
+    /**
+     * Cleans up all leaderboard holograms.
+     * Called during plugin shutdown.
+     */
+    public void cleanupAll() {
+        if (Main.getInstance().getHologramManager() != null) {
+            for (LeaderboardHologram lbHologram : holograms.values()) {
+                if (lbHologram.getHologram() != null) {
+                    Main.getInstance().getHologramManager().remove(lbHologram.getHologram());
+                }
+            }
+        }
+        holograms.clear();
+    }
+
     public static class LeaderboardHologram {
         private final LeaderboardType type;
         private final Location location;
@@ -187,10 +196,10 @@ public class LeaderboardCommand {
             int rank = 1;
             for (Map.Entry<String, Integer> entry : top10) {
                 String color = switch (rank) {
-                    case 1 -> "<gold>";
-                    case 2 -> "<gray>";
-                    case 3 -> "<#CD7F32>"; // Bronze
-                    default -> "<white>";
+                    case 1 -> "gold";
+                    case 2 -> "gray";
+                    case 3 -> "#CD7F32"; // Bronze
+                    default -> "white";
                 };
 
                 String medal = switch (rank) {
@@ -200,9 +209,11 @@ public class LeaderboardCommand {
                     default -> rank + ". ";
                 };
 
-                sb.append(color).append(medal).append(entry.getKey())
-                  .append(" <dark_gray>-</dark_gray> ").append(entry.getValue())
-                  .append(" ").append(type.getSuffix()).append("</color>\n");
+                sb.append("<").append(color).append(">")
+                        .append(medal).append(entry.getKey())
+                        .append(" <dark_gray>-</dark_gray> ").append(entry.getValue())
+                        .append(" ").append(type.getSuffix())
+                        .append("</").append(color).append(">\n");
                 rank++;
             }
 
@@ -240,9 +251,9 @@ public class LeaderboardCommand {
                             var level = levelManager.loadPlayerLevel(uuid);
                             data.put(name, level.getLevel());
                         }
-                        case DEATHS -> {
+                        case WINSTREAK -> {
                             var stats = statManager.loadStatistic(uuid);
-                            data.put(name, stats.getDeaths());
+                            data.put(name, stats.getWinStreak());
                         }
                     }
                 } catch (Exception e) {

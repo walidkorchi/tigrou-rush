@@ -13,8 +13,8 @@ public class KillTracker {
     private final Map<UUID, LastHitRecord> lastHitBy = new HashMap<>();
 
     public void recordDamage(Player victim, Player attacker, double damage) {
-        UUID victimId = victim.getUniqueId();
-        UUID attackerId = attacker.getUniqueId();
+        final UUID victimId = victim.getUniqueId();
+        final UUID attackerId = attacker.getUniqueId();
 
         damageDealt.computeIfAbsent(victimId, k -> new HashMap<>())
                 .merge(attackerId, damage, Double::sum);
@@ -23,11 +23,12 @@ public class KillTracker {
     }
 
     public KillResult resolveKill(Player victim, Player bukkitKiller) {
-        UUID victimId = victim.getUniqueId();
-
+        final UUID victimId = victim.getUniqueId();
         Player killer = bukkitKiller;
+
         if (killer == null) {
-            LastHitRecord record = lastHitBy.get(victimId);
+            final LastHitRecord record = lastHitBy.get(victimId);
+
             if (record != null && System.currentTimeMillis() - record.timestamp <= LAST_HIT_EXPIRY_MS) {
                 killer = victim.getServer().getPlayer(record.attackerId);
             }
@@ -38,17 +39,21 @@ public class KillTracker {
             return new KillResult(null, List.of());
         }
 
-        UUID killerId = killer.getUniqueId();
-        Map<UUID, Double> victimDamageMap = damageDealt.getOrDefault(victimId, Map.of());
-        double killerDamage = victimDamageMap.getOrDefault(killerId, 0.0);
+        final UUID killerId = killer.getUniqueId();
+        final Map<UUID, Double> victimDamageMap = damageDealt.getOrDefault(victimId, Map.of());
+        final double killerDamage = victimDamageMap.getOrDefault(killerId, 0.0);
 
-        List<Player> assists = new ArrayList<>();
+        final List<Player> assists = new ArrayList<>();
+
         if (killerDamage > 0) {
-            double threshold = killerDamage * ASSIST_THRESHOLD;
+            final double threshold = killerDamage * ASSIST_THRESHOLD;
+
             for (Map.Entry<UUID, Double> entry : victimDamageMap.entrySet()) {
-                if (entry.getKey().equals(killerId)) continue;
+                if (entry.getKey().equals(killerId))
+                    continue;
                 if (entry.getValue() >= threshold) {
-                    Player assistPlayer = victim.getServer().getPlayer(entry.getKey());
+                    final Player assistPlayer = victim.getServer().getPlayer(entry.getKey());
+
                     if (assistPlayer != null) {
                         assists.add(assistPlayer);
                     }
@@ -76,7 +81,9 @@ public class KillTracker {
         lastHitBy.clear();
     }
 
-    public record KillResult(Player killer, List<Player> assists) {}
+    public record KillResult(Player killer, List<Player> assists) {
+    }
 
-    private record LastHitRecord(UUID attackerId, long timestamp) {}
+    private record LastHitRecord(UUID attackerId, long timestamp) {
+    }
 }

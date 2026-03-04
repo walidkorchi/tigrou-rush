@@ -164,7 +164,7 @@ public class TeamSelectionGUI {
         }
     }
 
-    private static ItemStack createTeamBanner(TeamColor color) {
+    public static ItemStack createTeamBanner(TeamColor color) {
         final DyeColor dyeColor = color.getDyeColor();
         final Material bannerMaterial = Material.getMaterial(dyeColor.name() + "_BANNER");
         final ItemStack banner = new ItemStack(bannerMaterial);

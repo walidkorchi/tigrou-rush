@@ -78,9 +78,6 @@ public class ScoreboardManager {
         final PlayerStatistic stat = plugin.getPlayerStatisticManager().loadStatistic(player.getUniqueId());
         final PlayerLevel playerLevel = plugin.getPlayerLevelManager().loadPlayerLevel(player.getUniqueId());
 
-        // final int gamesWon = stat != null ? stat.getWins() : 0;
-        // final int gamesLost = stat != null ? stat.getLoses() : 0;
-
         final int totalKills = stat != null ? stat.getKills() : 0;
         final int totalDeaths = stat != null ? stat.getDeaths() : 0;
         final int totalAssists = stat != null ? stat.getAssists() : 0;
@@ -88,8 +85,7 @@ public class ScoreboardManager {
         final double ratio = calculateRatio(totalKills, totalDeaths, totalAssists);
 
         final String progressBar = generateProgressBar(playerLevel);
-        final String tierColor = playerLevel.getTierColor();
-        final int level = playerLevel.getLevel();
+        final String formattedLevel = playerLevel.getFormattedLevel();
         final int currentXP = playerLevel.getCurrentXP();
         final int nextLevelXP = playerLevel.getXPForNextLevel();
 
@@ -97,7 +93,7 @@ public class ScoreboardManager {
 
         lines.add(getAnimatedSeparator());
         lines.add("");
-        lines.add("§7✪ Niveau: " + tierColor + level + " §8[" + currentXP + "/" + nextLevelXP + "§8]");
+        lines.add("§7✪ Niveau: " + formattedLevel + " §8[" + currentXP + "/" + nextLevelXP + "§8]");
         lines.add("§8[" + progressBar + "§8]");
         lines.add("");
         lines.add("§f☆ §7Statistiques:");

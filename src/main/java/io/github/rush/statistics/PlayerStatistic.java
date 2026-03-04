@@ -23,50 +23,56 @@ public class PlayerStatistic {
 
     @Setter
     @Getter
-    private int currentDeaths = 0;
+    private int currentDeaths;
 
     @Setter
-    private int currentDestroyedBeds = 0;
-
-    @Setter
-    @Getter
-    private int currentKills = 0;
-
-    @Setter
-    private int currentLoses = 0;
+    private int currentDestroyedBeds;
 
     @Setter
     @Getter
-    private int currentScore = 0;
+    private int currentKills;
 
     @Setter
-    private int currentWins = 0;
+    private int currentLoses;
 
     @Setter
-    private int currentAssists = 0;
+    @Getter
+    private int currentScore;
 
     @Setter
-    private int deaths = 0;
+    private int currentWins;
 
     @Setter
-    private int destroyedBeds = 0;
+    private int currentAssists;
 
     @Setter
-    private int kills = 0;
+    @Getter
+    private int deaths;
 
     @Setter
-    private int loses = 0;
+    private int destroyedBeds;
 
     @Setter
-    private int assists = 0;
+    @Getter
+    private int kills;
+
+    @Setter
+    private int loses;
+
+    @Setter
+    private int assists;
 
     private String name = "";
 
     @Setter
-    private int score = 0;
+    private int score;
 
     @Setter
-    private int wins = 0;
+    private int wins;
+
+    @Setter
+    @Getter
+    private int winStreak;
 
     public PlayerStatistic(UUID uuid) {
         this.uuid = uuid;
@@ -103,6 +109,7 @@ public class PlayerStatistic {
         } else if (totalKills == 0) {
             return 0.0;
         }
+
         return Math.round((double) totalKills / totalDeaths * 100.0) / 100.0;
     }
 

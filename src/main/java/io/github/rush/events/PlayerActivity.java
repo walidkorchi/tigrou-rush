@@ -3,6 +3,7 @@ package io.github.rush.events;
 import io.github.rush.Main;
 import io.github.rush.commands.AuthorCommand;
 import io.github.rush.game.Game;
+import io.github.rush.game.GameRoom;
 import io.github.rush.game.GameState;
 import io.github.rush.game.Team;
 import io.github.rush.game.TeamColor;
@@ -113,16 +114,68 @@ public class PlayerActivity implements Listener {
         event.joinMessage(Component.text("§a[+] §f" + player.getName()));
 
         player.getInventory().clear();
-        player.getInventory().setItem(0, TeamSelectionGUI.createBannerItem());
+        player.getInventory().setItem(0, Main.getInstance().getGameManager().createCompassItem());
         player.getInventory().setItem(8, createSettingsItem());
 
-        if (plugin.getMusicManager() != null && plugin.getPlayerSettingsManager().isMusicEnabled(player.getUniqueId())) {
-            plugin.getMusicManager().playForPlayer(player);
+        // Teleport to main lobby
+        Location mainLobby = Main.getInstance().getMainLobby();
+        if (mainLobby != null && mainLobby.getWorld() != null) {
+            player.teleport(mainLobby);
         }
 
-        if (player.getWorld().getName().equals(plugin.getGameWorld())) {
-            sendActionBarToAll();
+        if (plugin.getMusicManager() != null
+                && plugin.getPlayerSettingsManager().isMusicEnabled(player.getUniqueId())) {
+            plugin.getMusicManager().playForPlayer(player);
         }
+    }
+
+    @EventHandler
+    public void onPlayerQuit(PlayerQuitEvent event) {
+        Player player = event.getPlayer();
+
+        event.quitMessage(Component.text("§c[-] §f" + player.getName()));
+
+        // Stop music if playing
+        if (plugin.getMusicManager() != null) {
+            plugin.getMusicManager().stopForPlayer(player);
+        }
+
+        // Remove from scoreboard
+        if (plugin.getScoreboardManager() != null) {
+            plugin.getScoreboardManager().removeScoreboard(player);
+        }
+
+        if (plugin.getPlayerSettingsManager() != null) {
+            plugin.getPlayerSettingsManager().removePlayer(player.getUniqueId());
+        }
+
+        // Remove from GameRoom
+        if (plugin.getGameManager() != null) {
+            GameRoom room = plugin.getGameManager().getGameRoomOfPlayer(player);
+            if (room != null) {
+                room.removePlayer(player);
+                plugin.getGameManager().removePlayerFromGameRoom(player);
+
+                // If room is now empty and waiting, remove it
+                if (room.getPlayerCount() == 0 && room.isWaiting()) {
+                    plugin.getGameManager().removeGameRoom(room.getId());
+                }
+            }
+
+            // Remove from legacy game
+            Game game = plugin.getGameManager().getGameOfPlayer(player);
+            if (game != null) {
+                // Remove from KillTracker
+                game.getKillTracker().removePlayer(player.getUniqueId());
+
+                // Remove player from game
+                game.removePlayer(player);
+                plugin.getGameManager().removePlayerFromGame(player);
+            }
+        }
+
+        // Remove from playerBoards
+        plugin.setFastBoard(player, null);
     }
 
     @EventHandler
@@ -171,14 +224,6 @@ public class PlayerActivity implements Listener {
     }
 
     /**
-     * Checks if a player is physically standing
-     * on a given block bounding boxes only
-     */
-    private boolean isStandingOn(Player player, Block block) {
-        return isStandingOn((Entity) player, block);
-    }
-
-    /**
      * Checks if an entity is physically standing
      * on a given block bounding boxes only
      */
@@ -207,25 +252,28 @@ public class PlayerActivity implements Listener {
     }
 
     private static ItemStack createSettingsItem() {
-        ItemStack repeater = new ItemStack(Material.REPEATER);
-        ItemMeta meta = repeater.getItemMeta();
+        final ItemStack repeater = new ItemStack(Material.REPEATER);
+        final ItemMeta meta = repeater.getItemMeta();
+
         meta.displayName(Component.text("§f§lParamètres"));
         repeater.setItemMeta(meta);
+
         return repeater;
     }
 
     @EventHandler
     public void onPlayerDropItem(PlayerDropItemEvent event) {
-        Player player = event.getPlayer();
+        final Player player = event.getPlayer();
 
         if (isPlayerInQueue(player)) {
             event.setCancelled(true);
             return;
         }
 
-        // Prevent dropping armor during game
+        // prevents dropping armor during game
         if (isPlayerInGame(player)) {
-            ItemStack item = event.getItemDrop().getItemStack();
+            final ItemStack item = event.getItemDrop().getItemStack();
+
             if (isArmorItem(item.getType())) {
                 event.setCancelled(true);
             }
@@ -234,9 +282,43 @@ public class PlayerActivity implements Listener {
 
     @EventHandler
     public void onPlayerWorldChange(PlayerChangedWorldEvent event) {
-        String gameWorld = plugin.getGameWorld();
+        final String gameWorld = plugin.getGameWorld();
+
         if (event.getFrom().getName().equals(gameWorld) || event.getPlayer().getWorld().getName().equals(gameWorld)) {
             sendActionBarToAll();
+        }
+    }
+
+    @EventHandler
+    public void onPlayerMove(PlayerMoveEvent event) {
+        if (!plugin.isGameStarted()) {
+            return;
+        }
+
+        Player player = event.getPlayer();
+        if (!player.getWorld().getName().equals(plugin.getGameWorld())) {
+            return;
+        }
+
+        Game game = Main.getInstance().getGameManager().getCurrentGame();
+        if (game == null || game.isSpectator(player)) {
+            return;
+        }
+
+        double voidThreshold = Main.getISLAND_Y() - 60;
+        if (player.getLocation().getY() < voidThreshold) {
+            Team team = game.getPlayerTeam(player);
+            if (team != null) {
+                Location respawnLoc = team.getBedLocation() != null
+                        ? new Location(team.getBedLocation().getWorld(), team.getBedLocation().getX() + 0.5,
+                                team.getBedLocation().getY() + 1, team.getBedLocation().getZ() + 0.5)
+                        : team.getSpawnLocation();
+
+                if (respawnLoc != null) {
+                    player.teleport(respawnLoc);
+                    player.setFallDistance(0);
+                }
+            }
         }
     }
 
@@ -348,6 +430,22 @@ public class PlayerActivity implements Listener {
         }
 
         if (pie.getAction() == Action.RIGHT_CLICK_AIR || pie.getAction() == Action.RIGHT_CLICK_BLOCK) {
+            if (item != null && item.getType() == Material.COMPASS) {
+                // Check if player is in spectator mode during game
+                if (plugin.isGameStarted()) {
+                    Game game = Main.getInstance().getGameManager().getCurrentGame();
+                    if (game != null && game.isSpectator(player)) {
+                        game.removeSpectator(player);
+                        pie.setCancelled(true);
+                        return;
+                    }
+                }
+                // Open game listing GUI
+                Main.getInstance().getGameManager().openGameList(player);
+                pie.setCancelled(true);
+                return;
+            }
+
             if (item != null && item.getType() == Material.WHITE_BANNER) {
                 TeamSelectionGUI.openTeamSelection(player);
                 pie.setCancelled(true);
@@ -442,7 +540,7 @@ public class PlayerActivity implements Listener {
             }
             // Prevent dropping armor via click
             if (event.getAction() == InventoryAction.DROP_ONE_SLOT ||
-                event.getAction() == InventoryAction.DROP_ALL_SLOT) {
+                    event.getAction() == InventoryAction.DROP_ALL_SLOT) {
                 ItemStack currentItem = event.getCurrentItem();
                 if (currentItem != null && isArmorItem(currentItem.getType())) {
                     event.setCancelled(true);
@@ -500,9 +598,9 @@ public class PlayerActivity implements Listener {
     private boolean isArmorItem(Material material) {
         String name = material.name();
         return name.endsWith("_HELMET") ||
-               name.endsWith("_CHESTPLATE") ||
-               name.endsWith("_LEGGINGS") ||
-               name.endsWith("_BOOTS");
+                name.endsWith("_CHESTPLATE") ||
+                name.endsWith("_LEGGINGS") ||
+                name.endsWith("_BOOTS");
     }
 
     @EventHandler
@@ -566,10 +664,7 @@ public class PlayerActivity implements Listener {
         PlayerLevelManager levelManager = Main.getInstance().getPlayerLevelManager();
         PlayerLevel playerLevel = levelManager.loadPlayerLevel(player.getUniqueId());
 
-        int level = playerLevel.getLevel();
-        String levelStr = String.valueOf(level);
-        if (level < 10)
-            levelStr = "0" + level;
+        String formattedLevel = playerLevel.getFormattedLevel();
 
         String message = PlainTextComponentSerializer.plainText().serialize(event.message());
         boolean isGlobal = message.startsWith("@");
@@ -580,7 +675,7 @@ public class PlayerActivity implements Listener {
         Component formatComponent;
 
         if (isPlayerInQueue(player)) {
-            formatComponent = Component.text("§7[§e" + levelStr + "§7] [§9Lobby§7] §f")
+            formatComponent = Component.text("§7[" + formattedLevel + "§7] [§9Lobby§7] §f")
                     .append(player.displayName())
                     .append(Component.text(" §f> "))
                     .append(Component.text(message));
@@ -594,13 +689,13 @@ public class PlayerActivity implements Listener {
 
                 if (isGlobal) {
                     formatComponent = Component
-                            .text("§7[§e" + levelStr + "§7] [" + teamColorCode + color.name() + "§7] §f")
+                            .text("§7[" + formattedLevel + "§7] [" + teamColorCode + color.name() + "§7] §f")
                             .append(player.displayName())
                             .append(Component.text(" §f> "))
                             .append(Component.text(message));
                 } else {
                     formatComponent = Component
-                            .text("§7[§e" + levelStr + "§7] [" + teamColorCode + color.name() + "§7] §f")
+                            .text("§7[" + formattedLevel + "§7] [" + teamColorCode + color.name() + "§7] §f")
                             .append(player.displayName())
                             .append(Component.text(" §f> "))
                             .append(Component.text(message));
@@ -615,13 +710,13 @@ public class PlayerActivity implements Listener {
                     return;
                 }
             } else {
-                formatComponent = Component.text("§7[§e" + levelStr + "§7] §f")
+                formatComponent = Component.text("§7[" + formattedLevel + "§7] §f")
                         .append(player.displayName())
                         .append(Component.text(" §f> "))
                         .append(Component.text(message));
             }
         } else {
-            formatComponent = Component.text("§7[§e" + levelStr + "§7] §f")
+            formatComponent = Component.text("§7[" + formattedLevel + "§7] §f")
                     .append(player.displayName())
                     .append(Component.text(" §f> "))
                     .append(Component.text(message));

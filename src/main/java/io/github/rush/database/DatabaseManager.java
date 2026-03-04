@@ -16,7 +16,7 @@ public class DatabaseManager {
     }
 
     private EntityManagerFactory createEntityManagerFactory() {
-        Configuration configuration = new Configuration();
+        final Configuration configuration = new Configuration();
 
         configuration.setProperty("hibernate.connection.driver_class", "org.postgresql.Driver");
         configuration.setProperty("hibernate.connection.url", getConnectionUrl());
@@ -33,9 +33,10 @@ public class DatabaseManager {
     }
 
     private String getConnectionUrl() {
-        String host = plugin.getConfig().getString("database.host", "localhost");
-        int port = plugin.getConfig().getInt("database.port", 5432);
-        String database = plugin.getConfig().getString("database.name", "rush");
+        final String host = plugin.getConfig().getString("database.host", "localhost");
+        final int port = plugin.getConfig().getInt("database.port", 5432);
+        final String database = plugin.getConfig().getString("database.name", "rush");
+
         return String.format("jdbc:postgresql://%s:%d/%s", host, port, database);
     }
 

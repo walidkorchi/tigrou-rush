@@ -13,13 +13,26 @@ public class PlayerSettingsManager {
 
     private final Main plugin;
     private final File settingsFile;
-    private final Map<UUID, PlayerSettings> settingsCache = new HashMap<>();
+    private final Map<UUID, PlayerSettings> settingsCache;
 
     public PlayerSettingsManager(Main plugin) {
         this.plugin = plugin;
         this.settingsFile = new File(plugin.getDataFolder(), "player_settings.yml");
+        this.settingsCache = new HashMap<>();
+
+        ensureFileExists();
+    }
+
+    private void ensureFileExists() {
         if (!settingsFile.exists()) {
-            plugin.saveResource("player_settings.yml", false);
+            try {
+                if (!plugin.getDataFolder().exists()) {
+                    plugin.getDataFolder().mkdirs();
+                }
+                settingsFile.createNewFile();
+            } catch (IOException e) {
+                plugin.getLogger().severe("Failed to create player_settings.yml: " + e.getMessage());
+            }
         }
     }
 
@@ -28,13 +41,14 @@ public class PlayerSettingsManager {
             return settingsCache.get(playerId);
         }
 
-        YamlConfiguration config = YamlConfiguration.loadConfiguration(settingsFile);
-        String path = playerId.toString();
+        final YamlConfiguration config = YamlConfiguration.loadConfiguration(settingsFile);
+        final String path = playerId.toString();
 
-        boolean scoreboardEnabled = config.getBoolean(path + ".scoreboard", true);
-        boolean musicEnabled = config.getBoolean(path + ".music", true);
+        final boolean scoreboardEnabled = config.getBoolean(path + ".scoreboard", true);
+        final boolean musicEnabled = config.getBoolean(path + ".music", true);
 
-        PlayerSettings settings = new PlayerSettings(playerId, scoreboardEnabled, musicEnabled);
+        final PlayerSettings settings = new PlayerSettings(playerId, scoreboardEnabled, musicEnabled);
+
         settingsCache.put(playerId, settings);
 
         return settings;
@@ -43,8 +57,8 @@ public class PlayerSettingsManager {
     public void saveSettings(PlayerSettings settings) {
         settingsCache.put(settings.getPlayerId(), settings);
 
-        YamlConfiguration config = YamlConfiguration.loadConfiguration(settingsFile);
-        String path = settings.getPlayerId().toString();
+        final YamlConfiguration config = YamlConfiguration.loadConfiguration(settingsFile);
+        final String path = settings.getPlayerId().toString();
 
         config.set(path + ".scoreboard", settings.isScoreboardEnabled());
         config.set(path + ".music", settings.isMusicEnabled());
@@ -57,24 +71,33 @@ public class PlayerSettingsManager {
     }
 
     public boolean isScoreboardEnabled(UUID playerId) {
-        PlayerSettings settings = loadSettings(playerId);
-        return settings.isScoreboardEnabled();
+        return loadSettings(playerId).isScoreboardEnabled();
     }
 
     public void setScoreboardEnabled(UUID playerId, boolean enabled) {
-        PlayerSettings settings = loadSettings(playerId);
+        final PlayerSettings settings = loadSettings(playerId);
+
         settings.setScoreboardEnabled(enabled);
         saveSettings(settings);
     }
 
     public boolean isMusicEnabled(UUID playerId) {
-        PlayerSettings settings = loadSettings(playerId);
-        return settings.isMusicEnabled();
+        return loadSettings(playerId).isMusicEnabled();
     }
 
     public void setMusicEnabled(UUID playerId, boolean enabled) {
-        PlayerSettings settings = loadSettings(playerId);
+        final PlayerSettings settings = loadSettings(playerId);
+
         settings.setMusicEnabled(enabled);
         saveSettings(settings);
     }
+
+    /**
+     * Removes a player from the settings cache to prevent memory leaks.
+     * Should be called when a player quits.
+     */
+    public void removePlayer(UUID playerId) {
+        settingsCache.remove(playerId);
+    }
+
 }
