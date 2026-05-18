@@ -186,6 +186,7 @@ public class GameManager {
 
     private void finalizeGameRoomCreation(Player host, GameRoom room, GameRoom.IslandType islandType,
             GameRoom.TeamSize teamSize) {
+        room.setConfig(new GameRoomConfig(islandType, islandType.getCount(), teamSize, MapType.NORMAL, false, false));
         gameRooms.put(room.getId(), room);
         playerGameRoomMap.put(host, room);
 

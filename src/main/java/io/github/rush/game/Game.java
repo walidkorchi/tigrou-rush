@@ -510,6 +510,11 @@ public class Game {
             state = GameState.RUNNING;
             gameTime = 0;
 
+            if (isGameRoomMode() && gameRoom.getConfig().overtimeStart()) {
+                gameTime = OVERTIME_SECONDS;
+                broadcastMessage("§c§lOVERTIME! §7Les restrictions de placement sont levées!");
+            }
+
             // Only set global game started flag for legacy mode
             if (!isGameRoomMode()) {
                 Main.getInstance().setGameStarted(true);
@@ -755,18 +760,20 @@ public class Game {
 
         if (destroyerTeam != null) {
             destroyerTeam.setBedsDestroyed(destroyerTeam.getBedsDestroyed() + 1);
-            double bonusHealth = destroyerTeam.getBedsDestroyed() * 4.0;
-            for (Entity entity : destroyerTeam.getPlayers()) {
-                if (entity instanceof Player player) {
-                    var maxHealth = player.getAttribute(Attribute.MAX_HEALTH);
-                    if (maxHealth != null) {
-                        maxHealth.removeModifier(NamespacedKey.minecraft("extra_hearts"));
-                        maxHealth.addModifier(
-                                new AttributeModifier(NamespacedKey.minecraft("extra_hearts"), bonusHealth,
-                                        AttributeModifier.Operation.ADD_NUMBER, EquipmentSlotGroup.ANY));
+            if (!isGameRoomMode() || gameRoom.getConfig().extraHearts()) {
+                double bonusHealth = destroyerTeam.getBedsDestroyed() * 4.0;
+                for (Entity entity : destroyerTeam.getPlayers()) {
+                    if (entity instanceof Player player) {
+                        var maxHealth = player.getAttribute(Attribute.MAX_HEALTH);
+                        if (maxHealth != null) {
+                            maxHealth.removeModifier(NamespacedKey.minecraft("extra_hearts"));
+                            maxHealth.addModifier(
+                                    new AttributeModifier(NamespacedKey.minecraft("extra_hearts"), bonusHealth,
+                                            AttributeModifier.Operation.ADD_NUMBER, EquipmentSlotGroup.ANY));
+                        }
+                        player.sendMessage(
+                                Component.text("§a+" + destroyerTeam.getBedsDestroyed() * 2 + " Cœurs permanents!"));
                     }
-                    player.sendMessage(
-                            Component.text("§a+" + destroyerTeam.getBedsDestroyed() * 2 + " Cœurs permanents!"));
                 }
             }
         }
