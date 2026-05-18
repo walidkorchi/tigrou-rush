@@ -452,6 +452,14 @@ public class Main extends JavaPlugin {
         return spawnedVillagers.contains(villager) && !merchantVillagers.containsValue(villager);
     }
 
+    public MerchantType getMerchantTypeFor(Villager villager) {
+        return merchantVillagers.entrySet().stream()
+                .filter(e -> e.getValue().equals(villager))
+                .map(Map.Entry::getKey)
+                .findFirst()
+                .orElse(null);
+    }
+
     public boolean isBlockOnIsland(Block block) {
         if (!gameStarted)
             return false;

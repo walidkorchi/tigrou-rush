@@ -3,8 +3,13 @@ package io.github.rush.statistics;
 import io.github.rush.Main;
 import io.github.rush.database.DatabaseManager;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.CriteriaQuery;
+import jakarta.persistence.criteria.Root;
 import lombok.Getter;
 
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.bukkit.entity.Player;
 
@@ -51,6 +56,43 @@ public class PlayerStatisticManager {
             if (em.getTransaction().isActive()) {
                 em.getTransaction().rollback();
             }
+        } finally {
+            em.close();
+        }
+    }
+
+    public List<Map.Entry<String, Integer>> getTop10ByKills() {
+        return queryTop10("kills");
+    }
+
+    public List<Map.Entry<String, Integer>> getTop10ByWins() {
+        return queryTop10("wins");
+    }
+
+    public List<Map.Entry<String, Integer>> getTop10ByWinStreak() {
+        return queryTop10("winStreak");
+    }
+
+    private List<Map.Entry<String, Integer>> queryTop10(String fieldName) {
+        EntityManager em = databaseManager.getEntityManager();
+        try {
+            CriteriaBuilder cb = em.getCriteriaBuilder();
+            CriteriaQuery<Object[]> query = cb.createQuery(Object[].class);
+            Root<PlayerStatistic> root = query.from(PlayerStatistic.class);
+
+            query.multiselect(root.get("name"), root.<Integer>get(fieldName))
+                 .where(cb.and(
+                     cb.isNotNull(root.get("name")),
+                     cb.notEqual(root.<String>get("name"), "")
+                 ))
+                 .orderBy(cb.desc(root.get(fieldName)));
+
+            return em.createQuery(query)
+                    .setMaxResults(10)
+                    .getResultList()
+                    .stream()
+                    .map(row -> Map.entry((String) row[0], (Integer) row[1]))
+                    .toList();
         } finally {
             em.close();
         }

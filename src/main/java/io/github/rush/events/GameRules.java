@@ -19,6 +19,7 @@ import org.bukkit.event.player.PlayerBedEnterEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 
 import io.github.rush.Main;
+import io.github.rush.entities.MerchantType;
 import io.github.rush.game.Game;
 import io.github.rush.game.GameState;
 import io.github.rush.menus.ShopGUI;
@@ -157,11 +158,19 @@ public class GameRules implements Listener {
         event.setCancelled(true);
 
         if (Main.getInstance().isSpeedMerchantVillager(villager)) {
-            Bukkit.getScheduler().runTask(Main.getInstance(), () -> {
-                player.openMerchant(villager, true);
-            });
-        } else {
             ShopGUI.openMainMenu(player);
+        } else {
+            MerchantType type = Main.getInstance().getMerchantTypeFor(villager);
+            ShopGUI.Category category = type == null ? null : switch (type) {
+                case WEAPONSMITH -> ShopGUI.Category.WEAPONS;
+                case BUILDER     -> ShopGUI.Category.BLOCKS;
+                case ALCHEMIST   -> ShopGUI.Category.POTIONS;
+                case ARMORSMITH  -> ShopGUI.Category.ARMOR;
+                default          -> null;
+            };
+            if (category != null) {
+                ShopGUI.openCategory(player, category);
+            }
         }
     }
 
