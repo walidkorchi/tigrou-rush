@@ -90,7 +90,7 @@ An enum of 8 visual themes for the island schematic: `NORMAL`, `OLD_SCHOOL`, `NE
   - Bed location (placed on game start)
   - 2–4 ender chests (scales with team size)
 - **Starting equipment** (given on spawn and each respawn):
-  - Leather helmet, chestplate, boots — colored by team, Protection I
+  - Leather helmet, leggings, boots — colored by team, Protection I
   - Wooden pickaxe — Efficiency I
 - Assignment order when auto-assigning: islands 0, 2, 1, 3
 

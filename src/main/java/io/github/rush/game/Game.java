@@ -632,7 +632,7 @@ public class Game {
         final EntityEquipment equipment = getPlayerInventory(entity);
 
         equipment.setHelmet(armorAndTool[0]);
-        equipment.setChestplate(armorAndTool[1]);
+        equipment.setLeggings(armorAndTool[1]);
         equipment.setBoots(armorAndTool[2]);
         equipment.setItem(EquipmentSlot.HAND, armorAndTool[3]);
     }
@@ -644,7 +644,7 @@ public class Game {
         helmetMeta.addEnchant(Enchantment.PROTECTION, 1, true);
         helmet.setItemMeta(helmetMeta);
 
-        ItemStack leggings = new ItemStack(Material.LEATHER_CHESTPLATE);
+        ItemStack leggings = new ItemStack(Material.LEATHER_LEGGINGS);
         LeatherArmorMeta legsMeta = (LeatherArmorMeta) leggings.getItemMeta();
         legsMeta.setColor(color);
         legsMeta.addEnchant(Enchantment.PROTECTION, 1, true);
