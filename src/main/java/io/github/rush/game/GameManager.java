@@ -15,6 +15,7 @@ import com.sk89q.worldedit.math.transform.AffineTransform;
 import com.sk89q.worldedit.session.ClipboardHolder;
 import io.github.rush.Main;
 import io.github.rush.menus.GUI;
+import io.github.rush.menus.HostConfigGUI;
 import io.github.rush.menus.TeamSelectionGUI;
 import io.github.rush.world.VoidGenerator;
 import io.papermc.paper.datacomponent.DataComponentTypes;
@@ -45,6 +46,7 @@ public class GameManager {
     private final Map<Player, GameRoom> playerGameRoomMap = new HashMap<>();
     private final Map<String, Game> legacyGames = new HashMap<>();
     private final Map<Player, Game> playerGameMap = new HashMap<>();
+    private final Map<UUID, GameRoomConfig.Builder> pendingConfigs = new HashMap<>();
 
     private int worldCounter = 0;
 
@@ -356,7 +358,7 @@ public class GameManager {
     }
 
     /**
-     * Opens the game listing GUI for a player.
+     * Opens the game listing GUI for a player. Shows WAITING and RUNNING rooms.
      */
     public void openGameList(Player player) {
         final List<GameRoom> rooms = getAllGameRooms().stream()
@@ -367,10 +369,8 @@ public class GameManager {
         final GUI gui = new GUI("§8Liste des parties", rows);
 
         int slot = 0;
-
         for (GameRoom room : rooms) {
             final GameRoom targetRoom = room;
-
             gui.addItem(slot, createGameRoomItem(room), p -> joinGameRoom(p, targetRoom));
             slot++;
 
@@ -403,7 +403,6 @@ public class GameManager {
 
         final ItemStack item = new ItemStack(material);
         final ItemMeta meta = item.getItemMeta();
-
         meta.displayName(Component.text(room.getDisplayName()));
         item.setItemMeta(meta);
 
@@ -424,15 +423,41 @@ public class GameManager {
     public ItemStack createCompassItem() {
         final ItemStack compass = new ItemStack(Material.COMPASS);
         final ItemMeta meta = compass.getItemMeta();
-
         meta.displayName(Component.text("§f§lRejoindre une partie"));
         compass.setItemMeta(meta);
-
         compass.setData(DataComponentTypes.LORE, ItemLore.lore(List.of(
                 Component.text("§7Clic droit pour voir les parties disponibles"))));
-
         return compass;
     }
+
+    /**
+     * Creates the game_host item given to every player on join.
+     * Placeholder for tland:game_host CraftEngine item.
+     */
+    public ItemStack createGameHostItem() {
+        final ItemStack item = new ItemStack(Material.BEACON);
+        final ItemMeta meta = item.getItemMeta();
+        meta.displayName(Component.text("§6§lCréer une partie"));
+        item.setItemMeta(meta);
+        item.setData(DataComponentTypes.LORE, ItemLore.lore(List.of(
+                Component.text("§7Clic droit pour configurer"),
+                Component.text("§7et créer votre partie."))));
+        return item;
+    }
+
+    /**
+     * Opens the HostConfigGUI for a player, creating a fresh builder if needed.
+     */
+    public void openHostConfigGUI(Player player) {
+        GameRoomConfig.Builder builder = pendingConfigs.computeIfAbsent(
+                player.getUniqueId(), id -> GameRoomConfig.builder());
+        HostConfigGUI.open(player, builder, this);
+    }
+
+    public void removePendingConfig(Player player) {
+        pendingConfigs.remove(player.getUniqueId());
+    }
+
 
     // Legacy methods for backward compatibility
     public Game createGame(String name) {

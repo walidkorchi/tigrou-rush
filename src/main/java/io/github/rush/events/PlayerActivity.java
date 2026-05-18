@@ -115,6 +115,7 @@ public class PlayerActivity implements Listener {
 
         player.getInventory().clear();
         player.getInventory().setItem(0, Main.getInstance().getGameManager().createCompassItem());
+        player.getInventory().setItem(7, Main.getInstance().getGameManager().createGameHostItem());
         player.getInventory().setItem(8, createSettingsItem());
 
         // Teleport to main lobby
@@ -449,6 +450,12 @@ public class PlayerActivity implements Listener {
                 }
                 // Open game listing GUI
                 Main.getInstance().getGameManager().openGameList(player);
+                pie.setCancelled(true);
+                return;
+            }
+
+            if (item != null && item.getType() == Material.BEACON) {
+                Main.getInstance().getGameManager().openHostConfigGUI(player);
                 pie.setCancelled(true);
                 return;
             }
