@@ -68,3 +68,7 @@ tasks.register<Copy>("copyToPlugins") {
 tasks.build {
     dependsOn("copyToPlugins")
 }
+
+tasks.test {
+    useJUnitPlatform()
+}
