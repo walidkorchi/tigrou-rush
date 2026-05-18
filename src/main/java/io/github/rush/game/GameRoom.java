@@ -3,7 +3,6 @@ package io.github.rush.game;
 import io.github.rush.Main;
 import io.github.rush.objects.Island;
 import lombok.Getter;
-import lombok.Setter;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
@@ -24,10 +23,16 @@ public class GameRoom {
     private final String hostName;
 
     @Getter
+    private final UUID hostUUID;
+
+    @Getter
     private final World world;
 
     @Getter
     private final Game game;
+
+    @Getter
+    private final GameRoomConfig config;
 
     @Getter
     private final IslandType islandType;
@@ -43,10 +48,6 @@ public class GameRoom {
 
     @Getter
     private boolean islandsLoaded = false;
-
-    @Getter
-    @Setter
-    private GameRoomConfig config;
 
     private int islandY = 0;
     private static final int DISTANCE_HEIGHT_LIMIT = 12;
@@ -84,14 +85,16 @@ public class GameRoom {
 
     }
 
-    public GameRoom(String hostName, World world, IslandType islandType, TeamSize teamSize, Location lobbyLocation) {
+    public GameRoom(String hostName, UUID hostUUID, World world, GameRoomConfig config, Location lobbyLocation) {
         this.id = UUID.randomUUID().toString().substring(0, 8);
         this.hostName = hostName;
+        this.hostUUID = hostUUID;
         this.world = world;
-        this.islandType = islandType;
-        this.teamSize = teamSize;
+        this.config = config;
+        this.islandType = config.islandType();
+        this.teamSize = config.teamSize();
         this.lobbyLocation = lobbyLocation;
-        this.game = new Game(id, world.getName(), lobbyLocation, islandType.getCount(), teamSize.getPlayersPerTeam());
+        this.game = new Game(id, world.getName(), lobbyLocation, config.islandType().getCount(), config.teamSize().getPlayersPerTeam());
         this.game.setGameRoom(this);
         this.islands = createIslands();
     }

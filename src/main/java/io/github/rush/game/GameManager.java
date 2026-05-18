@@ -53,44 +53,84 @@ public class GameManager {
     }
 
     /**
-     * Creates a new game room with its own world.
-     * Shows loading progress on player's action bar.
+     * Creates a new game room with its own world using the async pipeline.
+     * Room is registered immediately in CREATING state, transitions to WAITING
+     * once schematics are pasted and the host is confirmed still online.
      */
-    public void createGameRoom(Player host, GameRoom.IslandType islandType, GameRoom.TeamSize teamSize) {
+    public void createGameRoom(Player host, GameRoomConfig config) {
+        final UUID hostUUID = host.getUniqueId();
         final String worldName = "rush_game_" + (++worldCounter) + "_" + host.getName();
 
-        // Step 1: Creating world
-        sendLoadingBar(host, "Création du monde", 0, 3);
+        sendLoadingBar(host, "Création du monde", 0, 5);
 
         Bukkit.getScheduler().runTask(plugin, () -> {
             try {
+                // Step 1: Create void world (main thread)
                 World gameWorld = createVoidWorld(worldName);
                 if (gameWorld == null) {
                     host.sendMessage(Component.text("§cErreur lors de la création du monde!"));
                     return;
                 }
 
-                // Step 2: World created, preparing lobby
-                sendLoadingBar(host, "Préparation du lobby", 1, 3);
+                // Step 2: Register room in CREATING state immediately so host-disconnect
+                // cleanup can find it even if the host goes offline during paste.
+                sendLoadingBar(host, "Initialisation", 1, 5);
+                Location lobbyLocation = new Location(gameWorld, 0, 64, 0);
+                GameRoom room = new GameRoom(host.getName(), hostUUID, gameWorld, config, lobbyLocation);
+                room.getGame().setState(GameState.CREATING);
+                gameRooms.put(room.getId(), room);
 
-                Location lobbyLocation = new Location(gameWorld, 1000, 64, 1000);
-                GameRoom room = new GameRoom(host.getName(), gameWorld, islandType, teamSize, lobbyLocation);
-
-                // Paste lobby schematic asynchronously with progress updates
+                // Steps 3-4: Read schematics on async thread, then paste on main thread
                 Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-                    // Step 3: Pasting schematic
-                    sendLoadingBar(host, "Génération de la carte", 2, 3);
+                    sendLoadingBar(Bukkit.getPlayer(hostUUID), "Génération du lobby d'attente", 2, 5);
+                    Clipboard waitingRoomClip = readSchematic("waiting_room.schem");
 
-                    pasteLobbySchematic(gameWorld, lobbyLocation);
+                    sendLoadingBar(Bukkit.getPlayer(hostUUID), "Génération des îles", 3, 5);
+                    Clipboard islandClip = readSchematic(config.mapType().schematicName());
 
                     Bukkit.getScheduler().runTask(plugin, () -> {
-                        // Step 4: Finalizing
-                        sendLoadingBar(host, "Finalisation", 3, 3);
-                        finalizeGameRoomCreation(host, room, islandType, teamSize);
+                        sendLoadingBar(Bukkit.getPlayer(hostUUID), "Construction du monde", 4, 5);
 
-                        // Clear action bar after a short delay
+                        if (waitingRoomClip != null) {
+                            pasteClipboard(gameWorld, waitingRoomClip, BlockVector3.at(0, 64, 0), 0);
+                        }
+
+                        if (islandClip != null) {
+                            List<io.github.rush.objects.Island> islands = room.getIslands();
+                            for (int i = 0; i < config.maxTeams() && i < islands.size(); i++) {
+                                io.github.rush.objects.Island isl = islands.get(i);
+                                pasteClipboard(gameWorld, islandClip,
+                                        BlockVector3.at(isl.getX(), room.getIslandY(), isl.getZ()),
+                                        isl.getRotation());
+                            }
+                        }
+
+                        // Step 5: Spawn merchants (main thread)
+                        List<io.github.rush.objects.Island> islands = room.getIslands();
+                        for (int i = 0; i < config.maxTeams() && i < islands.size(); i++) {
+                            spawnMerchantsForIsland(room, islands.get(i), i);
+                        }
+                        room.setIslandsLoaded(true);
+
+                        // Step 6: Check host still online — cancel if gone
+                        Player onlineHost = Bukkit.getPlayer(hostUUID);
+                        if (onlineHost == null) {
+                            cancelRoomCreation(room);
+                            return;
+                        }
+
+                        // Step 7: Transition to WAITING and hand off to host
+                        room.getGame().setState(GameState.WAITING);
+                        playerGameRoomMap.put(onlineHost, room);
+
+                        onlineHost.teleport(lobbyLocation);
+                        onlineHost.getInventory().clear();
+                        onlineHost.getInventory().setItem(0, TeamSelectionGUI.createBannerItem());
+                        onlineHost.getInventory().setItem(8, createHostPanelItem());
+
                         Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                            host.sendActionBar(Component.empty());
+                            Player h = Bukkit.getPlayer(hostUUID);
+                            if (h != null) h.sendActionBar(Component.empty());
                         }, 40L);
                     });
                 });
@@ -103,22 +143,74 @@ public class GameManager {
         });
     }
 
-    /**
-     * Sends a loading bar to a player's action bar.
-     */
+    public void cancelRoomCreation(GameRoom room) {
+        gameRooms.remove(room.getId());
+        World world = room.getWorld();
+        if (world != null) {
+            Bukkit.unloadWorld(world, false);
+            File worldFolder = new File(Bukkit.getWorldContainer(), world.getName());
+            if (worldFolder.exists()) {
+                Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> deleteDirectory(worldFolder));
+            }
+        }
+    }
+
+    private Clipboard readSchematic(String filename) {
+        File schematicFile = new File(plugin.getDataFolder().getParentFile(), "WorldEdit/schematics/" + filename);
+        if (!schematicFile.exists()) {
+            plugin.getLogger().warning("Schematic not found: " + schematicFile.getPath());
+            return null;
+        }
+        ClipboardFormat format = ClipboardFormats.findByFile(schematicFile);
+        if (format == null) {
+            plugin.getLogger().warning("Unknown schematic format: " + filename);
+            return null;
+        }
+        try (FileInputStream fis = new FileInputStream(schematicFile);
+             ClipboardReader reader = format.getReader(fis)) {
+            return reader.read();
+        } catch (IOException e) {
+            plugin.getLogger().severe("Error reading schematic " + filename + ": " + e.getMessage());
+            return null;
+        }
+    }
+
+    private void pasteClipboard(World world, Clipboard clipboard, BlockVector3 target, int rotation) {
+        try (EditSession editSession = WorldEdit.getInstance().newEditSession(BukkitAdapter.adapt(world))) {
+            ClipboardHolder holder = new ClipboardHolder(clipboard);
+            if (rotation != 0) {
+                AffineTransform transform = new AffineTransform().rotateY(rotation);
+                holder.setTransform(holder.getTransform().combine(transform));
+            }
+            Operation operation = holder.createPaste(editSession).to(target).ignoreAirBlocks(false).build();
+            Operations.complete(operation);
+            plugin.getLogger().info("Pasted schematic at " + target);
+        } catch (WorldEditException e) {
+            plugin.getLogger().severe("Error pasting schematic: " + e.getMessage());
+        }
+    }
+
+    private ItemStack createHostPanelItem() {
+        ItemStack item = new ItemStack(Material.NETHER_STAR);
+        ItemMeta meta = item.getItemMeta();
+        meta.displayName(Component.text("§6§lPanneau de l'Hôte"));
+        item.setItemMeta(meta);
+        return item;
+    }
+
     private void sendLoadingBar(Player player, String message, int currentStep, int totalSteps) {
+        if (player == null) return;
         StringBuilder bar = new StringBuilder("§7[");
         for (int i = 0; i < totalSteps; i++) {
             if (i < currentStep) {
-                bar.append("§a█"); // Completed
+                bar.append("§a█");
             } else if (i == currentStep) {
-                bar.append("§e█"); // Current
+                bar.append("§e█");
             } else {
-                bar.append("§8█"); // Not started
+                bar.append("§8█");
             }
         }
         bar.append("§7] §f").append(message);
-
         player.sendActionBar(Component.text(bar.toString()));
     }
 
@@ -140,64 +232,6 @@ public class GameManager {
         return gameWorld;
     }
 
-    private void pasteLobbySchematic(World world, Location location) {
-        String schematicName = "rush_lobby.schem";
-        File schematicsFolder = new File(plugin.getDataFolder(), "schematics");
-        File schematicFile = new File(schematicsFolder, schematicName);
-
-        if (!schematicFile.exists()) {
-            plugin.getLogger().warning("Lobby schematic not found: " + schematicFile.getPath());
-            return;
-        }
-
-        ClipboardFormat format = ClipboardFormats.findByFile(schematicFile);
-        if (format == null) {
-            plugin.getLogger().warning("Unknown schematic format for: " + schematicName);
-            return;
-        }
-
-        try (FileInputStream fis = new FileInputStream(schematicFile);
-                ClipboardReader reader = format.getReader(fis)) {
-
-            Clipboard clipboard = reader.read();
-
-            // Must run paste on main thread
-            Bukkit.getScheduler().runTask(plugin, () -> {
-                try (EditSession editSession = WorldEdit.getInstance().newEditSession(BukkitAdapter.adapt(world))) {
-                    BlockVector3 to = BlockVector3.at(location.getX(), location.getY(), location.getZ());
-
-                    Operation operation = new ClipboardHolder(clipboard)
-                            .createPaste(editSession)
-                            .to(to)
-                            .ignoreAirBlocks(false)
-                            .build();
-
-                    Operations.complete(operation);
-                    plugin.getLogger().info("Pasted lobby schematic at " + location);
-                } catch (WorldEditException e) {
-                    plugin.getLogger().severe("Error pasting lobby schematic: " + e.getMessage());
-                }
-            });
-
-        } catch (IOException e) {
-            plugin.getLogger().severe("Error reading lobby schematic: " + e.getMessage());
-        }
-    }
-
-    private void finalizeGameRoomCreation(Player host, GameRoom room, GameRoom.IslandType islandType,
-            GameRoom.TeamSize teamSize) {
-        room.setConfig(new GameRoomConfig(islandType, islandType.getCount(), teamSize, MapType.NORMAL, false, false));
-        gameRooms.put(room.getId(), room);
-        playerGameRoomMap.put(host, room);
-
-        host.teleport(room.getLobbyLocation());
-        host.getInventory().clear();
-        host.getInventory().setItem(0, TeamSelectionGUI.createBannerItem());
-
-        host.sendMessage(Component.text("§aPartie créée avec succès!"));
-        host.sendMessage(Component.text("§7Type: " + islandType.getDisplayName()));
-        host.sendMessage(Component.text("§7Équipes: " + teamSize.getDisplayName()));
-    }
 
     /**
      * Adds a player to a game room and teleports them.
@@ -519,10 +553,6 @@ public class GameManager {
     }
 
     private void selectIslandType(Player player, GameRoom.IslandType type) {
-        if (type == GameRoom.IslandType.EIGHT_ISLANDS) {
-            player.sendMessage(Component.text("§cLes parties à 8 îles ne sont pas encore disponibles!"));
-            return;
-        }
         selectedIslandType = type;
         openGameCreation(player);
     }
@@ -533,14 +563,12 @@ public class GameManager {
     }
 
     private void createGameFromGUI(Player player) {
-        if (selectedIslandType == GameRoom.IslandType.EIGHT_ISLANDS) {
-            player.sendMessage(Component.text("§cLes parties à 8 îles ne sont pas encore disponibles!"));
-            return;
-        }
-
         player.closeInventory();
         player.sendMessage(Component.text("§aCréation de la partie en cours..."));
-        createGameRoom(player, selectedIslandType, selectedTeamSize);
+        GameRoomConfig config = new GameRoomConfig(
+                selectedIslandType, selectedIslandType.getCount(), selectedTeamSize,
+                MapType.NORMAL, false, false);
+        createGameRoom(player, config);
     }
 
     // Legacy methods for backward compatibility
