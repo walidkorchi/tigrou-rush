@@ -5,8 +5,11 @@ import io.github.rush.commands.AuthorCommand;
 import io.github.rush.game.Game;
 import io.github.rush.game.GameRoom;
 import io.github.rush.game.GameState;
+import io.github.rush.game.HostTransfer;
 import io.github.rush.game.Team;
 import io.github.rush.game.TeamColor;
+import io.github.rush.menus.HostPanelGUI;
+import java.util.UUID;
 import io.github.rush.menus.GUI;
 import io.github.rush.menus.PlayerSettingsGUI;
 import io.github.rush.menus.TeamSelectionGUI;
@@ -159,6 +162,28 @@ public class PlayerActivity implements Listener {
                     .findFirst()
                     .ifPresent(r -> plugin.getGameManager().cancelRoomCreation(r));
 
+            // Host disconnect during WAITING: transfer host status
+            plugin.getGameManager().getAllGameRooms().stream()
+                    .filter(r -> r.getGame().getState() == GameState.WAITING
+                            && player.getUniqueId().equals(r.getHostUUID()))
+                    .findFirst()
+                    .ifPresent(r -> {
+                        UUID nextHostUUID = HostTransfer.nextHost(
+                                r.getJoinOrder(),
+                                player.getUniqueId(),
+                                uuid -> org.bukkit.Bukkit.getPlayer(uuid) != null);
+                        if (nextHostUUID != null) {
+                            org.bukkit.entity.Player nextHost = org.bukkit.Bukkit.getPlayer(nextHostUUID);
+                            r.setHostUUID(nextHostUUID);
+                            r.setHostName(nextHost.getName());
+                            nextHost.getInventory().setItem(8, plugin.getGameManager().createHostPanelItem());
+                            nextHost.sendMessage(Component.text("§6Vous êtes maintenant l'hôte de la partie."));
+                        } else {
+                            plugin.getGameManager().removeGameRoom(r.getId());
+                        }
+                    });
+
+            // Take away host panel from the disconnecting player if they had it
             GameRoom room = plugin.getGameManager().getGameRoomOfPlayer(player);
             if (room != null) {
                 room.removePlayer(player);
@@ -439,7 +464,15 @@ public class PlayerActivity implements Listener {
 
         if (pie.getAction() == Action.RIGHT_CLICK_AIR || pie.getAction() == Action.RIGHT_CLICK_BLOCK) {
             if (item != null && item.getType() == Material.COMPASS) {
-                // Check if player is in spectator mode during game
+                // Spectator in a GameRoom: compass returns to main lobby
+                GameRoom spectatorRoom = plugin.getGameManager().getGameRoomOfPlayer(player);
+                if (spectatorRoom != null && spectatorRoom.getGame().isSpectator(player)) {
+                    spectatorRoom.getGame().removeSpectator(player);
+                    plugin.getGameManager().removePlayerFromGameRoom(player);
+                    pie.setCancelled(true);
+                    return;
+                }
+                // Check if player is in spectator mode during legacy game
                 if (plugin.isGameStarted()) {
                     Game game = Main.getInstance().getGameManager().getCurrentGame();
                     if (game != null && game.isSpectator(player)) {
@@ -458,6 +491,15 @@ public class PlayerActivity implements Listener {
                 Main.getInstance().getGameManager().openHostConfigGUI(player);
                 pie.setCancelled(true);
                 return;
+            }
+
+            if (item != null && item.getType() == Material.NETHER_STAR) {
+                GameRoom hostRoom = plugin.getGameManager().getGameRoomOfPlayer(player);
+                if (hostRoom != null && player.getUniqueId().equals(hostRoom.getHostUUID())) {
+                    HostPanelGUI.open(player, hostRoom, plugin.getGameManager());
+                    pie.setCancelled(true);
+                    return;
+                }
             }
 
             if (item != null && item.getType() == Material.WHITE_BANNER) {

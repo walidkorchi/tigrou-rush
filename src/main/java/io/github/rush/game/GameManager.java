@@ -26,6 +26,7 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.WorldCreator;
+import org.bukkit.entity.ItemFrame;
 import org.bukkit.entity.Player;
 import net.kyori.adventure.util.TriState;
 import org.bukkit.inventory.ItemStack;
@@ -192,7 +193,7 @@ public class GameManager {
         }
     }
 
-    private ItemStack createHostPanelItem() {
+    public ItemStack createHostPanelItem() {
         ItemStack item = new ItemStack(Material.NETHER_STAR);
         ItemMeta meta = item.getItemMeta();
         meta.displayName(Component.text("§6§lPanneau de l'Hôte"));
@@ -241,9 +242,7 @@ public class GameManager {
     public void joinGameRoom(Player player, GameRoom room) {
         if (room.isRunning()) {
             playerGameRoomMap.put(player, room);
-            player.setGameMode(org.bukkit.GameMode.SPECTATOR);
-            player.teleport(room.getLobbyLocation());
-            player.sendMessage(Component.text("§7Vous regardez la partie de §f" + room.getHostName() + "§7 en spectateur."));
+            room.getGame().addObserver(player);
             return;
         }
 
@@ -258,6 +257,7 @@ public class GameManager {
         }
 
         playerGameRoomMap.put(player, room);
+        room.getJoinOrder().add(player.getUniqueId());
         player.teleport(room.getLobbyLocation());
         player.getInventory().clear();
         player.getInventory().setItem(0, TeamSelectionGUI.createBannerItem());
@@ -631,6 +631,21 @@ public class GameManager {
         }
 
         io.github.rush.entities.Merchant.apply(villager, type);
+
+        if (type.getDisplayItem() != null) {
+            // Item frame 2 blocks in front of the merchant (toward island center)
+            float yaw = location.getYaw();
+            double rad = Math.toRadians(yaw);
+            int frameX = (int) Math.round(location.getX() - Math.sin(rad) * 2);
+            int frameZ = (int) Math.round(location.getZ() + Math.cos(rad) * 2);
+            Location frameLoc = new Location(world, frameX + 0.5, location.getY(), frameZ + 0.5, yaw, 0);
+
+            ItemFrame frame = world.spawn(frameLoc, ItemFrame.class);
+            frame.setItem(new ItemStack(type.getDisplayItem()));
+            frame.setInvulnerable(true);
+            frame.setFixed(true);
+            frame.setVisible(false);
+        }
     }
 
     /**

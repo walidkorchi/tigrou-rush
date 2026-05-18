@@ -10,13 +10,15 @@ import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.potion.PotionType;
 
+import org.jspecify.annotations.Nullable;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 public enum MerchantType {
 
-    WEAPONSMITH(Profession.WEAPONSMITH, new ArrayList<>(List.of(
+    WEAPONSMITH(Profession.WEAPONSMITH, Material.IRON_SWORD, new ArrayList<>(List.of(
             new Trade(Material.IRON_SWORD, Material.IRON_INGOT, 1, Map.of(Enchantment.SHARPNESS, 1)),
             new Trade(Material.IRON_SWORD, Material.IRON_INGOT, 3, Map.of(Enchantment.SHARPNESS, 2)),
             new Trade(Material.IRON_SWORD, Material.IRON_INGOT, 7, Map.of(Enchantment.SHARPNESS, 3)),
@@ -25,33 +27,39 @@ public enum MerchantType {
                     .withDurability(85),
             new Trade(Material.FLINT_AND_STEEL, Material.GOLD_INGOT, 1),
             new Trade(Material.TNT, Material.IRON_INGOT, 5)))),
-    BUILDER(Profession.CARTOGRAPHER, new ArrayList<>(List.of(
+    BUILDER(Profession.CARTOGRAPHER, Material.SANDSTONE, new ArrayList<>(List.of(
             new Trade(Material.SANDSTONE, Material.COPPER_INGOT, 1, 4),
             new Trade(Material.END_STONE, Material.IRON_INGOT, 2, 4),
             new Trade(Material.IRON_PICKAXE, Material.IRON_INGOT, 1, Map.of(Enchantment.EFFICIENCY, 1)),
             new Trade(Material.IRON_PICKAXE, Material.COPPER_INGOT, 5, Map.of(Enchantment.EFFICIENCY, 2)),
             new Trade(Material.IRON_PICKAXE, Material.GOLD_INGOT, 1, Map.of(Enchantment.EFFICIENCY, 3))))),
-    ALCHEMIST(Profession.CLERIC, new ArrayList<>(List.of(
+    ALCHEMIST(Profession.CLERIC, Material.GOLDEN_APPLE, new ArrayList<>(List.of(
             new Trade(Material.GOLDEN_APPLE, Material.IRON_INGOT, 1),
             new Trade(createHealingPotion(), Material.GOLD_INGOT, 1)))),
-    ARMORSMITH(Profession.ARMORER, new ArrayList<>(List.of(
+    ARMORSMITH(Profession.ARMORER, Material.LEATHER_CHESTPLATE, new ArrayList<>(List.of(
             new Trade(Material.LEATHER_CHESTPLATE, Material.IRON_INGOT, 2),
             new Trade(Material.LEATHER_CHESTPLATE, Material.IRON_INGOT, 5, Map.of(Enchantment.PROTECTION, 1)),
             new Trade(Material.LEATHER_CHESTPLATE, Material.GOLD_INGOT, 1, Map.of(Enchantment.PROTECTION, 2)),
             new Trade(Material.LEATHER_CHESTPLATE, Material.GOLD_INGOT, 5, Map.of(Enchantment.PROTECTION, 3)),
             new Trade(Material.COMPASS, Material.DIAMOND, 16)))),
-    SPEED(Profession.LIBRARIAN, new ArrayList<>());
+    SPEED(Profession.LIBRARIAN, null, new ArrayList<>());
 
     private final Profession profession;
+    private final @Nullable Material displayItem;
     private final List<Trade> trades;
 
-    MerchantType(Profession profession, List<Trade> trades) {
+    MerchantType(Profession profession, @Nullable Material displayItem, List<Trade> trades) {
         this.profession = profession;
+        this.displayItem = displayItem;
         this.trades = trades;
     }
 
     public Profession getProfession() {
         return profession;
+    }
+
+    public @Nullable Material getDisplayItem() {
+        return displayItem;
     }
 
     public List<Trade> getTrades() {

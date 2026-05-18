@@ -3,10 +3,12 @@ package io.github.rush.game;
 import io.github.rush.Main;
 import io.github.rush.objects.Island;
 import lombok.Getter;
+import lombok.Setter;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -19,11 +21,14 @@ public class GameRoom {
     @Getter
     private final String id;
 
-    @Getter
-    private final String hostName;
+    @Getter @Setter
+    private String hostName;
+
+    @Getter @Setter
+    private UUID hostUUID;
 
     @Getter
-    private final UUID hostUUID;
+    private final List<UUID> joinOrder = new ArrayList<>();
 
     @Getter
     private final World world;
@@ -89,6 +94,7 @@ public class GameRoom {
         this.id = UUID.randomUUID().toString().substring(0, 8);
         this.hostName = hostName;
         this.hostUUID = hostUUID;
+        this.joinOrder.add(hostUUID);
         this.world = world;
         this.config = config;
         this.islandType = config.islandType();

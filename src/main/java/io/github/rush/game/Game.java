@@ -240,12 +240,11 @@ public class Game {
         player.getInventory().setItem(0, compass);
 
         for (Player online : Bukkit.getOnlinePlayers()) {
-            player.hidePlayer(Main.getInstance(), online);
+            online.hidePlayer(Main.getInstance(), player);
         }
 
-        Location spawn = Main.getInstance().getSpectatorSpawn();
-        if (spawn != null) {
-            player.teleport(spawn);
+        if (lobby != null) {
+            player.teleport(lobby);
         }
 
         player.sendMessage(Component.text("§cVotre lit a été détruit! Vous êtes maintenant spectateur."));
@@ -267,7 +266,7 @@ public class Game {
         player.setFlying(false);
 
         for (Player online : Bukkit.getOnlinePlayers()) {
-            player.showPlayer(Main.getInstance(), online);
+            online.showPlayer(Main.getInstance(), player);
         }
 
         player.getInventory().clear();
@@ -278,6 +277,32 @@ public class Game {
         }
 
         player.sendMessage(Component.text("§aVous avez quitté le mode spectateur."));
+    }
+
+    public void addObserver(Player player) {
+        spectators.add(player);
+
+        player.setGameMode(GameMode.SPECTATOR);
+        player.setAllowFlight(true);
+        player.setFlying(true);
+
+        player.getInventory().clear();
+        ItemStack compass = new ItemStack(Material.COMPASS);
+        ItemMeta meta = compass.getItemMeta();
+        meta.displayName(Component.text("§cQuitter la partie"));
+        compass.setItemMeta(meta);
+        player.getInventory().setItem(0, compass);
+
+        for (Player online : Bukkit.getOnlinePlayers()) {
+            online.hidePlayer(Main.getInstance(), player);
+        }
+
+        if (lobby != null) {
+            player.teleport(lobby);
+        }
+
+        player.sendMessage(Component.text("§7Vous regardez cette partie en spectateur."));
+        updatePlayerList();
     }
 
     public boolean isProtected(Player player) {
@@ -318,16 +343,15 @@ public class Game {
             }
         }
 
-        final int remainingTime = protectionTime;
+        final java.util.concurrent.atomic.AtomicInteger elapsed = new java.util.concurrent.atomic.AtomicInteger(0);
 
         BukkitTask task = Bukkit.getScheduler().runTaskTimer(Main.getInstance(), () -> {
             if (!protectedPlayers.contains(player)) {
                 return;
             }
-
-            int currentTime = Main.getInstance().getRespawnProtectionTime() - remainingTime + 1;
-            if (currentTime > 0 && currentTime <= protectionTime) {
-                player.sendActionBar(Component.text("§aProtection: " + currentTime + "s"));
+            int remaining = protectionTime - elapsed.getAndIncrement();
+            if (remaining > 0) {
+                player.sendActionBar(Component.text("§aProtection: " + remaining + "s"));
             }
         }, 0, 20L);
 
@@ -448,16 +472,18 @@ public class Game {
             return false;
         }
 
-        long activeTeams = islandAssignment.stream().filter(t -> t != null && !t.getPlayers().isEmpty()).count();
-        if (activeTeams != 2) {
+        List<Team> activeTeamList = islandAssignment.stream()
+                .filter(t -> t != null && !t.getPlayers().isEmpty())
+                .collect(Collectors.toList());
+
+        if (activeTeamList.size() != 2) {
             return false;
         }
 
-        Team teamA = islandAssignment.get(0);
-        Team teamB = islandAssignment.get(3);
+        Team teamA = activeTeamList.get(0);
+        Team teamB = activeTeamList.get(1);
 
-        if (teamA == null || teamB == null
-                || teamA.getSpawnLocation() == null || teamB.getSpawnLocation() == null) {
+        if (teamA.getSpawnLocation() == null || teamB.getSpawnLocation() == null) {
             return false;
         }
 
@@ -469,39 +495,18 @@ public class Game {
     }
 
     private void computeIslandAssignment() {
-        List<Team> teamsWithPlayers = teams.values().stream()
-                .filter(t -> !t.getPlayers().isEmpty())
+        // Stable team ordering by color enum ordinal (RED < BLUE < GREEN < YELLOW)
+        List<Team> orderedTeams = teams.values().stream()
+                .sorted(Comparator.comparingInt(t -> t.getColor().ordinal()))
                 .collect(Collectors.toList());
 
-        List<Team> teamsWithoutPlayers = teams.values().stream()
-                .filter(t -> t.getPlayers().isEmpty())
-                .collect(Collectors.toList());
+        // Fixed island slot fill order: 0, 2, 1, 3
+        int[] slotOrder = {0, 2, 1, 3};
 
-        Collections.shuffle(teamsWithPlayers);
-        Collections.shuffle(teamsWithoutPlayers);
+        islandAssignment = new ArrayList<>(Collections.nCopies(islandCount, null));
 
-        islandAssignment = new ArrayList<>(4);
-        for (int i = 0; i < 4; i++) {
-            islandAssignment.add(null);
-        }
-
-        if (teamsWithPlayers.size() >= 2) {
-            islandAssignment.set(0, teamsWithPlayers.get(0));
-            islandAssignment.set(3, teamsWithPlayers.get(1));
-
-            int emptyIdx = 0;
-            for (int i = 2; i < teamsWithPlayers.size(); i++) {
-                if (emptyIdx < 2) {
-                    islandAssignment.set(1 + emptyIdx, teamsWithPlayers.get(i));
-                    emptyIdx++;
-                }
-            }
-            for (Team empty : teamsWithoutPlayers) {
-                if (emptyIdx < 2) {
-                    islandAssignment.set(1 + emptyIdx, empty);
-                    emptyIdx++;
-                }
-            }
+        for (int i = 0; i < orderedTeams.size() && i < slotOrder.length; i++) {
+            islandAssignment.set(slotOrder[i], orderedTeams.get(i));
         }
     }
 
@@ -627,7 +632,7 @@ public class Game {
         final EntityEquipment equipment = getPlayerInventory(entity);
 
         equipment.setHelmet(armorAndTool[0]);
-        equipment.setLeggings(armorAndTool[1]);
+        equipment.setChestplate(armorAndTool[1]);
         equipment.setBoots(armorAndTool[2]);
         equipment.setItem(EquipmentSlot.HAND, armorAndTool[3]);
     }
@@ -639,7 +644,7 @@ public class Game {
         helmetMeta.addEnchant(Enchantment.PROTECTION, 1, true);
         helmet.setItemMeta(helmetMeta);
 
-        ItemStack leggings = new ItemStack(Material.LEATHER_LEGGINGS);
+        ItemStack leggings = new ItemStack(Material.LEATHER_CHESTPLATE);
         LeatherArmorMeta legsMeta = (LeatherArmorMeta) leggings.getItemMeta();
         legsMeta.setColor(color);
         legsMeta.addEnchant(Enchantment.PROTECTION, 1, true);

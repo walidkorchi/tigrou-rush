@@ -10,26 +10,33 @@
 1. [World & Map](#world--map)
 2. [Game States](#game-states)
 3. [Teams](#teams)
-4. [Resource Economy](#resource-economy)
-5. [Merchants](#merchants)
-6. [Combat](#combat)
-7. [Death & Respawn](#death--respawn)
-8. [Forbidden Zone](#forbidden-zone)
-9. [Restrictions](#restrictions)
-10. [Progression](#progression)
-11. [HUD & UI](#hud--ui)
-12. [Balance Numbers](#balance-numbers)
-13. [Build System & Dependencies](#build-system--dependencies)
+4. [Host & Room Config](#host--room-config)
+5. [Resource Economy](#resource-economy)
+6. [Merchants](#merchants)
+7. [Combat](#combat)
+8. [Death & Respawn](#death--respawn)
+9. [Forbidden Zone](#forbidden-zone)
+10. [Restrictions](#restrictions)
+11. [Progression](#progression)
+12. [HUD & UI](#hud--ui)
+13. [Balance Numbers](#balance-numbers)
+14. [Build System & Dependencies](#build-system--dependencies)
 
 ---
 
 ## World & Map
 
-Two map schemas exist, each with different island layout and buildable-zone geometry:
+### GameRoom
+
+A self-contained game instance: one void world, one `Game` object, one host. Identified by a short UUID (8 chars). Destroyed (world unloaded and deleted) after the game ends. Each `GameRoom` is identified in the world filesystem as `rush_game_{n}_{host}` with auto-save disabled.
+
+### WaitingRoom
+
+A schematic (`waiting_room.schem`) pasted at `(0, 0, 0)` of each GameRoom's void world during the CREATING phase. Serves as the pre-game lobby where players congregate and select teams. The WorldEdit copy origin is the player spawn point — players are teleported to `(0, 0, 0)` of the game world on join or when room creation completes.
 
 ### 4-Island Schema
 
-- **4 islands** loaded from `rush_island.schem` (WorldEdit), each rotated and placed at ±40 blocks from center (0, 0)
+- **4 islands** loaded from a map-type schematic (WorldEdit), each rotated and placed at ±40 blocks from center (0, 0)
   - Island 0: (−offset, 0) rotation −90°
   - Island 1: (+offset, 0) rotation +90°
   - Island 2: (0, −offset) rotation 180°
@@ -48,23 +55,30 @@ Two map schemas exist, each with different island layout and buildable-zone geom
 
 - Islands are pasted at `worldMaxHeight − 12` (Y ≈ 308 in 1.21)
 - **Void world generator** — no terrain between islands
-- **Multi-room support:** each `GameRoom` gets a dedicated void world named `rush_game_{n}_{host}` with auto-save disabled
+- **Multi-room support:** each `GameRoom` gets a dedicated void world
+
+### MapType
+
+An enum of 8 visual themes for the island schematic: `NORMAL`, `OLD_SCHOOL`, `NETHER`, `END`, `AQUAMARINE`, `SUMMER`, `CHERRY`, `WINTER`. Purely cosmetic — only the island schematic filename changes (`rush_island-{type}.schem`). World environment, gameplay rules, and placeable blocks are identical across all map types. Chosen by the host at room creation.
 
 ---
 
 ## Game States
 
-`WAITING → RUNNING → STOPPED`
+`CREATING → WAITING → RUNNING → STOPPED`
 
 | State | Description |
 |---|---|
-| WAITING | Lobby phase; accepts players, team selection open |
+| CREATING | World and schematics are being set up asynchronously; room is not joinable; host remains in main lobby until this phase completes |
+| WAITING | Lobby phase; team selection open; players may join if the room is not full |
 | RUNNING | Active game; combat enabled, resources spawning |
-| STOPPED | Game ended; stats saved, world cleaned up |
+| STOPPED | Game ended; stats saved, world queued for cleanup |
+
+**CREATING cancellation:** if the host disconnects before CREATING completes, the callback chain halts, the world is unloaded and deleted, and the `GameRoom` entry is never promoted to WAITING.
 
 - Lobby countdown: **60 seconds**
 - Auto-start check: every **5 seconds** (100 ticks)
-- **Overtime** triggered at **30 minutes** (1800 seconds): removes block placement restrictions
+- **Overtime** triggered at **30 minutes** (1800 seconds): all surviving beds are destroyed and all block placement restrictions lifted. The host option `overtimeStart` fires this trigger at tick 0 — the entire game is played in deathmatch mode with no respawns from the very start.
 
 ---
 
@@ -79,6 +93,49 @@ Two map schemas exist, each with different island layout and buildable-zone geom
   - Leather helmet, chestplate, boots — colored by team, Protection I
   - Wooden pickaxe — Efficiency I
 - Assignment order when auto-assigning: islands 0, 2, 1, 3
+
+### TeamSize
+
+Fixed enum: `VS2` (2 players/team), `VS3` (3 players/team), `VS4` (4 players/team). Chosen by the host at room creation. Cannot be changed after the room is created.
+
+### IslandType
+
+`FOUR_ISLANDS` (4 slots, max 4 teams) or `EIGHT_ISLANDS` (8 slots, max 8 teams). Determines the cap on `maxTeams`.
+
+### MaxTeams
+
+Number of team objects created for the room. Chosen by the host (min 2, capped by `IslandType`). Exactly this many teams exist — unused island slots receive no schematic paste and no merchants.
+
+---
+
+## Host & Room Config
+
+### GameRoomConfig
+
+Immutable record holding all host-configurable room settings, passed to `GameRoom` at construction:
+
+| Field | Type | Description |
+|---|---|---|
+| `islandType` | `IslandType` | 4-island or 8-island layout |
+| `maxTeams` | int | Number of teams (2–islandType.count) |
+| `teamSize` | `TeamSize` | Players per team |
+| `mapType` | `MapType` | Island visual theme |
+| `extraHearts` | boolean | Whether bed destructions grant permanent health bonuses |
+| `overtimeStart` | boolean | Whether the game starts in overtime (deathmatch) mode |
+
+### Host
+
+The player who created the `GameRoom`, identified by `hostUUID` (UUID) and `hostName` (String) on `GameRoom`. Teleported to the WaitingRoom when CREATING completes.
+
+**Host powers during WAITING phase:**
+- **Force-start** — skip the lobby countdown
+- **Kick** — remove any player from the room
+
+**Host transfer:** if the host disconnects during WAITING, host status transfers permanently to the longest-present player (join order tracked on `GameRoom`). The original host cannot reclaim status on reconnect — they rejoin as a regular player.
+
+### Host Panel
+
+A CraftEngine item (`tland:host_panel`) given exclusively to the host in inventory slot 8 upon entering the WaitingRoom. Right-clicking opens a `BasicGui` with a force-start button and a scrollable player list with per-player kick buttons. When host status transfers, the panel item is removed from the outgoing host and given to the incoming host.
 
 ---
 
@@ -149,7 +206,7 @@ Purchased from the Armorsmith for **16 Diamonds**. When held, updates every **1 
 
 ### Extra Hearts (Bed Bonus)
 
-When a team destroys an enemy bed, **all surviving members of the destroying team immediately earn a permanent health bonus**:
+When a team destroys an enemy bed, **all surviving members of the destroying team immediately earn a permanent health bonus** (gated on `extraHearts` config flag):
 - `+2 hearts × total beds destroyed by the team` (applied as `extra_hearts` attribute modifier)
 - Old modifier is replaced by the new cumulative total on each subsequent destruction
 - Applied regardless of whether enemy players are still alive
@@ -181,7 +238,16 @@ When a team destroys an enemy bed, **all surviving members of the destroying tea
 - Action bar shows countdown: `§aProtection: Xs`
 - Disabled by setting `respawn-protection: 0`
 
-**Spectator compass** (slot 0 when bed is destroyed): right-clicking returns the player to the main lobby and clears their inventory.
+### Spectator
+
+A player in a `GameRoom` who is not part of any team. Two distinct origins, same treatment:
+
+- **Eliminated** — bed was destroyed; became spectator automatically mid-game
+- **Observer** — joined a RUNNING room from the room listing
+
+Both are in SPECTATOR gamemode, hidden from team players, given a compass (slot 0) to return to the main lobby, and teleported back to the main lobby when the game ends.
+
+**Spectator compass** (slot 0): right-clicking returns the player to the main lobby and clears their inventory.
 
 ---
 
@@ -291,8 +357,9 @@ Lit: ✅ / ❌
 |---|---|
 | Team Selection | 2-row inventory, colored wool per team, shows roster size |
 | Shop (ShopGUI) | Main hub: 4 item-type categories (Weapons, Armor, Potions, Blocks); category view: 3-row trade list |
-| Game List | All active rooms with status color (green/yellow/red); click to join |
-| Game Creation | Choose island schema (4 or 8 islands) and team size (2v2 / 3v3 / 4v4) |
+| Room Listing | All GameRooms in WAITING or RUNNING state; CREATING rooms hidden. Yellow=waiting+available, Red=waiting+full, Green=running. Clicking a WAITING room joins as team player; clicking a RUNNING room joins as Spectator; clicking a full room shows error. |
+| Host Config GUI | 3-row inventory for the host to configure IslandType, MaxTeams, TeamSize, MapType, extraHearts, overtimeStart before creating the room |
+| Host Panel | In-WaitingRoom panel: force-start button + per-player kick list |
 | Player Settings | Scoreboard toggle, music toggle |
 
 ### Chat Messages (French-language server)
