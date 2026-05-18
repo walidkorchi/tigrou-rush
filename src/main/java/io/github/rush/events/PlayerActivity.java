@@ -151,6 +151,13 @@ public class PlayerActivity implements Listener {
 
         // Remove from GameRoom
         if (plugin.getGameManager() != null) {
+            // Host disconnect during CREATING: cancel the room
+            plugin.getGameManager().getAllGameRooms().stream()
+                    .filter(r -> r.getGame().getState() == GameState.CREATING
+                            && player.getUniqueId().equals(r.getHostUUID()))
+                    .findFirst()
+                    .ifPresent(r -> plugin.getGameManager().cancelRoomCreation(r));
+
             GameRoom room = plugin.getGameManager().getGameRoomOfPlayer(player);
             if (room != null) {
                 room.removePlayer(player);

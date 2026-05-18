@@ -9,6 +9,7 @@ import org.bukkit.entity.Player;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.ArrayList;
 
 /**
  * Bridge between GameManager and Game instance.
@@ -23,10 +24,16 @@ public class GameRoom {
     private final String hostName;
 
     @Getter
+    private final UUID hostUUID;
+
+    @Getter
     private final World world;
 
     @Getter
     private final Game game;
+
+    @Getter
+    private final GameRoomConfig config;
 
     @Getter
     private final IslandType islandType;
@@ -79,14 +86,16 @@ public class GameRoom {
 
     }
 
-    public GameRoom(String hostName, World world, IslandType islandType, TeamSize teamSize, Location lobbyLocation) {
+    public GameRoom(String hostName, UUID hostUUID, World world, GameRoomConfig config, Location lobbyLocation) {
         this.id = UUID.randomUUID().toString().substring(0, 8);
         this.hostName = hostName;
+        this.hostUUID = hostUUID;
         this.world = world;
-        this.islandType = islandType;
-        this.teamSize = teamSize;
+        this.config = config;
+        this.islandType = config.islandType();
+        this.teamSize = config.teamSize();
         this.lobbyLocation = lobbyLocation;
-        this.game = new Game(id, world.getName(), lobbyLocation, islandType.getCount(), teamSize.getPlayersPerTeam());
+        this.game = new Game(id, world.getName(), lobbyLocation, config.islandType().getCount(), config.teamSize().getPlayersPerTeam());
         this.game.setGameRoom(this);
         this.islands = createIslands();
     }
