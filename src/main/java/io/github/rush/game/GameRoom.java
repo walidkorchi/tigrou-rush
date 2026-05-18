@@ -3,6 +3,7 @@ package io.github.rush.game;
 import io.github.rush.Main;
 import io.github.rush.objects.Island;
 import lombok.Getter;
+import lombok.Setter;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
@@ -42,6 +43,10 @@ public class GameRoom {
 
     @Getter
     private boolean islandsLoaded = false;
+
+    @Getter
+    @Setter
+    private GameRoomConfig config;
 
     private int islandY = 0;
     private static final int DISTANCE_HEIGHT_LIMIT = 12;
