@@ -227,44 +227,20 @@ public class LeaderboardCommand {
         }
 
         private List<Map.Entry<String, Integer>> fetchTop10() {
-            Map<String, Integer> data = new HashMap<>();
-
             var statManager = Main.getInstance().getPlayerStatisticManager();
             var levelManager = Main.getInstance().getPlayerLevelManager();
 
-            // Get online players' stats
-            for (org.bukkit.entity.Player player : org.bukkit.Bukkit.getOnlinePlayers()) {
-                UUID uuid = player.getUniqueId();
-                String name = player.getName();
-
-                try {
-                    switch (type) {
-                        case KILLS -> {
-                            var stats = statManager.loadStatistic(uuid);
-                            data.put(name, stats.getKills());
-                        }
-                        case WINS -> {
-                            var stats = statManager.loadStatistic(uuid);
-                            data.put(name, stats.getWins());
-                        }
-                        case LEVEL -> {
-                            var level = levelManager.loadPlayerLevel(uuid);
-                            data.put(name, level.getLevel());
-                        }
-                        case WINSTREAK -> {
-                            var stats = statManager.loadStatistic(uuid);
-                            data.put(name, stats.getWinStreak());
-                        }
-                    }
-                } catch (Exception e) {
-                    data.put(name, 0);
-                }
+            try {
+                return switch (type) {
+                    case KILLS     -> statManager.getTop10ByKills();
+                    case WINS      -> statManager.getTop10ByWins();
+                    case WINSTREAK -> statManager.getTop10ByWinStreak();
+                    case LEVEL     -> levelManager.getTop10ByLevel();
+                };
+            } catch (Exception e) {
+                Main.getInstance().getLogger().warning("Leaderboard query failed: " + e.getMessage());
+                return List.of();
             }
-
-            return data.entrySet().stream()
-                    .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
-                    .limit(10)
-                    .toList();
         }
 
         public TextHologram getHologram() {

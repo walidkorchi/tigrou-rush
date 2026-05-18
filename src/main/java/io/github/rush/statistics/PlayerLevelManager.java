@@ -3,12 +3,17 @@ package io.github.rush.statistics;
 import io.github.rush.Main;
 import io.github.rush.database.DatabaseManager;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.CriteriaQuery;
+import jakarta.persistence.criteria.Root;
 import lombok.Getter;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public class PlayerLevelManager {
@@ -148,6 +153,33 @@ public class PlayerLevelManager {
             if (em.getTransaction().isActive()) {
                 em.getTransaction().rollback();
             }
+        } finally {
+            em.close();
+        }
+    }
+
+    public List<Map.Entry<String, Integer>> getTop10ByLevel() {
+        EntityManager em = databaseManager.getEntityManager();
+        try {
+            CriteriaBuilder cb = em.getCriteriaBuilder();
+            CriteriaQuery<Object[]> query = cb.createQuery(Object[].class);
+            Root<PlayerLevel> levelRoot = query.from(PlayerLevel.class);
+            Root<PlayerStatistic> statRoot = query.from(PlayerStatistic.class);
+
+            query.multiselect(statRoot.get("name"), levelRoot.<Integer>get("level"))
+                 .where(cb.and(
+                     cb.equal(levelRoot.get("uuid"), statRoot.get("uuid")),
+                     cb.isNotNull(statRoot.get("name")),
+                     cb.notEqual(statRoot.<String>get("name"), "")
+                 ))
+                 .orderBy(cb.desc(levelRoot.get("level")));
+
+            return em.createQuery(query)
+                    .setMaxResults(10)
+                    .getResultList()
+                    .stream()
+                    .map(row -> Map.entry((String) row[0], (Integer) row[1]))
+                    .toList();
         } finally {
             em.close();
         }

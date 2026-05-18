@@ -74,6 +74,7 @@ public class Game {
     private int timeLeft = 0;
     @Getter
     private final int maxPlayers;
+    private final int islandCount;
     @Getter
     private final int minPlayers = 2;
     @Getter
@@ -96,6 +97,7 @@ public class Game {
         this.cycle = new GameCycle(this);
         this.worldName = Main.getInstance().getConfig().getString("gameWorld");
         this.maxPlayers = 8;
+        this.islandCount = 4;
 
         String lobbyWorld = Main.getInstance().getConfig().getString("lobbyWorld");
         World world = Bukkit.getWorld(lobbyWorld);
@@ -114,6 +116,7 @@ public class Game {
         this.worldName = worldName;
         this.lobby = lobby;
         this.maxPlayers = islandCount * playersPerTeam;
+        this.islandCount = islandCount;
 
         initializeTeams(islandCount, playersPerTeam);
     }
@@ -441,39 +444,28 @@ public class Game {
     }
 
     public boolean isBlockInForbiddenZone(Location location) {
-        if (isOvertime() || islandAssignment == null || islandAssignment.size() < 4) {
+        if (isOvertime() || islandAssignment == null) {
+            return false;
+        }
+
+        long activeTeams = islandAssignment.stream().filter(t -> t != null && !t.getPlayers().isEmpty()).count();
+        if (activeTeams != 2) {
             return false;
         }
 
         Team teamA = islandAssignment.get(0);
         Team teamB = islandAssignment.get(3);
 
-        if (teamA.getSpawnLocation() == null || teamB.getSpawnLocation() == null) {
+        if (teamA == null || teamB == null
+                || teamA.getSpawnLocation() == null || teamB.getSpawnLocation() == null) {
             return false;
         }
 
-        double ax = teamA.getSpawnLocation().getX();
-        double az = teamA.getSpawnLocation().getZ();
-        double bx = teamB.getSpawnLocation().getX();
-        double bz = teamB.getSpawnLocation().getZ();
-
-        double midX = (ax + bx) / 2.0;
-        double midZ = (az + bz) / 2.0;
-
-        if (midX == 0 && midZ == 0) {
-            return false;
-        }
-
-        double forbiddenAngle = Math.atan2(midZ, midX);
-        double blockAngle = Math.atan2(location.getZ(), location.getX());
-
-        double diff = blockAngle - forbiddenAngle;
-        while (diff > Math.PI)
-            diff -= 2 * Math.PI;
-        while (diff < -Math.PI)
-            diff += 2 * Math.PI;
-
-        return Math.abs(diff) < Math.PI / 4;
+        return ForbiddenZone.isBlocked(
+                location.getX(), location.getZ(),
+                teamA.getSpawnLocation().getX(), teamA.getSpawnLocation().getZ(),
+                teamB.getSpawnLocation().getX(), teamB.getSpawnLocation().getZ(),
+                islandCount);
     }
 
     private void computeIslandAssignment() {
@@ -550,6 +542,7 @@ public class Game {
             }
 
             startResourceSpawners();
+            startCompassTracker();
 
             cycle.onGameStart();
 
@@ -760,7 +753,7 @@ public class Game {
             }
         }
 
-        if (team.getPlayers().isEmpty() && destroyerTeam != null) {
+        if (destroyerTeam != null) {
             destroyerTeam.setBedsDestroyed(destroyerTeam.getBedsDestroyed() + 1);
             double bonusHealth = destroyerTeam.getBedsDestroyed() * 4.0;
             for (Entity entity : destroyerTeam.getPlayers()) {
@@ -996,6 +989,48 @@ public class Game {
         stopResourceSpawners();
 
         state = GameState.WAITING;
+    }
+
+    private void startCompassTracker() {
+        BukkitTask task = Bukkit.getScheduler().runTaskTimer(Main.getInstance(), () -> {
+            List<CompassTracker.Candidate> candidates = teams.values().stream()
+                    .flatMap(t -> t.getPlayers().stream()
+                            .filter(e -> e instanceof Player)
+                            .map(e -> {
+                                Player p = (Player) e;
+                                return new CompassTracker.Candidate(
+                                        UUID.nameUUIDFromBytes(t.getColor().name().getBytes()),
+                                        p.getLocation().getX(),
+                                        p.getLocation().getY(),
+                                        p.getLocation().getZ());
+                            }))
+                    .toList();
+
+            for (Team team : teams.values()) {
+                UUID teamId = UUID.nameUUIDFromBytes(team.getColor().name().getBytes());
+                for (Entity entity : team.getPlayers()) {
+                    if (!(entity instanceof Player holder)) continue;
+                    if (holder.getInventory().getItemInMainHand().getType() != org.bukkit.Material.COMPASS) continue;
+
+                    CompassTracker.Candidate nearest = CompassTracker.findNearestEnemy(
+                            holder.getLocation().getX(),
+                            holder.getLocation().getY(),
+                            holder.getLocation().getZ(),
+                            teamId, candidates);
+
+                    if (nearest == null) continue;
+
+                    org.bukkit.inventory.ItemStack compass = holder.getInventory().getItemInMainHand();
+                    org.bukkit.inventory.meta.CompassMeta meta =
+                            (org.bukkit.inventory.meta.CompassMeta) compass.getItemMeta();
+                    meta.setLodestone(new org.bukkit.Location(
+                            holder.getWorld(), nearest.x(), nearest.y(), nearest.z()));
+                    meta.setLodestoneTracked(false);
+                    compass.setItemMeta(meta);
+                }
+            }
+        }, 20L, 20L);
+        runningTasks.add(task);
     }
 
     private void startResourceSpawners() {
