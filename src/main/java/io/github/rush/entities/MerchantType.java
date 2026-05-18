@@ -39,9 +39,8 @@ public enum MerchantType {
             new Trade(Material.LEATHER_CHESTPLATE, Material.IRON_INGOT, 5, Map.of(Enchantment.PROTECTION, 1)),
             new Trade(Material.LEATHER_CHESTPLATE, Material.GOLD_INGOT, 1, Map.of(Enchantment.PROTECTION, 2)),
             new Trade(Material.LEATHER_CHESTPLATE, Material.GOLD_INGOT, 5, Map.of(Enchantment.PROTECTION, 3)),
-            new Trade(Material.COMPASS, Material.EMERALD, 1)))),
-    SPEED(Profession.LIBRARIAN, new ArrayList<>(List.of(
-            new Trade(Material.BOOK, Material.EMERALD, 1))));
+            new Trade(Material.COMPASS, Material.DIAMOND, 16)))),
+    SPEED(Profession.LIBRARIAN, new ArrayList<>());
 
     private final Profession profession;
     private final List<Trade> trades;

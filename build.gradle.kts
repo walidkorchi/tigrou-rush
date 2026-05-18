@@ -62,7 +62,7 @@ tasks.shadowJar {
 tasks.register<Copy>("copyToPlugins") {
     dependsOn("shadowJar")
     from(tasks.shadowJar)
-    into(file("../rush-tl-events/plugins"))
+    into(file("../server/plugins"))
 }
 
 tasks.build {
