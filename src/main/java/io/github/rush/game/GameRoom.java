@@ -9,7 +9,6 @@ import org.bukkit.entity.Player;
 
 import java.util.List;
 import java.util.UUID;
-import java.util.ArrayList;
 
 /**
  * Bridge between GameManager and Game instance.
