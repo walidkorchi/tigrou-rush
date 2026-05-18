@@ -237,13 +237,21 @@ public class GameManager {
      * Adds a player to a game room and teleports them.
      */
     public void joinGameRoom(Player player, GameRoom room) {
-        if (room.isFull()) {
-            player.sendMessage(Component.text("§cCette partie est pleine!"));
+        if (room.isRunning()) {
+            playerGameRoomMap.put(player, room);
+            player.setGameMode(org.bukkit.GameMode.SPECTATOR);
+            player.teleport(room.getLobbyLocation());
+            player.sendMessage(Component.text("§7Vous regardez la partie de §f" + room.getHostName() + "§7 en spectateur."));
             return;
         }
 
         if (!room.isWaiting()) {
-            player.sendMessage(Component.text("§cCette partie a déjà commencé!"));
+            player.sendMessage(Component.text("§cCette partie n'est plus disponible."));
+            return;
+        }
+
+        if (room.isFull()) {
+            player.sendMessage(Component.text("§cCette partie est pleine!"));
             return;
         }
 
@@ -347,14 +355,13 @@ public class GameManager {
         directory.delete();
     }
 
-    private GameRoom.IslandType selectedIslandType = GameRoom.IslandType.FOUR_ISLANDS;
-    private GameRoom.TeamSize selectedTeamSize = GameRoom.TeamSize.VS4;
-
     /**
      * Opens the game listing GUI for a player.
      */
     public void openGameList(Player player) {
-        final List<GameRoom> rooms = getAllGameRooms();
+        final List<GameRoom> rooms = getAllGameRooms().stream()
+                .filter(r -> r.isWaiting() || r.isRunning())
+                .toList();
 
         final int rows = Math.max(3, (rooms.size() / 9) + 2);
         final GUI gui = new GUI("§8Liste des parties", rows);
@@ -367,31 +374,31 @@ public class GameManager {
             gui.addItem(slot, createGameRoomItem(room), p -> joinGameRoom(p, targetRoom));
             slot++;
 
-            if (slot >= (rows * 9) - 9) {
+            if (slot >= rows * 9) {
                 break;
             }
         }
-
-        int createSlot = (rows * 9) - 1; // create game button (bottom right)
-
-        gui.addItem(createSlot, createGameCreationItem(), this::openGameCreation);
 
         gui.openGUI(player);
     }
 
     private ItemStack createGameRoomItem(GameRoom room) {
-        Material material;
-        String status;
+        final Material material;
+        final String status;
+        final String actionLine;
 
         if (room.isRunning()) {
             material = Material.GREEN_WOOL;
             status = "§aEn cours";
-        } else if (room.isWaiting()) {
+            actionLine = "§aClic pour regarder en spectateur";
+        } else if (room.isFull()) {
+            material = Material.RED_WOOL;
+            status = "§eEn attente";
+            actionLine = "§cPartie pleine";
+        } else {
             material = Material.YELLOW_WOOL;
             status = "§eEn attente";
-        } else {
-            material = Material.RED_WOOL;
-            status = "§cTerminée";
+            actionLine = "§aClic pour rejoindre";
         }
 
         final ItemStack item = new ItemStack(material);
@@ -403,25 +410,10 @@ public class GameManager {
         item.setData(DataComponentTypes.LORE, ItemLore.lore(List.of(
                 Component.text("§7Hôte: §f" + room.getHostName()),
                 Component.text("§7Status: " + status),
+                Component.text("§7Carte: §f" + room.getConfig().mapType().displayName()),
                 Component.text("§7Joueurs: §f" + room.getPlayerCount() + "/" + room.getMaxPlayers()),
                 Component.empty(),
-                Component.text(room.isFull() ? "§cPartie pleine" : "§aClic pour rejoindre"))));
-
-        return item;
-    }
-
-    private ItemStack createGameCreationItem() {
-        final ItemStack item = new ItemStack(Material.NETHER_STAR);
-        final ItemMeta meta = item.getItemMeta();
-
-        meta.displayName(Component.text("§6§lCréer une partie"));
-        item.setItemMeta(meta);
-
-        item.setData(DataComponentTypes.LORE, ItemLore.lore(List.of(
-                Component.text("§7Clic pour créer une nouvelle partie"),
-                Component.empty(),
-                Component.text("§7Configurez le nombre d'îles et"),
-                Component.text("§7la taille des équipes."))));
+                Component.text(actionLine))));
 
         return item;
     }
@@ -440,135 +432,6 @@ public class GameManager {
                 Component.text("§7Clic droit pour voir les parties disponibles"))));
 
         return compass;
-    }
-
-    /**
-     * Opens the game creation GUI for a player.
-     */
-    public void openGameCreation(Player player) {
-        final GUI gui = new GUI("§8Créer une partie", 3);
-
-        // Island type selection (row 1)
-        gui.addItem(10, createIslandTypeItem(GameRoom.IslandType.FOUR_ISLANDS,
-                selectedIslandType == GameRoom.IslandType.FOUR_ISLANDS),
-                p -> selectIslandType(p, GameRoom.IslandType.FOUR_ISLANDS));
-
-        gui.addItem(12, createIslandTypeItem(GameRoom.IslandType.EIGHT_ISLANDS,
-                selectedIslandType == GameRoom.IslandType.EIGHT_ISLANDS),
-                p -> selectIslandType(p, GameRoom.IslandType.EIGHT_ISLANDS));
-
-        // Team size selection (row 2)
-        gui.addItem(14, createTeamSizeItem(GameRoom.TeamSize.VS2,
-                selectedTeamSize == GameRoom.TeamSize.VS2),
-                p -> selectTeamSize(p, GameRoom.TeamSize.VS2));
-
-        gui.addItem(15, createTeamSizeItem(GameRoom.TeamSize.VS3,
-                selectedTeamSize == GameRoom.TeamSize.VS3),
-                p -> selectTeamSize(p, GameRoom.TeamSize.VS3));
-
-        gui.addItem(16, createTeamSizeItem(GameRoom.TeamSize.VS4,
-                selectedTeamSize == GameRoom.TeamSize.VS4),
-                p -> selectTeamSize(p, GameRoom.TeamSize.VS4));
-
-        // Create button (bottom center)
-        gui.addItem(22, createConfirmItem(), this::createGameFromGUI);
-
-        // Back button (bottom left)
-        gui.addItem(18, createBackItem(), this::openGameList);
-
-        gui.openGUI(player);
-    }
-
-    private ItemStack createIslandTypeItem(GameRoom.IslandType type, boolean selected) {
-        Material material = type == GameRoom.IslandType.FOUR_ISLANDS ? Material.GRASS_BLOCK : Material.STONE;
-        ItemStack item = new ItemStack(material);
-        ItemMeta meta = item.getItemMeta();
-
-        String name = selected ? "§a" + type.getDisplayName() + " §7(§aSélectionné§7)" : "§7" + type.getDisplayName();
-        meta.displayName(Component.text(name));
-        item.setItemMeta(meta);
-
-        String status = type == GameRoom.IslandType.EIGHT_ISLANDS ? "§cNon disponible" : "§aDisponible";
-
-        item.setData(DataComponentTypes.LORE, ItemLore.lore(List.of(
-                Component.text("§7Îles: §f" + type.getCount()),
-                Component.empty(),
-                Component.text(status),
-                Component.empty(),
-                Component.text("§eClic pour sélectionner"))));
-
-        return item;
-    }
-
-    private ItemStack createTeamSizeItem(GameRoom.TeamSize size, boolean selected) {
-        Material material = switch (size) {
-            case VS2 -> Material.LEATHER_HELMET;
-            case VS3 -> Material.CHAINMAIL_HELMET;
-            case VS4 -> Material.IRON_HELMET;
-        };
-
-        ItemStack item = new ItemStack(material);
-        ItemMeta meta = item.getItemMeta();
-
-        String name = selected ? "§a" + size.getDisplayName() + " §7(§aSélectionné§7)" : "§7" + size.getDisplayName();
-        meta.displayName(Component.text(name));
-        item.setItemMeta(meta);
-
-        item.setData(DataComponentTypes.LORE, ItemLore.lore(List.of(
-                Component.text("§7Joueurs par équipe: §f" + size.getPlayersPerTeam()),
-                Component.empty(),
-                Component.text("§eClic pour sélectionner"))));
-
-        return item;
-    }
-
-    private ItemStack createConfirmItem() {
-        ItemStack item = new ItemStack(Material.LIME_DYE);
-        ItemMeta meta = item.getItemMeta();
-
-        meta.displayName(Component.text("§a§lCréer la partie"));
-        item.setItemMeta(meta);
-
-        item.setData(DataComponentTypes.LORE, ItemLore.lore(List.of(
-                Component.text("§7Créez une partie avec:"),
-                Component.text("§7- " + selectedIslandType.getDisplayName()),
-                Component.text("§7- " + selectedTeamSize.getDisplayName()),
-                Component.empty(),
-                Component.text("§aClic pour créer"))));
-
-        return item;
-    }
-
-    private ItemStack createBackItem() {
-        ItemStack item = new ItemStack(Material.ARROW);
-        ItemMeta meta = item.getItemMeta();
-
-        meta.displayName(Component.text("§cRetour"));
-        item.setItemMeta(meta);
-
-        item.setData(DataComponentTypes.LORE, ItemLore.lore(List.of(
-                Component.text("§7Retour à la liste des parties"))));
-
-        return item;
-    }
-
-    private void selectIslandType(Player player, GameRoom.IslandType type) {
-        selectedIslandType = type;
-        openGameCreation(player);
-    }
-
-    private void selectTeamSize(Player player, GameRoom.TeamSize size) {
-        selectedTeamSize = size;
-        openGameCreation(player);
-    }
-
-    private void createGameFromGUI(Player player) {
-        player.closeInventory();
-        player.sendMessage(Component.text("§aCréation de la partie en cours..."));
-        GameRoomConfig config = new GameRoomConfig(
-                selectedIslandType, selectedIslandType.getCount(), selectedTeamSize,
-                MapType.NORMAL, false, false);
-        createGameRoom(player, config);
     }
 
     // Legacy methods for backward compatibility
@@ -759,8 +622,8 @@ public class GameManager {
     public void onGameRoomEnded(GameRoom room) {
         plugin.getLogger().info("Game ended in room: " + room.getId());
 
-        // Teleport all players back to main lobby
-        Location mainLobby = plugin.getMainLobby();
+        final Location mainLobby = plugin.getMainLobby();
+
         for (org.bukkit.entity.Entity entity : room.getGame().getPlayers()) {
             if (entity instanceof Player player) {
                 player.teleport(mainLobby);
@@ -769,9 +632,13 @@ public class GameManager {
             }
         }
 
-        // Schedule world cleanup
-        Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            removeGameRoom(room.getId());
-        }, 100L); // 5 seconds delay
+        for (Player spectator : room.getGame().getSpectators()) {
+            spectator.setGameMode(org.bukkit.GameMode.ADVENTURE);
+            spectator.teleport(mainLobby);
+            spectator.getInventory().clear();
+            spectator.sendMessage(Component.text("§7La partie est terminée. Vous avez été renvoyé au lobby."));
+        }
+
+        Bukkit.getScheduler().runTaskLater(plugin, () -> removeGameRoom(room.getId()), 100L);
     }
 }
