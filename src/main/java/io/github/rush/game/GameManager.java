@@ -239,13 +239,21 @@ public class GameManager {
      * Adds a player to a game room and teleports them.
      */
     public void joinGameRoom(Player player, GameRoom room) {
-        if (room.isFull()) {
-            player.sendMessage(Component.text("§cCette partie est pleine!"));
+        if (room.isRunning()) {
+            playerGameRoomMap.put(player, room);
+            player.setGameMode(org.bukkit.GameMode.SPECTATOR);
+            player.teleport(room.getLobbyLocation());
+            player.sendMessage(Component.text("§7Vous regardez la partie de §f" + room.getHostName() + "§7 en spectateur."));
             return;
         }
 
         if (!room.isWaiting()) {
-            player.sendMessage(Component.text("§cCette partie a déjà commencé!"));
+            player.sendMessage(Component.text("§cCette partie n'est plus disponible."));
+            return;
+        }
+
+        if (room.isFull()) {
+            player.sendMessage(Component.text("§cCette partie est pleine!"));
             return;
         }
 
@@ -365,22 +373,32 @@ public class GameManager {
             final GameRoom targetRoom = room;
             gui.addItem(slot, createGameRoomItem(room), p -> joinGameRoom(p, targetRoom));
             slot++;
-            if (slot >= (rows * 9) - 9) break;
+
+            if (slot >= rows * 9) {
+                break;
+            }
         }
 
         gui.openGUI(player);
     }
 
     private ItemStack createGameRoomItem(GameRoom room) {
-        Material material;
-        String status;
+        final Material material;
+        final String status;
+        final String actionLine;
 
         if (room.isRunning()) {
             material = Material.GREEN_WOOL;
             status = "§aEn cours";
+            actionLine = "§aClic pour regarder en spectateur";
+        } else if (room.isFull()) {
+            material = Material.RED_WOOL;
+            status = "§eEn attente";
+            actionLine = "§cPartie pleine";
         } else {
-            material = room.isFull() ? Material.RED_WOOL : Material.YELLOW_WOOL;
-            status = room.isFull() ? "§cPleine" : "§eEn attente";
+            material = Material.YELLOW_WOOL;
+            status = "§eEn attente";
+            actionLine = "§aClic pour rejoindre";
         }
 
         final ItemStack item = new ItemStack(material);
@@ -388,16 +406,13 @@ public class GameManager {
         meta.displayName(Component.text(room.getDisplayName()));
         item.setItemMeta(meta);
 
-        String mapLine = "§7Carte: §f" + room.getConfig().mapType().name();
         item.setData(DataComponentTypes.LORE, ItemLore.lore(List.of(
                 Component.text("§7Hôte: §f" + room.getHostName()),
                 Component.text("§7Status: " + status),
+                Component.text("§7Carte: §f" + room.getConfig().mapType().displayName()),
                 Component.text("§7Joueurs: §f" + room.getPlayerCount() + "/" + room.getMaxPlayers()),
-                Component.text(mapLine),
                 Component.empty(),
-                Component.text(room.isFull() && room.isWaiting() ? "§cPartie pleine"
-                        : room.isRunning() ? "§aClic pour rejoindre en spectateur"
-                        : "§aClic pour rejoindre"))));
+                Component.text(actionLine))));
 
         return item;
     }
@@ -442,6 +457,7 @@ public class GameManager {
     public void removePendingConfig(Player player) {
         pendingConfigs.remove(player.getUniqueId());
     }
+
 
     // Legacy methods for backward compatibility
     public Game createGame(String name) {
@@ -631,8 +647,8 @@ public class GameManager {
     public void onGameRoomEnded(GameRoom room) {
         plugin.getLogger().info("Game ended in room: " + room.getId());
 
-        // Teleport all players back to main lobby
-        Location mainLobby = plugin.getMainLobby();
+        final Location mainLobby = plugin.getMainLobby();
+
         for (org.bukkit.entity.Entity entity : room.getGame().getPlayers()) {
             if (entity instanceof Player player) {
                 player.teleport(mainLobby);
@@ -641,9 +657,13 @@ public class GameManager {
             }
         }
 
-        // Schedule world cleanup
-        Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            removeGameRoom(room.getId());
-        }, 100L); // 5 seconds delay
+        for (Player spectator : room.getGame().getSpectators()) {
+            spectator.setGameMode(org.bukkit.GameMode.ADVENTURE);
+            spectator.teleport(mainLobby);
+            spectator.getInventory().clear();
+            spectator.sendMessage(Component.text("§7La partie est terminée. Vous avez été renvoyé au lobby."));
+        }
+
+        Bukkit.getScheduler().runTaskLater(plugin, () -> removeGameRoom(room.getId()), 100L);
     }
 }

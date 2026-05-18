@@ -13,4 +13,8 @@ public enum MapType {
     public String schematicName() {
         return "rush_island-" + name().toLowerCase() + ".schem";
     }
+
+    public String displayName() {
+        return name().charAt(0) + name().substring(1).toLowerCase().replace('_', ' ');
+    }
 }
