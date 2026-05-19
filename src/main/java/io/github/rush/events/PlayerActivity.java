@@ -605,6 +605,23 @@ public class PlayerActivity implements Listener {
             return;
         }
 
+        // Block interactive block access and crop trampling in WAITING GameRooms
+        if (!player.isOp()) {
+            GameRoom interactRoom = plugin.getGameManager().getGameRoomByWorld(player.getWorld().getName());
+            if (interactRoom != null && interactRoom.isWaiting()) {
+                if (pie.getAction() == Action.RIGHT_CLICK_BLOCK) {
+                    Block block = pie.getClickedBlock();
+                    if (block != null && isHubRestrictedBlock(block)) {
+                        pie.setCancelled(true);
+                        return;
+                    }
+                } else if (pie.getAction() == Action.PHYSICAL) {
+                    pie.setCancelled(true);
+                    return;
+                }
+            }
+        }
+
         if (plugin.isGameStarted()) {
             Block clickedBlock = pie.getClickedBlock();
 
@@ -700,6 +717,11 @@ public class PlayerActivity implements Listener {
             }
         }
 
+        GameRoom queueRoom = plugin.getGameManager().getGameRoomByWorld(player.getWorld().getName());
+        if (queueRoom != null && queueRoom.isWaiting()) {
+            return true;
+        }
+
         return false;
     }
 
@@ -731,7 +753,18 @@ public class PlayerActivity implements Listener {
 
     @EventHandler
     public void onPlayerDamage(EntityDamageEvent event) {
-        if (!(event.getEntity() instanceof Player player)) {
+        Entity dmgEntity = event.getEntity();
+
+        // Cancel all damage in WAITING GameRooms (players and mannequins)
+        if (dmgEntity instanceof Player || dmgEntity instanceof Mannequin) {
+            GameRoom waitRoom = plugin.getGameManager().getGameRoomByWorld(dmgEntity.getWorld().getName());
+            if (waitRoom != null && waitRoom.isWaiting()) {
+                event.setCancelled(true);
+                return;
+            }
+        }
+
+        if (!(dmgEntity instanceof Player player)) {
             return;
         }
 

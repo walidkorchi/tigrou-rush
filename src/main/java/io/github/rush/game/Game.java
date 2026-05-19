@@ -2,6 +2,7 @@ package io.github.rush.game;
 
 import io.github.rush.Main;
 import io.github.rush.menus.TeamSelectionGUI;
+import io.github.rush.utils.ItemBuilder;
 import io.github.rush.objects.Island;
 import io.github.rush.replay.ReplayRecorder;
 import io.github.rush.statistics.PlayerLevelManager;
@@ -231,20 +232,9 @@ public class Game {
         freePlayers.remove(player);
         playersReady.remove(player);
 
-        player.setGameMode(GameMode.SPECTATOR);
-        player.setAllowFlight(true);
-        player.setFlying(true);
-
-        player.getInventory().clear();
-        ItemStack compass = new ItemStack(Material.COMPASS);
-        ItemMeta meta = compass.getItemMeta();
-        meta.displayName(Component.text("§cQuitter le spectator"));
-        compass.setItemMeta(meta);
-        player.getInventory().setItem(0, compass);
-
-        for (Player online : Bukkit.getOnlinePlayers()) {
-            online.hidePlayer(Main.getInstance(), player);
-        }
+        applySpectatorMode(player);
+        player.getInventory().setItem(0, ItemBuilder.of(Material.COMPASS).name("§cQuitter le spectator").build());
+        hideFromGameWorld(player);
 
         if (lobby != null) {
             player.teleport(lobby);
@@ -268,9 +258,7 @@ public class Game {
         player.setAllowFlight(false);
         player.setFlying(false);
 
-        for (Player online : Bukkit.getOnlinePlayers()) {
-            online.showPlayer(Main.getInstance(), player);
-        }
+        showToGameWorld(player);
 
         player.getInventory().clear();
 
@@ -285,20 +273,9 @@ public class Game {
     public void addObserver(Player player) {
         spectators.add(player);
 
-        player.setGameMode(GameMode.SPECTATOR);
-        player.setAllowFlight(true);
-        player.setFlying(true);
-
-        player.getInventory().clear();
-        ItemStack compass = new ItemStack(Material.COMPASS);
-        ItemMeta meta = compass.getItemMeta();
-        meta.displayName(Component.text("§cQuitter la partie"));
-        compass.setItemMeta(meta);
-        player.getInventory().setItem(0, compass);
-
-        for (Player online : Bukkit.getOnlinePlayers()) {
-            online.hidePlayer(Main.getInstance(), player);
-        }
+        applySpectatorMode(player);
+        player.getInventory().setItem(0, ItemBuilder.of(Material.COMPASS).name("§cQuitter la partie").build());
+        hideFromGameWorld(player);
 
         if (lobby != null) {
             player.teleport(lobby);
@@ -388,6 +365,34 @@ public class Game {
                 player.showPlayer(Main.getInstance(), online);
             }
         }
+    }
+
+    private void applySpectatorMode(Player player) {
+        player.setGameMode(GameMode.SPECTATOR);
+        player.setAllowFlight(true);
+        player.setFlying(true);
+        player.getInventory().clear();
+    }
+
+    private void hideFromGameWorld(Player player) {
+        for (Player online : Bukkit.getOnlinePlayers()) {
+            online.hidePlayer(Main.getInstance(), player);
+        }
+    }
+
+    private void showToGameWorld(Player player) {
+        for (Player online : Bukkit.getOnlinePlayers()) {
+            online.showPlayer(Main.getInstance(), player);
+        }
+    }
+
+    private void clearGameState() {
+        freePlayers.clear();
+        playersReady.clear();
+        playerStats.clear();
+        spectators.clear();
+        protectedPlayers.clear();
+        killTracker.reset();
     }
 
     private void resetPlayerHealth(Player player) {
@@ -518,18 +523,27 @@ public class Game {
                 .sorted(Comparator.comparingInt(t -> t.getColor().ordinal()))
                 .collect(Collectors.toList());
 
-        // Fixed island slot fill order: 0, 2, 1, 3
-        int[] slotOrder = {0, 2, 1, 3};
+        // Spread order for 4 islands: opposite pairs first (0↔1 West/East, then 2↔3 North/South)
+        // Filter out slots that don't exist for smaller island counts.
+        int[] preferredOrder = {0, 2, 1, 3};
+        List<Integer> slotOrder = new ArrayList<>();
+        for (int s : preferredOrder) {
+            if (s < islandCount) slotOrder.add(s);
+        }
 
         islandAssignment = new ArrayList<>(Collections.nCopies(islandCount, null));
 
-        for (int i = 0; i < orderedTeams.size() && i < slotOrder.length; i++) {
-            islandAssignment.set(slotOrder[i], orderedTeams.get(i));
+        for (int i = 0; i < orderedTeams.size() && i < slotOrder.size(); i++) {
+            islandAssignment.set(slotOrder.get(i), orderedTeams.get(i));
         }
     }
 
     public void start() {
         if (state == GameState.WAITING) {
+            if (lobbyCountdown != null) {
+                lobbyCountdown.cancel();
+                lobbyCountdown = null;
+            }
             state = GameState.RUNNING;
             gameTime = 0;
 
@@ -1008,15 +1022,8 @@ public class Game {
             team.reset();
         }
 
-        // Clear all players' ender chests
         clearAllEnderChests();
-
-        freePlayers.clear();
-        playersReady.clear();
-        playerStats.clear();
-        spectators.clear();
-        killTracker.reset();
-        protectedPlayers.clear();
+        clearGameState();
 
         cycle.onGameEnd();
 
@@ -1057,12 +1064,7 @@ public class Game {
             team.reset();
         }
 
-        freePlayers.clear();
-        playersReady.clear();
-        playerStats.clear();
-        spectators.clear();
-        protectedPlayers.clear();
-        killTracker.reset();
+        clearGameState();
         runningTasks.forEach(BukkitTask::cancel);
         runningTasks.clear();
 

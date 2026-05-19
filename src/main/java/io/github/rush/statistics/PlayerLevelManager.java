@@ -15,6 +15,7 @@ import org.bukkit.entity.Player;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.ArrayList;
 
 public class PlayerLevelManager {
 
@@ -107,6 +108,9 @@ public class PlayerLevelManager {
             if (player != null && player.isOnline()) {
                 player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.0f);
             }
+
+            var lb = plugin.getCommandManager() != null ? plugin.getCommandManager().getLeaderboardCommand() : null;
+            if (lb != null) lb.updateAllHolograms();
         }
     }
 
@@ -164,22 +168,20 @@ public class PlayerLevelManager {
             CriteriaBuilder cb = em.getCriteriaBuilder();
             CriteriaQuery<Object[]> query = cb.createQuery(Object[].class);
             Root<PlayerLevel> levelRoot = query.from(PlayerLevel.class);
-            Root<PlayerStatistic> statRoot = query.from(PlayerStatistic.class);
 
-            query.multiselect(statRoot.get("name"), levelRoot.<Integer>get("level"))
-                 .where(cb.and(
-                     cb.equal(levelRoot.get("uuid"), statRoot.get("uuid")),
-                     cb.isNotNull(statRoot.get("name")),
-                     cb.notEqual(statRoot.<String>get("name"), "")
-                 ))
+            query.multiselect(levelRoot.get("uuid"), levelRoot.<Integer>get("level"))
                  .orderBy(cb.desc(levelRoot.get("level")));
 
-            return em.createQuery(query)
-                    .setMaxResults(10)
-                    .getResultList()
-                    .stream()
-                    .map(row -> Map.entry((String) row[0], (Integer) row[1]))
-                    .toList();
+            List<Object[]> rows = em.createQuery(query).setMaxResults(10).getResultList();
+            List<Map.Entry<String, Integer>> result = new ArrayList<>(rows.size());
+            for (Object[] row : rows) {
+                UUID uuid = (UUID) row[0];
+                int level = (Integer) row[1];
+                String name = Bukkit.getOfflinePlayer(uuid).getName();
+                if (name == null || name.isEmpty()) name = uuid.toString().substring(0, 8);
+                result.add(Map.entry(name, level));
+            }
+            return result;
         } finally {
             em.close();
         }

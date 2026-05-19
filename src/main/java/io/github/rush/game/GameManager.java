@@ -44,6 +44,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.*;
 import java.util.function.Consumer;
+import org.bukkit.scheduler.BukkitTask;
 
 /**
  * Manages multiple game rooms and all game-related operations.
@@ -83,20 +84,27 @@ public class GameManager {
         final UUID hostUUID = host.getUniqueId();
         final String worldName = "rush_game_" + (++worldCounter) + "_" + host.getName();
 
-        sendLoadingBar(host, "Création du monde", 0, 5);
+        // Persist the action bar throughout all CREATING phases by refreshing every 5 ticks
+        final Component[] currentBar = { buildLoadingBarComponent("Création du monde", 0, 5) };
+        final BukkitTask[] barTask = { null };
+        barTask[0] = Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, () -> {
+            Player h = Bukkit.getPlayer(hostUUID);
+            if (h != null) h.sendActionBar(currentBar[0]);
+        }, 0L, 5L);
 
         Bukkit.getScheduler().runTask(plugin, () -> {
             try {
                 // Step 1: Create void world (main thread)
                 World gameWorld = createVoidWorld(worldName);
                 if (gameWorld == null) {
+                    barTask[0].cancel();
                     host.sendMessage(Component.text("§cErreur lors de la création du monde!"));
                     return;
                 }
 
                 // Step 2: Register room in CREATING state immediately so host-disconnect
                 // cleanup can find it even if the host goes offline during paste.
-                sendLoadingBar(host, "Initialisation", 1, 5);
+                currentBar[0] = buildLoadingBarComponent("Initialisation", 1, 5);
                 Location lobbyLocation = new Location(gameWorld, 0, 64, 0);
                 GameRoom room = new GameRoom(host.getName(), hostUUID, gameWorld, config, lobbyLocation);
                 room.getGame().setState(GameState.CREATING);
@@ -104,14 +112,14 @@ public class GameManager {
 
                 // Steps 3-4: Read schematics on async thread, then paste on main thread
                 Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-                    sendLoadingBar(Bukkit.getPlayer(hostUUID), "Génération du lobby d'attente", 2, 5);
+                    currentBar[0] = buildLoadingBarComponent("Génération du lobby d'attente", 2, 5);
                     Clipboard waitingRoomClip = readSchematic("waiting_room.schem");
 
-                    sendLoadingBar(Bukkit.getPlayer(hostUUID), "Génération des îles", 3, 5);
+                    currentBar[0] = buildLoadingBarComponent("Génération des îles", 3, 5);
                     Clipboard islandClip = readSchematic(config.mapType().schematicName());
 
                     Bukkit.getScheduler().runTask(plugin, () -> {
-                        sendLoadingBar(Bukkit.getPlayer(hostUUID), "Construction du monde", 4, 5);
+                        currentBar[0] = buildLoadingBarComponent("Construction du monde", 4, 5);
 
                         if (waitingRoomClip != null) {
                             pasteClipboard(gameWorld, waitingRoomClip, BlockVector3.at(0, 64, 0), 0);
@@ -137,6 +145,7 @@ public class GameManager {
                         // Step 6: Check host still online — cancel if gone
                         Player onlineHost = Bukkit.getPlayer(hostUUID);
                         if (onlineHost == null) {
+                            barTask[0].cancel();
                             cancelRoomCreation(room);
                             return;
                         }
@@ -150,6 +159,7 @@ public class GameManager {
                         onlineHost.getInventory().setItem(0, TeamSelectionGUI.createBannerItem());
                         onlineHost.getInventory().setItem(8, createHostPanelItem());
 
+                        barTask[0].cancel();
                         Bukkit.getScheduler().runTaskLater(plugin, () -> {
                             Player h = Bukkit.getPlayer(hostUUID);
                             if (h != null) h.sendActionBar(Component.empty());
@@ -158,6 +168,7 @@ public class GameManager {
                 });
 
             } catch (Exception e) {
+                barTask[0].cancel();
                 plugin.getLogger().severe("Error creating game world: " + e.getMessage());
                 e.printStackTrace();
                 host.sendMessage(Component.text("§cErreur lors de la création de la partie!"));
@@ -220,8 +231,7 @@ public class GameManager {
         return item;
     }
 
-    private void sendLoadingBar(Player player, String message, int currentStep, int totalSteps) {
-        if (player == null) return;
+    private Component buildLoadingBarComponent(String message, int currentStep, int totalSteps) {
         StringBuilder bar = new StringBuilder("§7[");
         for (int i = 0; i < totalSteps; i++) {
             if (i < currentStep) {
@@ -233,8 +243,9 @@ public class GameManager {
             }
         }
         bar.append("§7] §f").append(message);
-        player.sendActionBar(Component.text(bar.toString()));
+        return Component.text(bar.toString());
     }
+
 
     private World createVoidWorld(String worldName) {
         final WorldCreator worldCreator = new WorldCreator(worldName)
@@ -247,6 +258,9 @@ public class GameManager {
             Bukkit.getScheduler().runTask(plugin, () -> {
                 gameWorld.setSpawnLocation(0, 64, 0);
                 gameWorld.setAutoSave(false);
+                gameWorld.setGameRule(org.bukkit.GameRule.DO_DAYLIGHT_CYCLE, false);
+                gameWorld.setGameRule(org.bukkit.GameRule.DO_WEATHER_CYCLE, false);
+                gameWorld.setGameRule(org.bukkit.GameRule.DO_INSOMNIA, false);
             });
         }
 
@@ -301,6 +315,14 @@ public class GameManager {
 
     public List<GameRoom> getAllGameRooms() {
         return new ArrayList<>(gameRooms.values());
+    }
+
+    public Game getGameForPlayer(Player player) {
+        GameRoom room = getGameRoomOfPlayer(player);
+        if (room != null) return room.getGame();
+        GameRoom worldRoom = getGameRoomByWorld(player.getWorld().getName());
+        if (worldRoom != null) return worldRoom.getGame();
+        return getCurrentGame();
     }
 
     public GameRoom getGameRoomByWorld(String worldName) {

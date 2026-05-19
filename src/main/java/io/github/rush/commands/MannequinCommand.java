@@ -125,11 +125,11 @@ public class MannequinCommand {
         if (gameManager != null && sender instanceof Player executorPlayer) {
             String worldName = executorPlayer.getWorld().getName();
             GameRoom room = gameManager.getGameRoomByWorld(worldName);
-            if (room != null && room.isRunning()) {
+            if (room != null && room.isWaiting()) {
                 activeGame = room.getGame();
             } else if (worldName.equals(main.getGameWorld())) {
                 Game legacy = gameManager.getCurrentGame();
-                if (legacy != null && legacy.getState() == io.github.rush.game.GameState.RUNNING) {
+                if (legacy != null && legacy.getState() == io.github.rush.game.GameState.WAITING) {
                     activeGame = legacy;
                 }
             }

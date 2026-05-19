@@ -268,6 +268,7 @@ public class LeaderboardCommand {
         public void update() {
             if (hologram != null) {
                 hologram.setMiniMessageText(buildContent());
+                hologram.update();
             }
         }
 
@@ -294,11 +295,22 @@ public class LeaderboardCommand {
                     default -> rank + ". ";
                 };
 
-                sb.append("<").append(color).append(">")
-                        .append(medal).append(entry.getKey())
-                        .append(" <dark_gray>-</dark_gray> ").append(entry.getValue())
-                        .append(" ").append(type.getSuffix())
-                        .append("</").append(color).append(">\n");
+                if (type == LeaderboardType.LEVEL) {
+                    int lvl = entry.getValue();
+                    String icon = io.github.rush.statistics.PlayerLevel.getTierIcon(lvl);
+                    String tierColor = io.github.rush.statistics.PlayerLevel.tierColorMiniMessage(lvl);
+                    String tierClose = tierColor.replace("<", "</");
+                    sb.append(medal)
+                            .append("<white>").append(entry.getKey()).append("</white>")
+                            .append(" <dark_gray>-</dark_gray> ")
+                            .append(tierColor).append(icon).append(" Niveau ").append(lvl).append(tierClose)
+                            .append("\n");
+                } else {
+                    sb.append("<").append(color).append(">")
+                            .append(medal).append(entry.getKey())
+                            .append(" <dark_gray>-</dark_gray> ").append(entry.getValue()).append(" ").append(type.getSuffix())
+                            .append("</").append(color).append(">\n");
+                }
                 rank++;
             }
 

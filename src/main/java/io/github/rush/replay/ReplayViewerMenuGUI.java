@@ -2,11 +2,10 @@ package io.github.rush.replay;
 
 import io.github.rush.Main;
 import io.github.rush.menus.GUI;
-import net.kyori.adventure.text.Component;
+import io.github.rush.utils.ItemBuilder;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
@@ -20,12 +19,7 @@ public final class ReplayViewerMenuGUI {
     public static void open(Player player, ReplayPlayback playback) {
         GUI gui = new GUI("§8Replay Viewer", 3);
 
-        ItemStack door = new ItemStack(Material.OAK_DOOR);
-        ItemMeta doorMeta = door.getItemMeta();
-        doorMeta.displayName(Component.text("§cQuitter le replay"));
-        door.setItemMeta(doorMeta);
-
-        gui.addItem(SLOT_LEAVE, door, p -> {
+        gui.addItem(SLOT_LEAVE, ItemBuilder.of(Material.OAK_DOOR).name("§cQuitter le replay").build(), p -> {
             p.closeInventory();
             Main.getInstance().getReplayManager().leaveReplay(p);
         });
@@ -45,10 +39,8 @@ public final class ReplayViewerMenuGUI {
 
     private static ItemStack buildNightVisionItem(Player player) {
         boolean active = player.hasPotionEffect(PotionEffectType.NIGHT_VISION);
-        ItemStack item = new ItemStack(active ? Material.LIME_DYE : Material.GRAY_DYE);
-        ItemMeta meta = item.getItemMeta();
-        meta.displayName(Component.text("§eVision nocturne"));
-        item.setItemMeta(meta);
-        return item;
+        return ItemBuilder.of(active ? Material.LIME_DYE : Material.GRAY_DYE)
+                .name("§eVision nocturne")
+                .build();
     }
 }

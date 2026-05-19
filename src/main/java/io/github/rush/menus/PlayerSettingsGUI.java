@@ -3,15 +3,10 @@ package io.github.rush.menus;
 import io.github.rush.Main;
 import io.github.rush.settings.PlayerSettings;
 import io.github.rush.settings.PlayerSettingsManager;
-import io.papermc.paper.datacomponent.DataComponentTypes;
-import io.papermc.paper.datacomponent.item.ItemLore;
-import net.kyori.adventure.text.Component;
+import io.github.rush.utils.ItemBuilder;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
-
-import java.util.List;
 
 public class PlayerSettingsGUI {
 
@@ -56,30 +51,18 @@ public class PlayerSettingsGUI {
     }
 
     private static ItemStack createScoreboardToggleItem(boolean enabled) {
-        Material material = enabled ? Material.GREEN_STAINED_GLASS_PANE : Material.RED_STAINED_GLASS_PANE;
-        ItemStack item = new ItemStack(material);
-        ItemMeta meta = item.getItemMeta();
-        String status = enabled ? "§aActivé" : "§cDésactivé";
-
-        meta.displayName(Component.text("§fScoreboard"));
-        item.setItemMeta(meta);
-        item.setData(DataComponentTypes.LORE, ItemLore.lore(
-                List.of(Component.text("§7État: " + status), Component.text("§7Clic pour basculer"))));
-
-        return item;
+        return createToggleItem(Material.GREEN_STAINED_GLASS_PANE, Material.RED_STAINED_GLASS_PANE, "§fScoreboard", enabled);
     }
 
     private static ItemStack createMusicToggleItem(boolean enabled) {
-        Material material = enabled ? Material.MUSIC_DISC_CAT : Material.MUSIC_DISC_11;
-        ItemStack item = new ItemStack(material);
-        ItemMeta meta = item.getItemMeta();
+        return createToggleItem(Material.MUSIC_DISC_CAT, Material.MUSIC_DISC_11, "§fMusique", enabled);
+    }
+
+    private static ItemStack createToggleItem(Material on, Material off, String label, boolean enabled) {
         String status = enabled ? "§aActivé" : "§cDésactivé";
-
-        meta.displayName(Component.text("§fMusique"));
-        item.setItemMeta(meta);
-        item.setData(DataComponentTypes.LORE, ItemLore.lore(
-                List.of(Component.text("§7État: " + status), Component.text("§7Clic pour basculer"))));
-
-        return item;
+        return ItemBuilder.of(enabled ? on : off)
+                .name(label)
+                .lore("§7État: " + status, "§7Clic pour basculer")
+                .build();
     }
 }

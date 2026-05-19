@@ -1,12 +1,9 @@
 package io.github.rush.replay;
 
-import net.kyori.adventure.text.Component;
+import io.github.rush.utils.ItemBuilder;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
-
-import java.util.List;
 
 public final class ReplayViewerInventory {
 
@@ -36,63 +33,49 @@ public final class ReplayViewerInventory {
     }
 
     public static ItemStack buildPauseResume(boolean isPaused) {
-        ItemStack item = new ItemStack(isPaused ? Material.GRAY_DYE : Material.LIME_DYE);
-        ItemMeta meta = item.getItemMeta();
-        meta.displayName(Component.text(isPaused ? "§7▶ Reprendre" : "§a⏸ Pause"));
-        item.setItemMeta(meta);
-        return item;
+        return ItemBuilder.of(isPaused ? Material.GRAY_DYE : Material.LIME_DYE)
+                .name(isPaused ? "§7▶ Reprendre" : "§a⏸ Pause")
+                .build();
     }
 
     private static ItemStack buildCompass() {
-        ItemStack item = new ItemStack(Material.COMPASS);
-        ItemMeta meta = item.getItemMeta();
-        meta.displayName(Component.text("§6Téléportation"));
-        meta.lore(List.of(Component.text("§7Clic droit pour choisir un joueur")));
-        item.setItemMeta(meta);
-        return item;
+        return ItemBuilder.of(Material.COMPASS)
+                .name("§6Téléportation")
+                .lore("§7Clic droit pour choisir un joueur")
+                .build();
     }
 
     public static ItemStack buildSpeedDown(double currentSpeed) {
-        ItemStack item = new ItemStack(Material.PLAYER_HEAD);
-        ItemMeta meta = item.getItemMeta();
-        meta.displayName(Component.text("§c§l−  Ralentir  §e" + formatSpeed(currentSpeed)));
-        meta.lore(List.of(Component.text("§71.0× → 0.5× → 0.25×")));
-        item.setItemMeta(meta);
-        return item;
+        return ItemBuilder.of(Material.PLAYER_HEAD)
+                .name("§c§l−  Ralentir  §e" + formatSpeed(currentSpeed))
+                .lore("§71.0× → 0.5× → 0.25×")
+                .build();
     }
 
     private static ItemStack buildRewind() {
-        ItemStack item = new ItemStack(Material.PLAYER_HEAD);
-        ItemMeta meta = item.getItemMeta();
-        meta.displayName(Component.text("§e§l«« −5 secondes"));
-        item.setItemMeta(meta);
-        return item;
+        return ItemBuilder.of(Material.PLAYER_HEAD)
+                .name("§e§l«« −5 secondes")
+                .build();
     }
 
     private static ItemStack buildForward() {
-        ItemStack item = new ItemStack(Material.PLAYER_HEAD);
-        ItemMeta meta = item.getItemMeta();
-        meta.displayName(Component.text("§e§l+5 secondes »»"));
-        item.setItemMeta(meta);
-        return item;
+        return ItemBuilder.of(Material.PLAYER_HEAD)
+                .name("§e§l+5 secondes »»")
+                .build();
     }
 
     public static ItemStack buildSpeedUp(double currentSpeed) {
-        ItemStack item = new ItemStack(Material.PLAYER_HEAD);
-        ItemMeta meta = item.getItemMeta();
-        meta.displayName(Component.text("§a§l+  Accélérer  §e" + formatSpeed(currentSpeed)));
-        meta.lore(List.of(Component.text("§71.0× → 2.0× → 3.0× → 4.0×")));
-        item.setItemMeta(meta);
-        return item;
+        return ItemBuilder.of(Material.PLAYER_HEAD)
+                .name("§a§l+  Accélérer  §e" + formatSpeed(currentSpeed))
+                .lore("§71.0× → 2.0× → 3.0× → 4.0×")
+                .build();
     }
 
     private static ItemStack buildMenu() {
-        ItemStack item = new ItemStack(Material.NETHER_STAR);
-        ItemMeta meta = item.getItemMeta();
-        meta.displayName(Component.text("§b§lReplay Viewer"));
-        meta.lore(List.of(Component.text("§7Ouvre le menu du replay")));
-        item.setItemMeta(meta);
-        return item;
+        return ItemBuilder.of(Material.NETHER_STAR)
+                .name("§b§lReplay Viewer")
+                .lore("§7Ouvre le menu du replay")
+                .build();
     }
 
     public static boolean isPauseResumeDye(ItemStack item) {

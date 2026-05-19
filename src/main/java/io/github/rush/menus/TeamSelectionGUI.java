@@ -2,6 +2,8 @@ package io.github.rush.menus;
 
 import io.github.rush.Main;
 import io.github.rush.game.Game;
+import io.github.rush.game.GameManager;
+import io.github.rush.game.GameRoom;
 import io.github.rush.game.GameState;
 import io.github.rush.game.Team;
 import io.github.rush.game.TeamColor;
@@ -11,6 +13,7 @@ import io.papermc.paper.registry.RegistryAccess;
 import io.papermc.paper.registry.RegistryKey;
 import io.papermc.paper.registry.keys.BannerPatternKeys;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.DyeColor;
 import org.bukkit.Material;
 import org.bukkit.Registry;
@@ -30,46 +33,35 @@ public class TeamSelectionGUI {
     private static final String TITLE = "§8Choix d'équipe";
 
     public static void openTeamSelection(Player player) {
-        final Game game = Main.getInstance().getGameManager().getCurrentGame();
+        final Game game = getGameForPlayer(player);
 
         if (game == null || game.getState() != GameState.WAITING) {
             return;
         }
 
-        {
-            final GUI gui = new GUI(TITLE, 2);
-            final List<TeamColor> availableColors = getAvailableTeams(game);
+        final GUI gui = new GUI(TITLE, 2);
+        final List<TeamColor> colors = getTeamsInGame(game);
 
-            for (int i = 0; i < Math.min(4, availableColors.size()); i++) {
-                final TeamColor color = availableColors.get(i);
-                final ItemStack wool = createWoolItem(color, game.getTeam(color.name()));
-                final TeamColor selectedColor = color;
+        for (int i = 0; i < Math.min(4, colors.size()); i++) {
+            final TeamColor color = colors.get(i);
+            final ItemStack wool = createWoolItem(color, game.getTeam(color.name()));
+            final TeamColor selectedColor = color;
 
-                gui.addItem(i, wool, p -> selectTeam(p, selectedColor));
-            }
-
-            gui.openGUI(player);
+            gui.addItem(i, wool, p -> selectTeam(p, selectedColor));
         }
+
+        gui.openGUI(player);
     }
 
-    private static List<TeamColor> getAvailableTeams(Game game) {
+    private static List<TeamColor> getTeamsInGame(Game game) {
         List<TeamColor> ordered = List.of(TeamColor.YELLOW, TeamColor.RED, TeamColor.BLUE, TeamColor.GREEN);
-        List<TeamColor> available = new ArrayList<>();
-
+        List<TeamColor> present = new ArrayList<>();
         for (TeamColor color : ordered) {
-            Team team = game.getTeam(color.name());
-            if (team == null || team.getPlayers().isEmpty()) {
-                available.add(color);
+            if (game.getTeam(color.name()) != null) {
+                present.add(color);
             }
         }
-
-        if (available.isEmpty()) {
-            available.add(TeamColor.RED);
-            available.add(TeamColor.BLUE);
-            available.add(TeamColor.GREEN);
-            available.add(TeamColor.YELLOW);
-        }
-        return available;
+        return present.isEmpty() ? new ArrayList<>(ordered) : present;
     }
 
     private static ItemStack createWoolItem(TeamColor color, Team team) {
@@ -92,7 +84,7 @@ public class TeamSelectionGUI {
     }
 
     private static void selectTeam(Player player, TeamColor color) {
-        final Game game = Main.getInstance().getGameManager().getCurrentGame();
+        final Game game = getGameForPlayer(player);
         if (game == null) return;
 
         game.joinTeam(player, color);
@@ -149,8 +141,12 @@ public class TeamSelectionGUI {
         return dye;
     }
 
+    private static Game getGameForPlayer(Player player) {
+        return Main.getInstance().getGameManager().getGameForPlayer(player);
+    }
+
     public static void openLeaveTeamMenu(Player player) {
-        Game game = Main.getInstance().getGameManager().getCurrentGame();
+        Game game = getGameForPlayer(player);
         if (game == null || game.getState() != GameState.WAITING) return;
 
         {
@@ -186,7 +182,7 @@ public class TeamSelectionGUI {
     }
 
     public static void toggleReady(Player player) {
-        Game game = Main.getInstance().getGameManager().getCurrentGame();
+        Game game = getGameForPlayer(player);
         if (game == null || game.getState() != GameState.WAITING) return;
 
         {
@@ -205,6 +201,24 @@ public class TeamSelectionGUI {
                 player.sendMessage(Component.text("§aVous êtes prêt!"));
             } else {
                 player.sendMessage(Component.text("§7Vous n'êtes plus prêt."));
+            }
+
+            // Immediately push updated action bar without waiting for the 40-tick cycle
+            GameManager gm = Main.getInstance().getGameManager();
+            GameRoom barRoom = gm.getGameRoomByWorld(player.getWorld().getName());
+            if (barRoom != null) {
+                long readyCount = game.getPlayersReadyCount();
+                int maxPlayers = barRoom.getMaxPlayers();
+                NamedTextColor countColor = readyCount >= maxPlayers ? NamedTextColor.GREEN : NamedTextColor.RED;
+                Component bar = Component.text()
+                        .content("Joueurs prêts (")
+                        .color(NamedTextColor.WHITE)
+                        .append(Component.text(readyCount + "/" + maxPlayers).color(countColor))
+                        .append(Component.text(")").color(NamedTextColor.WHITE))
+                        .build();
+                for (Player p : barRoom.getWorld().getPlayers()) {
+                    p.sendActionBar(bar);
+                }
             }
         }
     }

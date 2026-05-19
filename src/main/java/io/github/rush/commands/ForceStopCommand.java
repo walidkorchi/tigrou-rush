@@ -42,26 +42,24 @@ public class ForceStopCommand {
             return Command.SINGLE_SUCCESS;
         }
 
-        Game game = gameManager.getCurrentGame();
-        if (game == null) {
-            sender.sendMessage(text("No active game found.", NamedTextColor.RED));
-            return Command.SINGLE_SUCCESS;
+        if (sender instanceof org.bukkit.entity.Player player) {
+            Game game = gameManager.getGameForPlayer(player);
+            if (game != null && game.getState() == GameState.RUNNING) {
+                if (game.isGameRoomMode()) {
+                    gameManager.removeGameRoom(game.getGameRoom().getId());
+                } else {
+                    game.forceStop();
+                    plugin.clearGame();
+                    for (var p : plugin.getServer().getOnlinePlayers()) {
+                        p.sendMessage(text("§c⚠ Un administrateur a forcé l'arrêt de la partie!"));
+                    }
+                }
+                sender.sendMessage(text("Game force stopped.", NamedTextColor.GREEN));
+                return Command.SINGLE_SUCCESS;
+            }
         }
 
-        if (game.getState() != GameState.RUNNING) {
-            sender.sendMessage(text("Game is not currently running.", NamedTextColor.RED));
-            return Command.SINGLE_SUCCESS;
-        }
-
-        game.forceStop();
-        plugin.clearGame();
-
-        for (var player : plugin.getServer().getOnlinePlayers()) {
-            player.sendMessage(text("§c⚠ Un administrateur a forcé l'arrêt de la partie!"));
-        }
-
-        sender.sendMessage(text("Game force stopped.", NamedTextColor.GREEN));
-
+        sender.sendMessage(text("Aucune partie en cours trouvée.", NamedTextColor.RED));
         return Command.SINGLE_SUCCESS;
     }
 }

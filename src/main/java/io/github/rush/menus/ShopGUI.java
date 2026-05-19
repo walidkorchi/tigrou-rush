@@ -2,6 +2,7 @@ package io.github.rush.menus;
 
 import io.github.rush.entities.MerchantType;
 import io.github.rush.entities.Trade;
+import io.github.rush.utils.ItemBuilder;
 import io.papermc.paper.datacomponent.DataComponentTypes;
 import io.papermc.paper.datacomponent.item.ItemLore;
 import net.kyori.adventure.text.Component;
@@ -96,19 +97,7 @@ public class ShopGUI {
         }
 
         ItemStack resultItem = new ItemStack(trade.result(), trade.resultAmount());
-        if (trade.enchantments() != null && !trade.enchantments().isEmpty()) {
-            resultItem.addEnchantments(trade.enchantments());
-        }
-
-        if (trade.durability() != null) {
-            ItemMeta meta = resultItem.getItemMeta();
-            if (meta instanceof Damageable damageable) {
-                short maxDurability = resultItem.getType().getMaxDurability();
-                int damage = (int) (maxDurability * (trade.durability() / 100.0));
-                damageable.setDamage(damage);
-                resultItem.setItemMeta((ItemMeta) damageable);
-            }
-        }
+        applyTradeProperties(resultItem, trade);
 
         player.getInventory().removeItem(new ItemStack(currency, costAmount));
         player.getInventory().addItem(resultItem);
@@ -117,20 +106,13 @@ public class ShopGUI {
     }
 
     private static ItemStack createMenuItem(Material material, String name, String description) {
-        ItemStack item = new ItemStack(material);
-        ItemMeta meta = item.getItemMeta();
-        meta.displayName(Component.text(name));
-        item.setItemMeta(meta);
-        item.setData(DataComponentTypes.LORE, ItemLore.lore(List.of(Component.text(description))));
-        return item;
+        return ItemBuilder.of(material).name(name).lore(description).build();
     }
 
-    private static ItemStack createTradeItem(Trade trade) {
-        ItemStack item = new ItemStack(trade.result(), trade.resultAmount());
+    private static void applyTradeProperties(ItemStack item, Trade trade) {
         if (trade.enchantments() != null && !trade.enchantments().isEmpty()) {
             item.addEnchantments(trade.enchantments());
         }
-
         if (trade.durability() != null) {
             ItemMeta meta = item.getItemMeta();
             if (meta instanceof Damageable damageable) {
@@ -140,6 +122,11 @@ public class ShopGUI {
                 item.setItemMeta((ItemMeta) damageable);
             }
         }
+    }
+
+    private static ItemStack createTradeItem(Trade trade) {
+        ItemStack item = new ItemStack(trade.result(), trade.resultAmount());
+        applyTradeProperties(item, trade);
 
         ItemMeta meta = item.getItemMeta();
         List<Component> lore = new ArrayList<>();

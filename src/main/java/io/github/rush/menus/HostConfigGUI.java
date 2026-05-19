@@ -3,13 +3,10 @@ package io.github.rush.menus;
 import io.github.rush.game.GameRoom;
 import io.github.rush.game.GameRoomConfig;
 import io.github.rush.game.GameManager;
-import io.papermc.paper.datacomponent.DataComponentTypes;
-import io.papermc.paper.datacomponent.item.ItemLore;
-import net.kyori.adventure.text.Component;
+import io.github.rush.utils.ItemBuilder;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.List;
 
@@ -148,12 +145,6 @@ public final class HostConfigGUI {
     }
 
     private static ItemStack labeled(Material mat, String name, List<String> lore) {
-        ItemStack item = new ItemStack(mat);
-        ItemMeta meta = item.getItemMeta();
-        meta.displayName(Component.text(name));
-        item.setItemMeta(meta);
-        item.setData(DataComponentTypes.LORE,
-                ItemLore.lore(lore.stream().map(Component::text).toList()));
-        return item;
+        return ItemBuilder.of(mat).name(name).lore(lore).build();
     }
 }

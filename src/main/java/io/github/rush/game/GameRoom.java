@@ -100,19 +100,18 @@ public class GameRoom {
         this.islandType = config.islandType();
         this.teamSize = config.teamSize();
         this.lobbyLocation = lobbyLocation;
-        this.game = new Game(id, world.getName(), lobbyLocation, config.islandType().getCount(), config.teamSize().getPlayersPerTeam());
+        this.game = new Game(id, world.getName(), lobbyLocation, config.maxTeams(), config.teamSize().getPlayersPerTeam());
         this.game.setGameRoom(this);
         this.islands = createIslands();
     }
 
     private List<Island> createIslands() {
         final int islandOffset = Main.getInstance().getConfig().getInt("islandOffset");
-
-        return List.of(
-                new Island(-islandOffset, 0, -90),
-                new Island(islandOffset, 0, 90),
-                new Island(0, -islandOffset, 180),
-                new Island(0, islandOffset, 0));
+        return IslandLayout.positionsFor(config.islandType(), islandOffset)
+                .stream()
+                .limit(config.maxTeams())
+                .map(p -> new Island(p.x(), p.z(), p.rotation()))
+                .toList();
     }
 
     public int getIslandY() {

@@ -29,6 +29,7 @@ public class CommandManager {
 
     public void registerAll(Main plugin) {
         register(new LevelDebugCommand(plugin)::createCommand);
+        register(new DebugZonesCommand(plugin)::createCommand);
         register(new MannequinCommand()::createCommand);
         register(new ResetIslandsCommand(plugin)::createCommand);
         register(new ForceStartCommand(plugin)::createCommand);

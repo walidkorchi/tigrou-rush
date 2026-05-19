@@ -2,13 +2,11 @@ package io.github.rush.menus;
 
 import io.github.rush.game.GameManager;
 import io.github.rush.game.GameRoom;
-import io.papermc.paper.datacomponent.DataComponentTypes;
-import io.papermc.paper.datacomponent.item.ItemLore;
+import io.github.rush.utils.ItemBuilder;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.List;
 
@@ -26,14 +24,27 @@ public final class HostPanelGUI {
         int rows = Math.max(2, 1 + (int) Math.ceil(players.size() / 9.0));
         GUI gui = new GUI("§8Panneau de l'Hôte", rows);
 
+        // Delete room button (slot 0, top row left)
+        ItemStack deleteRoom = ItemBuilder.of(Material.BARRIER)
+                .name("§c§lSupprimer la partie")
+                .lore("§7Supprime la partie et renvoie", "§7tous les joueurs au lobby.")
+                .build();
+
+        gui.addItem(0, deleteRoom, p -> {
+            p.closeInventory();
+            for (org.bukkit.entity.Entity entity : new java.util.ArrayList<>(room.getWorld().getPlayers())) {
+                if (entity instanceof Player roomPlayer) {
+                    roomPlayer.sendMessage(Component.text("§cLa partie a été supprimée par l'hôte."));
+                }
+            }
+            manager.removeGameRoom(room.getId());
+        });
+
         // Force-start button (slot 4, top row centre)
-        ItemStack forceStart = new ItemStack(Material.LIME_DYE);
-        ItemMeta fsMeta = forceStart.getItemMeta();
-        fsMeta.displayName(Component.text("§a§lForcer le démarrage"));
-        forceStart.setItemMeta(fsMeta);
-        forceStart.setData(DataComponentTypes.LORE, ItemLore.lore(List.of(
-                Component.text("§7Démarre la partie immédiatement"),
-                Component.text("§7sans attendre le compte à rebours."))));
+        ItemStack forceStart = ItemBuilder.of(Material.LIME_DYE)
+                .name("§a§lForcer le démarrage")
+                .lore("§7Démarre la partie immédiatement", "§7sans attendre le compte à rebours.")
+                .build();
 
         gui.addItem(4, forceStart, p -> {
             p.closeInventory();
@@ -45,13 +56,10 @@ public final class HostPanelGUI {
         for (Player target : players) {
             if (target.equals(host)) continue;
 
-            ItemStack head = new ItemStack(Material.PLAYER_HEAD);
-            ItemMeta headMeta = head.getItemMeta();
-            headMeta.displayName(Component.text("§c§lExpulser §f" + target.getName()));
-            head.setItemMeta(headMeta);
-            head.setData(DataComponentTypes.LORE, ItemLore.lore(List.of(
-                    Component.text("§7Clic pour expulser " + target.getName()),
-                    Component.text("§7de la salle d'attente."))));
+            ItemStack head = ItemBuilder.of(Material.PLAYER_HEAD)
+                    .name("§c§lExpulser §f" + target.getName())
+                    .lore("§7Clic pour expulser " + target.getName(), "§7de la salle d'attente.")
+                    .build();
 
             final Player kicked = target;
             gui.addItem(slot, head, p -> {

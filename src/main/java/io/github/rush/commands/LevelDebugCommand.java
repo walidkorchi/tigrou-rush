@@ -66,6 +66,9 @@ public class LevelDebugCommand {
         plugin.getPlayerLevelManager().addXP(target.getUniqueId(), amount);
         PlayerLevel pl = plugin.getPlayerLevelManager().loadPlayerLevel(target.getUniqueId());
 
+        var lb = plugin.getCommandManager().getLeaderboardCommand();
+        if (lb != null) lb.updateAllHolograms();
+
         sender.sendMessage(text("Added " + amount + " XP to " + target.getName() +
                 " (Level: " + pl.getLevel() + ", XP: " + pl.getCurrentXP() + "/" + pl.getXPForNextLevel() + ")",
                 NamedTextColor.GREEN));

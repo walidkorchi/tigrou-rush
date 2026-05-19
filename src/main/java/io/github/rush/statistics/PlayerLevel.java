@@ -49,106 +49,79 @@ public class PlayerLevel {
     }
 
     public String getTierIcon() {
-        if (level >= getMaxLevel()) {
-            return "♕";
-        } else if (level >= 5) {
-            return "✦";
-        }
+        return getTierIcon(level);
+    }
+
+    public static String getTierIcon(int level) {
+        if (level >= PlayerLevelManager.getMaxLevel()) return "♕";
+        if (level >= 5) return "✦";
         return "☆";
     }
 
     public String getTierColor() {
-        if (level >= getMaxLevel()) {
-            return "§c[§61§e5§a0§d]";
-        }
-        if (level >= 145) {
-            return "§b";
-        }
-        if (level >= 140) {
-            return "§c";
-        }
-        if (level >= 135) {
-            return "§c";
-        }
-        if (level >= 130) {
-            return "§e";
-        }
-        if (level >= 125) {
-            return "§e";
-        }
-        if (level >= 120) {
-            return "§7";
-        }
-        if (level >= 115) {
-            return "§7";
-        }
-        if (level >= 110) {
-            return "§b";
-        }
-        if (level >= 105) {
-            return "§4";
-        }
-        if (level >= 100) {
-            return "§1";
-        }
-        if (level >= 95) {
-            return "§e";
-        }
-        if (level >= 90) {
-            return "§3";
-        }
-        if (level >= 85) {
-            return "§3";
-        }
-        if (level >= 80) {
-            return "§b";
-        }
-        if (level >= 75) {
-            return "§9";
-        }
-        if (level >= 70) {
-            return "§6";
-        }
-        if (level >= 65) {
-            return "§f";
-        }
-        if (level >= 60) {
-            return "§c";
-        }
-        if (level >= 55) {
-            return "§f";
-        }
-        if (level >= 50) {
-            return "§c[§65§e0§b]";
-        }
-        if (level >= 45) {
-            return "§5";
-        }
-        if (level >= 40) {
-            return "§9";
-        }
-        if (level >= 35) {
-            return "§d";
-        }
-        if (level >= 30) {
-            return "§4";
-        }
-        if (level >= 25) {
-            return "§3";
-        }
-        if (level >= 20) {
-            return "§2";
-        }
-        if (level >= 15) {
-            return "§b";
-        }
-        if (level >= 10) {
-            return "§6";
-        }
-        if (level >= 5) {
-            return "§f";
-        }
+        return getTierColor(level);
+    }
+
+    public static String getTierColor(int level) {
+        int max = PlayerLevelManager.getMaxLevel();
+        if (level >= max)  return "§c[§61§e5§a0§d]";
+        if (level >= 145)  return "§b";
+        if (level >= 135)  return "§c";
+        if (level >= 125)  return "§e";
+        if (level >= 115)  return "§7";
+        if (level >= 110)  return "§b";
+        if (level >= 105)  return "§4";
+        if (level >= 100)  return "§1";
+        if (level >= 95)   return "§e";
+        if (level >= 85)   return "§3";
+        if (level >= 80)   return "§b";
+        if (level >= 75)   return "§9";
+        if (level >= 70)   return "§6";
+        if (level >= 65)   return "§f";
+        if (level >= 60)   return "§c";
+        if (level >= 55)   return "§f";
+        if (level >= 50)   return "§c[§65§e0§b]";
+        if (level >= 45)   return "§5";
+        if (level >= 40)   return "§9";
+        if (level >= 35)   return "§d";
+        if (level >= 30)   return "§4";
+        if (level >= 25)   return "§3";
+        if (level >= 20)   return "§2";
+        if (level >= 15)   return "§b";
+        if (level >= 10)   return "§6";
+        if (level >= 5)    return "§f";
         return "§8";
+    }
+
+    public static String tierColorMiniMessage(int level) {
+        int max = PlayerLevelManager.getMaxLevel();
+        if (level >= max)  return "<red>";
+        if (level >= 145)  return "<aqua>";
+        if (level >= 135)  return "<red>";
+        if (level >= 125)  return "<yellow>";
+        if (level >= 115)  return "<gray>";
+        if (level >= 110)  return "<aqua>";
+        if (level >= 105)  return "<dark_red>";
+        if (level >= 100)  return "<dark_blue>";
+        if (level >= 95)   return "<yellow>";
+        if (level >= 85)   return "<dark_aqua>";
+        if (level >= 80)   return "<aqua>";
+        if (level >= 75)   return "<blue>";
+        if (level >= 70)   return "<gold>";
+        if (level >= 65)   return "<white>";
+        if (level >= 60)   return "<red>";
+        if (level >= 55)   return "<white>";
+        if (level >= 50)   return "<red>";
+        if (level >= 45)   return "<dark_purple>";
+        if (level >= 40)   return "<blue>";
+        if (level >= 35)   return "<light_purple>";
+        if (level >= 30)   return "<dark_red>";
+        if (level >= 25)   return "<dark_aqua>";
+        if (level >= 20)   return "<dark_green>";
+        if (level >= 15)   return "<aqua>";
+        if (level >= 10)   return "<gold>";
+        if (level >= 5)    return "<white>";
+        return "<dark_gray>";
     }
 
     public String getFormattedLevel() {
