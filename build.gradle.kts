@@ -38,7 +38,7 @@ dependencies {
     compileOnly("io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT")
     compileOnly("com.google.code.gson:gson:2.13.2")
     testImplementation("com.google.code.gson:gson:2.13.2")
-    compileOnly("com.sk89q.worldedit:worldedit-bukkit:7.4.0")
+    compileOnly(files("../server/plugins/worldedit-bukkit-7.3.17.jar"))
     compileOnly(files("../server/plugins/GMusic-2.1.2.jar"))
     implementation("fr.mrmicky:fastboard:2.1.5")
     implementation("org.postgresql:postgresql:42.7.1")

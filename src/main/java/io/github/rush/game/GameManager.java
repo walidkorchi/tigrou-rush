@@ -183,7 +183,7 @@ public class GameManager {
             plugin.getLogger().warning("Schematic not found: " + schematicFile.getPath());
             return null;
         }
-        ClipboardFormat format = ClipboardFormats.findByPath(schematicFile.toPath());
+        ClipboardFormat format = ClipboardFormats.findByFile(schematicFile);
         if (format == null) {
             plugin.getLogger().warning("Unknown schematic format: " + filename);
             return null;
@@ -703,7 +703,7 @@ public class GameManager {
             return;
         }
 
-        ClipboardFormat format = ClipboardFormats.findByPath(schematicFile.toPath());
+        ClipboardFormat format = ClipboardFormats.findByFile(schematicFile);
         if (format == null) {
             plugin.getLogger().warning("Unknown schematic format for: " + schematicName);
             return;

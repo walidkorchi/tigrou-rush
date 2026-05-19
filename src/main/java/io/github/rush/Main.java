@@ -395,7 +395,7 @@ public class Main extends JavaPlugin {
             return;
         }
 
-        final ClipboardFormat format = ClipboardFormats.findByPath(schematicFile.toPath());
+        final ClipboardFormat format = ClipboardFormats.findByFile(schematicFile);
 
         try (ClipboardReader reader = format.getReader(new FileInputStream(schematicFile))) {
             final Clipboard clipboard = reader.read();
