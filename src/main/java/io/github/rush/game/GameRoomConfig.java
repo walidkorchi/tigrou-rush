@@ -6,7 +6,8 @@ public record GameRoomConfig(
         GameRoom.TeamSize teamSize,
         MapType mapType,
         boolean extraHearts,
-        boolean overtimeStart) {
+        boolean overtimeStart,
+        int overtimeDuration) {
 
     public GameRoomConfig {
         if (maxTeams < 2 || maxTeams > islandType.getCount()) {
@@ -26,6 +27,7 @@ public record GameRoomConfig(
         private MapType mapType = MapType.NORMAL;
         private boolean extraHearts = false;
         private boolean overtimeStart = false;
+        private int overtimeDuration = io.github.rush.Main.getInstance().getConfig().getInt("overtime-duration", 30);
 
         public Builder islandType(GameRoom.IslandType islandType) {
             this.islandType = islandType;
@@ -60,15 +62,21 @@ public record GameRoomConfig(
             return this;
         }
 
+        public Builder overtimeDuration(int delta) {
+            overtimeDuration = Math.max(5, Math.min(120, overtimeDuration + delta));
+            return this;
+        }
+
         public GameRoom.IslandType islandType() { return islandType; }
         public int maxTeams() { return maxTeams; }
         public GameRoom.TeamSize teamSize() { return teamSize; }
         public MapType mapType() { return mapType; }
         public boolean extraHearts() { return extraHearts; }
         public boolean overtimeStart() { return overtimeStart; }
+        public int overtimeDuration() { return overtimeDuration; }
 
         public GameRoomConfig build() {
-            return new GameRoomConfig(islandType, maxTeams, teamSize, mapType, extraHearts, overtimeStart);
+            return new GameRoomConfig(islandType, maxTeams, teamSize, mapType, extraHearts, overtimeStart, overtimeDuration);
         }
     }
 }

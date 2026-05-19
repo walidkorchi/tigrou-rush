@@ -3,6 +3,7 @@ package io.github.rush.commands;
 import io.github.rush.Main;
 import io.github.rush.game.Game;
 import io.github.rush.game.GameManager;
+import io.github.rush.game.GameRoom;
 import io.github.rush.game.Team;
 import io.github.rush.game.TeamColor;
 import io.github.rush.menus.TeamSelectionGUI;
@@ -118,13 +119,25 @@ public class MannequinCommand {
 
         Main main = Main.getInstance();
         GameManager gameManager = main.getGameManager();
-        TeamColor teamColor = null;
 
-        if (gameManager != null) {
-            Game game = gameManager.getCurrentGame();
-            if (game != null) {
-                teamColor = teamName != null ? TeamColor.valueOf(teamName.toUpperCase()) : getSmallestTeam(game);
+        // Resolve the active game from the executor's world so hub admins get no team
+        Game activeGame = null;
+        if (gameManager != null && sender instanceof Player executorPlayer) {
+            String worldName = executorPlayer.getWorld().getName();
+            GameRoom room = gameManager.getGameRoomByWorld(worldName);
+            if (room != null && room.isRunning()) {
+                activeGame = room.getGame();
+            } else if (worldName.equals(main.getGameWorld())) {
+                Game legacy = gameManager.getCurrentGame();
+                if (legacy != null && legacy.getState() == io.github.rush.game.GameState.RUNNING) {
+                    activeGame = legacy;
+                }
             }
+        }
+
+        TeamColor teamColor = null;
+        if (activeGame != null) {
+            teamColor = teamName != null ? TeamColor.valueOf(teamName.toUpperCase()) : getSmallestTeam(activeGame);
         }
 
         PlayerProfile profile = Bukkit.createProfile(name);
@@ -141,27 +154,24 @@ public class MannequinCommand {
             }
         });
 
-        if (teamColor != null && gameManager != null) {
-            Game game = gameManager.getCurrentGame();
-            if (game != null) {
-                Team team = game.getTeam(teamColor.name());
-                boolean joined = game.joinTeam(mannequin, teamColor);
-                if (joined) {
-                    game.setPlayerReady(mannequin, true);
-                    if (team != null && team.getSpawnLocation() != null) {
-                        mannequin.teleport(team.getSpawnLocation());
-                    }
-                    mannequin.getEquipment().setItem(EquipmentSlot.HEAD, TeamSelectionGUI.createTeamBanner(teamColor));
-                    sender.sendMessage(text("Spawned mannequin \"" + name + "\" on team " + teamColor.name(),
-                            NamedTextColor.GREEN));
-                } else {
-                    sender.sendMessage(text("Failed to join mannequin to team", NamedTextColor.RED));
+        if (teamColor != null && activeGame != null) {
+            Team team = activeGame.getTeam(teamColor.name());
+            boolean joined = activeGame.joinTeam(mannequin, teamColor);
+            if (joined) {
+                activeGame.setPlayerReady(mannequin, true);
+                if (team != null && team.getSpawnLocation() != null) {
+                    mannequin.teleport(team.getSpawnLocation());
                 }
-                return;
+                mannequin.getEquipment().setItem(EquipmentSlot.HEAD, TeamSelectionGUI.createTeamBanner(teamColor));
+                sender.sendMessage(text("Spawned mannequin \"" + name + "\" on team " + teamColor.name(),
+                        NamedTextColor.GREEN));
+            } else {
+                sender.sendMessage(text("Failed to join mannequin to team", NamedTextColor.RED));
             }
+            return;
         }
 
-        sender.sendMessage(text("Spawned mannequin \"" + name + "\" (no game running)", NamedTextColor.YELLOW));
+        sender.sendMessage(text("Spawned mannequin \"" + name + "\" (no active game in this world)", NamedTextColor.YELLOW));
     }
 
     private TeamColor getSmallestTeam(Game game) {

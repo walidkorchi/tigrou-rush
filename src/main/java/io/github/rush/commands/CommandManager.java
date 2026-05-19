@@ -38,6 +38,7 @@ public class CommandManager {
         leaderboardCommand = new LeaderboardCommand();
         register(leaderboardCommand::createCommand);
         register(new SettingsCommand()::createCommand);
+        register(new SetLobbySpawnCommand(plugin)::createCommand);
     }
 
     public LeaderboardCommand getLeaderboardCommand() {

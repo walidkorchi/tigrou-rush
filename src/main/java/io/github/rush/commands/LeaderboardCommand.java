@@ -9,9 +9,13 @@ import com.mojang.brigadier.Command;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.command.CommandSender;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
+import io.github.rush.config.ConfigManager;
 import org.jspecify.annotations.NullMarked;
 
 import com.maximde.hologramlib.hologram.TextHologram;
@@ -95,6 +99,7 @@ public class LeaderboardCommand {
         LeaderboardHologram lbHologram = new LeaderboardHologram(type, loc);
         lbHologram.spawn();
         holograms.put(loc, lbHologram);
+        saveLeaderboards();
 
         player.sendMessage(text("Leaderboard " + type.getTitle() + " placé!", NamedTextColor.GREEN));
         return Command.SINGLE_SUCCESS;
@@ -123,6 +128,7 @@ public class LeaderboardCommand {
         if (nearest != null) {
             Main.getInstance().getHologramManager().remove(nearest.getHologram());
             holograms.values().remove(nearest);
+            saveLeaderboards();
             player.sendMessage(text("Leaderboard supprimé.", NamedTextColor.GREEN));
         } else {
             player.sendMessage(text("Aucun leaderboard trouvé à proximité.", NamedTextColor.RED));
@@ -139,6 +145,85 @@ public class LeaderboardCommand {
 
     public Map<Location, LeaderboardHologram> getHolograms() {
         return holograms;
+    }
+
+    private void saveLeaderboards() {
+        ConfigManager configManager = Main.getInstance().getConfigManager();
+        if (configManager == null) return;
+
+        FileConfiguration config = configManager.getConfig();
+        List<Map<String, Object>> list = new ArrayList<>();
+
+        for (Map.Entry<Location, LeaderboardHologram> entry : holograms.entrySet()) {
+            Location loc = entry.getKey();
+            if (loc.getWorld() == null) continue;
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.put("world", loc.getWorld().getName());
+            data.put("x", loc.getX());
+            data.put("y", loc.getY());
+            data.put("z", loc.getZ());
+            data.put("type", entry.getValue().getType().name());
+            list.add(data);
+        }
+
+        config.set("leaderboards", list);
+        configManager.saveConfig();
+    }
+
+    public void restoreLeaderboards() {
+        Bukkit.getScheduler().runTaskLater(Main.getInstance(), () -> {
+            ConfigManager configManager = Main.getInstance().getConfigManager();
+            if (configManager == null) return;
+
+            FileConfiguration config = configManager.getConfig();
+            if (!config.contains("leaderboards")) return;
+
+            List<Map<?, ?>> saved = config.getMapList("leaderboards");
+            List<Map<String, Object>> valid = new ArrayList<>();
+
+            for (Map<?, ?> data : saved) {
+                String worldName = (String) data.get("world");
+                double x = ((Number) data.get("x")).doubleValue();
+                double y = ((Number) data.get("y")).doubleValue();
+                double z = ((Number) data.get("z")).doubleValue();
+                String typeName = (String) data.get("type");
+
+                World world = Bukkit.getWorld(worldName);
+                if (world == null) {
+                    Main.getInstance().getLogger().warning("Leaderboard restore: world '" + worldName + "' not found, skipping.");
+                    continue;
+                }
+
+                LeaderboardType type;
+                try {
+                    type = LeaderboardType.valueOf(typeName);
+                } catch (IllegalArgumentException e) {
+                    Main.getInstance().getLogger().warning("Leaderboard restore: unknown type '" + typeName + "', skipping.");
+                    continue;
+                }
+
+                Location loc = new Location(world, x, y, z);
+                LeaderboardHologram lbh = new LeaderboardHologram(type, loc);
+                lbh.spawn();
+                holograms.put(loc, lbh);
+
+                Map<String, Object> validEntry = new LinkedHashMap<>();
+                validEntry.put("world", worldName);
+                validEntry.put("x", x);
+                validEntry.put("y", y);
+                validEntry.put("z", z);
+                validEntry.put("type", typeName);
+                valid.add(validEntry);
+            }
+
+            // Prune stale entries (e.g. worlds that no longer exist)
+            if (valid.size() != saved.size()) {
+                config.set("leaderboards", valid);
+                configManager.saveConfig();
+            }
+
+            Main.getInstance().getLogger().info("Restored " + holograms.size() + " leaderboard hologram(s).");
+        }, 1L);
     }
 
     /**
@@ -249,6 +334,10 @@ public class LeaderboardCommand {
 
         public Location getLocation() {
             return location;
+        }
+
+        public LeaderboardType getType() {
+            return type;
         }
     }
 }

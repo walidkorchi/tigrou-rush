@@ -1,0 +1,3 @@
+# Replay storage: JSON files over PostgreSQL
+
+The plugin already uses PostgreSQL via Hibernate for player stats and levels, so storing replays there was an obvious candidate. We chose per-session JSON files instead (`plugins/TigrouRush/replays/{sessionId}.json`) because replay data is a large opaque blob — the frames are never queried individually, only read as a whole. PostgreSQL adds no value over a flat file for this access pattern, and individual replays can be deleted on overflow (20-file cap) by simply removing the file rather than issuing delete queries. Paper bundles Gson at runtime, so no new dependency is needed.

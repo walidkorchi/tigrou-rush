@@ -62,7 +62,7 @@ public class AuthorCommand {
      * Gets the author name from plugin description (paper-plugin.yml).
      */
     private String getAuthorName() {
-        var authors = plugin.getDescription().getAuthors();
+        var authors = plugin.getPluginMeta().getAuthors();
         return authors.isEmpty() ? "Unknown" : authors.get(0);
     }
 

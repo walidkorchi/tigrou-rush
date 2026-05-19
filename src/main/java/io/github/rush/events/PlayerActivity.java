@@ -3,6 +3,11 @@ package io.github.rush.events;
 import io.github.rush.Main;
 import io.github.rush.commands.AuthorCommand;
 import io.github.rush.game.Game;
+import io.github.rush.replay.ReplayFollowGUI;
+import io.github.rush.replay.ReplayPlayback;
+import io.github.rush.replay.ReplayViewerInventory;
+import io.github.rush.replay.ReplayViewerMenuGUI;
+import io.github.rush.game.GameManager;
 import io.github.rush.game.GameRoom;
 import io.github.rush.game.GameState;
 import io.github.rush.game.HostTransfer;
@@ -17,11 +22,11 @@ import io.github.rush.statistics.PlayerLevel;
 import io.github.rush.statistics.PlayerLevelManager;
 import io.papermc.paper.event.player.AsyncChatEvent;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.Tag;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Entity;
@@ -49,16 +54,12 @@ import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.GameMode;
 import org.bukkit.inventory.EquipmentSlot;
-import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.BoundingBox;
 
 public class PlayerActivity implements Listener {
 
     private final Main plugin;
-
-    private BukkitTask actionBarTask;
 
     // tolerance for floating-point imprecision in position tracking
     private static final double EPSILON = 0.05;
@@ -69,42 +70,26 @@ public class PlayerActivity implements Listener {
     }
 
     private void startActionBarTask() {
-        actionBarTask = plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
-            if (plugin.isGameStarted()) {
-                if (actionBarTask != null) {
-                    actionBarTask.cancel();
-                    actionBarTask = null;
-                }
-                return;
-            }
-
-            sendActionBarToAll();
-        }, 0L, 40L);
+        plugin.getServer().getScheduler().runTaskTimer(plugin, this::sendActionBarToAll, 0L, 40L);
     }
 
     private void sendActionBarToAll() {
-        String gameWorld = plugin.getGameWorld();
-        if (gameWorld == null)
-            return;
+        for (GameRoom room : plugin.getGameManager().getAllGameRooms()) {
+            if (room.getGame().getState() != GameState.WAITING)
+                continue;
 
-        int readyCount = 0;
+            long readyCount = room.getGame().getPlayersReadyCount();
+            int maxPlayers = room.getMaxPlayers();
 
-        if (plugin.getGameManager() != null && plugin.getGameManager().getCurrentGame() != null) {
-            var game = plugin.getGameManager().getCurrentGame();
-            readyCount = (int) game.getPlayersReadyCount();
-        }
+            NamedTextColor countColor = readyCount >= maxPlayers ? NamedTextColor.GREEN : NamedTextColor.RED;
+            Component message = Component.text()
+                    .content("Joueurs prêts (")
+                    .color(NamedTextColor.WHITE)
+                    .append(Component.text(readyCount + "/" + maxPlayers).color(countColor))
+                    .append(Component.text(")").color(NamedTextColor.WHITE))
+                    .build();
 
-        NamedTextColor countColor = readyCount >= 4 ? NamedTextColor.GREEN : NamedTextColor.RED;
-        TextComponent.Builder builder = Component.text()
-                .content("Joueurs prêts (")
-                .color(NamedTextColor.WHITE);
-        builder.append(Component.text(readyCount + "/8").color(countColor));
-        builder.append(Component.text(")").color(NamedTextColor.WHITE));
-
-        Component message = builder.build();
-
-        for (Player player : plugin.getServer().getOnlinePlayers()) {
-            if (player.getWorld().getName().equals(gameWorld)) {
+            for (Player player : room.getWorld().getPlayers()) {
                 player.sendActionBar(message);
             }
         }
@@ -116,15 +101,20 @@ public class PlayerActivity implements Listener {
 
         event.joinMessage(Component.text("§a[+] §f" + player.getName()));
 
-        player.getInventory().clear();
-        player.getInventory().setItem(0, Main.getInstance().getGameManager().createCompassItem());
-        player.getInventory().setItem(7, Main.getInstance().getGameManager().createGameHostItem());
-        player.getInventory().setItem(8, createSettingsItem());
-
-        // Teleport to main lobby
-        Location mainLobby = Main.getInstance().getMainLobby();
-        if (mainLobby != null && mainLobby.getWorld() != null) {
-            player.teleport(mainLobby);
+        // Check if the player was in a running game room before disconnecting
+        GameManager.ReconnectData reconnectData = plugin.getGameManager().consumeReconnectData(player.getUniqueId());
+        if (reconnectData != null) {
+            GameRoom room = plugin.getGameManager().getGameRoom(reconnectData.roomId());
+            if (room != null && room.isRunning()) {
+                plugin.getGameManager().addPlayerToGameRoom(player, room);
+                plugin.getServer().getScheduler().runTask(plugin,
+                        () -> plugin.getGameManager().handleReconnect(player, room, reconnectData));
+            } else {
+                // Game ended while offline
+                applyHubLobbyState(player);
+            }
+        } else {
+            applyHubLobbyState(player);
         }
 
         if (plugin.getMusicManager() != null
@@ -133,11 +123,28 @@ public class PlayerActivity implements Listener {
         }
     }
 
+    private void applyHubLobbyState(Player player) {
+        player.setGameMode(GameMode.SURVIVAL);
+        player.setHealth(player.getAttribute(Attribute.MAX_HEALTH).getValue());
+        player.setFoodLevel(20);
+        player.setSaturation(20f);
+        plugin.getGameManager().restoreHubInventory(player);
+        Location mainLobby = Main.getInstance().getMainLobby();
+        if (mainLobby != null && mainLobby.getWorld() != null) {
+            player.teleport(mainLobby);
+        }
+    }
+
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
 
         event.quitMessage(Component.text("§c[-] §f" + player.getName()));
+
+        // Leave any active replay
+        if (plugin.getReplayManager() != null && plugin.getReplayManager().isWatching(player)) {
+            plugin.getReplayManager().leaveReplay(player);
+        }
 
         // Stop music if playing
         if (plugin.getMusicManager() != null) {
@@ -186,6 +193,18 @@ public class PlayerActivity implements Listener {
             // Take away host panel from the disconnecting player if they had it
             GameRoom room = plugin.getGameManager().getGameRoomOfPlayer(player);
             if (room != null) {
+                // Snapshot in-game state so the player can be restored on reconnect
+                if (room.isRunning()) {
+                    Game roomGame = room.getGame();
+                    Team team = roomGame.getPlayerTeam(player);
+                    boolean wasSpectator = roomGame.isSpectator(player);
+                    plugin.getGameManager().recordDisconnect(player.getUniqueId(),
+                            new GameManager.ReconnectData(
+                                    room.getId(),
+                                    team != null ? team.getColor().name() : null,
+                                    wasSpectator));
+                }
+
                 room.removePlayer(player);
                 plugin.getGameManager().removePlayerFromGameRoom(player);
 
@@ -284,15 +303,6 @@ public class PlayerActivity implements Listener {
                 && entityBox.getMaxZ() > blockBox.getMinZ();
     }
 
-    private static ItemStack createSettingsItem() {
-        final ItemStack repeater = new ItemStack(Material.REPEATER);
-        final ItemMeta meta = repeater.getItemMeta();
-
-        meta.displayName(Component.text("§f§lParamètres"));
-        repeater.setItemMeta(meta);
-
-        return repeater;
-    }
 
     @EventHandler
     public void onPlayerDropItem(PlayerDropItemEvent event) {
@@ -315,30 +325,33 @@ public class PlayerActivity implements Listener {
 
     @EventHandler
     public void onPlayerWorldChange(PlayerChangedWorldEvent event) {
-        final String gameWorld = plugin.getGameWorld();
-
-        if (event.getFrom().getName().equals(gameWorld) || event.getPlayer().getWorld().getName().equals(gameWorld)) {
-            sendActionBarToAll();
-        }
+        sendActionBarToAll();
     }
 
     @EventHandler
     public void onPlayerMove(PlayerMoveEvent event) {
-        if (!plugin.isGameStarted()) {
-            return;
-        }
-
         Player player = event.getPlayer();
-        if (!player.getWorld().getName().equals(plugin.getGameWorld())) {
+        String worldName = player.getWorld().getName();
+
+        if (plugin.isGameStarted() && worldName.equals(plugin.getGameWorld())) {
+            Game game = Main.getInstance().getGameManager().getCurrentGame();
+            if (game != null && !game.isSpectator(player)) {
+                rescueFromVoid(player, game, Main.getISLAND_Y());
+            }
             return;
         }
 
-        Game game = Main.getInstance().getGameManager().getCurrentGame();
-        if (game == null || game.isSpectator(player)) {
-            return;
+        GameRoom room = plugin.getGameManager().getGameRoomByWorld(worldName);
+        if (room != null && room.isRunning()) {
+            Game game = room.getGame();
+            if (game != null && !game.isSpectator(player)) {
+                rescueFromVoid(player, game, room.getIslandY());
+            }
         }
+    }
 
-        double voidThreshold = Main.getISLAND_Y() - 60;
+    private void rescueFromVoid(Player player, Game game, int islandY) {
+        double voidThreshold = islandY - Main.getInstance().getVoidThreshold();
         if (player.getLocation().getY() < voidThreshold) {
             Team team = game.getPlayerTeam(player);
             if (team != null) {
@@ -442,12 +455,45 @@ public class PlayerActivity implements Listener {
 
     @EventHandler
     public void onPlayerInteract(PlayerInteractEvent pie) {
-        if (pie.getHand() != EquipmentSlot.HAND) {
+        if (pie.getAction() != Action.PHYSICAL && pie.getHand() != EquipmentSlot.HAND) {
             return;
         }
 
         Player player = pie.getPlayer();
         ItemStack item = player.getInventory().getItemInMainHand();
+
+        // Replay viewer: route hotbar actions and block all hub logic
+        if (plugin.getReplayManager() != null && plugin.getReplayManager().isWatching(player)) {
+            if (pie.getAction() == Action.RIGHT_CLICK_AIR || pie.getAction() == Action.RIGHT_CLICK_BLOCK) {
+                pie.setCancelled(true);
+                ReplayPlayback playback = plugin.getReplayManager().getPlayback(player);
+                if (playback == null)
+                    return;
+                int slot = player.getInventory().getHeldItemSlot();
+                if (ReplayViewerInventory.isPauseResumeDye(item)) {
+                    playback.togglePause();
+                } else if (item != null && item.getType() == Material.COMPASS) {
+                    if (playback.getFollowTarget(player.getUniqueId()) != null) {
+                        playback.clearFollowTarget(player.getUniqueId());
+                    } else {
+                        ReplayFollowGUI.open(player, playback);
+                    }
+                } else if (item != null && item.getType() == Material.PLAYER_HEAD) {
+                    if (slot == ReplayViewerInventory.SLOT_REWIND) {
+                        playback.seek(Math.max(0, playback.getPlayheadMs() - 5000));
+                    } else if (slot == ReplayViewerInventory.SLOT_FORWARD) {
+                        playback.seek(Math.min(playback.getDurationMs(), playback.getPlayheadMs() + 5000));
+                    } else if (slot == ReplayViewerInventory.SLOT_SPEED_DOWN) {
+                        playback.stepSpeedDown();
+                    } else if (slot == ReplayViewerInventory.SLOT_SPEED_UP) {
+                        playback.stepSpeedUp();
+                    }
+                } else if (item != null && item.getType() == Material.NETHER_STAR) {
+                    ReplayViewerMenuGUI.open(player, playback);
+                }
+            }
+            return;
+        }
 
         if (plugin.isGameStarted()) {
             Game game = Main.getInstance().getGameManager().getCurrentGame();
@@ -542,6 +588,23 @@ public class PlayerActivity implements Listener {
             }
         }
 
+        // Block interactive block access in hub for non-OP players (outside legacy
+        // game)
+        if (isHubPlayer(player) && !plugin.isGameStarted() && !player.isOp()) {
+            Block block = pie.getClickedBlock();
+            if (pie.getAction() == Action.RIGHT_CLICK_BLOCK && block != null && isHubRestrictedBlock(block)) {
+                pie.setCancelled(true);
+                return;
+            }
+        }
+
+        // Always prevent crop trampling in hub for non-OP players, regardless of game
+        // state
+        if (isHubPlayer(player) && !player.isOp() && pie.getAction() == Action.PHYSICAL) {
+            pie.setCancelled(true);
+            return;
+        }
+
         if (plugin.isGameStarted()) {
             Block clickedBlock = pie.getClickedBlock();
 
@@ -622,6 +685,9 @@ public class PlayerActivity implements Listener {
     }
 
     private boolean isPlayerInQueue(Player player) {
+        if (player.isOp())
+            return false;
+
         if (player.getWorld().getName().equals(plugin.getGameWorld())) {
             GameState gameState = GameState.WAITING;
 
@@ -635,6 +701,10 @@ public class PlayerActivity implements Listener {
         }
 
         return false;
+    }
+
+    private boolean isHubPlayer(Player player) {
+        return player.getWorld().getName().equals(plugin.getGameWorld());
     }
 
     private boolean isPlayerInGame(Player player) {
@@ -661,11 +731,17 @@ public class PlayerActivity implements Listener {
 
     @EventHandler
     public void onPlayerDamage(EntityDamageEvent event) {
-        if (!plugin.isGameStarted()) {
+        if (!(event.getEntity() instanceof Player player)) {
             return;
         }
 
-        if (!(event.getEntity() instanceof Player player)) {
+        // Hub players are always invulnerable (outside of legacy game)
+        if (isHubPlayer(player) && !plugin.isGameStarted()) {
+            event.setCancelled(true);
+            return;
+        }
+
+        if (!plugin.isGameStarted()) {
             return;
         }
 
@@ -786,5 +862,12 @@ public class PlayerActivity implements Listener {
         return material == Material.GLASS
                 || material == Material.TINTED_GLASS
                 || name.endsWith("_STAINED_GLASS");
+    }
+
+    private boolean isHubRestrictedBlock(Block block) {
+        Material material = block.getType();
+        return block.getState() instanceof org.bukkit.block.Container
+                || Tag.DOORS.isTagged(material)
+                || Tag.TRAPDOORS.isTagged(material);
     }
 }

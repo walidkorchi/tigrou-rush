@@ -10,28 +10,28 @@ class GameRoomConfigTest {
     void maxTeamsBelowTwoIsRejected() {
         assertThrows(IllegalArgumentException.class, () ->
                 new GameRoomConfig(GameRoom.IslandType.FOUR_ISLANDS, 1,
-                        GameRoom.TeamSize.VS2, MapType.NORMAL, false, false));
+                        GameRoom.TeamSize.VS2, MapType.NORMAL, false, false, 30));
     }
 
     @Test
     void maxTeamsExceedingIslandCapIsRejected() {
         assertThrows(IllegalArgumentException.class, () ->
                 new GameRoomConfig(GameRoom.IslandType.FOUR_ISLANDS, 5,
-                        GameRoom.TeamSize.VS2, MapType.NORMAL, false, false));
+                        GameRoom.TeamSize.VS2, MapType.NORMAL, false, false, 30));
     }
 
     @Test
     void maxTeamsAtIslandCapIsAccepted() {
         assertDoesNotThrow(() ->
                 new GameRoomConfig(GameRoom.IslandType.FOUR_ISLANDS, 4,
-                        GameRoom.TeamSize.VS4, MapType.NORMAL, false, false));
+                        GameRoom.TeamSize.VS4, MapType.NORMAL, false, false, 30));
     }
 
     @Test
     void eightIslandCapAllowsUpToEightTeams() {
         assertDoesNotThrow(() ->
                 new GameRoomConfig(GameRoom.IslandType.EIGHT_ISLANDS, 8,
-                        GameRoom.TeamSize.VS2, MapType.NORMAL, false, false));
+                        GameRoom.TeamSize.VS2, MapType.NORMAL, false, false, 30));
     }
 
     @Test
@@ -39,7 +39,7 @@ class GameRoomConfigTest {
         GameRoomConfig config = new GameRoomConfig(
                 GameRoom.IslandType.FOUR_ISLANDS, 2,
                 GameRoom.TeamSize.VS2, MapType.NORMAL,
-                false, false);
+                false, false, 30);
 
         assertEquals(GameRoom.IslandType.FOUR_ISLANDS, config.islandType());
         assertEquals(2, config.maxTeams());
@@ -47,5 +47,6 @@ class GameRoomConfigTest {
         assertEquals(MapType.NORMAL, config.mapType());
         assertFalse(config.extraHearts());
         assertFalse(config.overtimeStart());
+        assertEquals(30, config.overtimeDuration());
     }
 }

@@ -1,7 +1,6 @@
 package io.github.rush.events;
 
 import net.kyori.adventure.text.Component;
-import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.data.type.Bed;
@@ -163,10 +162,10 @@ public class GameRules implements Listener {
             MerchantType type = Main.getInstance().getMerchantTypeFor(villager);
             ShopGUI.Category category = type == null ? null : switch (type) {
                 case WEAPONSMITH -> ShopGUI.Category.WEAPONS;
-                case BUILDER     -> ShopGUI.Category.BLOCKS;
-                case ALCHEMIST   -> ShopGUI.Category.POTIONS;
-                case ARMORSMITH  -> ShopGUI.Category.ARMOR;
-                default          -> null;
+                case BUILDER -> ShopGUI.Category.BLOCKS;
+                case ALCHEMIST -> ShopGUI.Category.POTIONS;
+                case ARMORSMITH -> ShopGUI.Category.ARMOR;
+                default -> null;
             };
             if (category != null) {
                 ShopGUI.openCategory(player, category);

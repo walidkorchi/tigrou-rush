@@ -22,6 +22,8 @@ import io.github.rush.entities.*;
 import io.github.rush.events.*;
 import io.github.rush.objects.*;
 import io.github.rush.game.*;
+import io.github.rush.replay.ReplayManager;
+import io.github.rush.replay.ReplayStorage;
 import io.github.rush.settings.PlayerSettingsManager;
 import io.github.rush.statistics.*;
 import io.github.rush.scoreboard.ScoreboardManager;
@@ -91,6 +93,12 @@ public class Main extends JavaPlugin {
     private ConfigManager configManager = null;
 
     @Getter
+    private ReplayStorage replayStorage = null;
+
+    @Getter
+    private ReplayManager replayManager = null;
+
+    @Getter
     @Setter
     private boolean gameStarted = false;
 
@@ -135,6 +143,8 @@ public class Main extends JavaPlugin {
         gameManager = new GameManager(this);
         gameManager.createGame("rush");
         musicManager = new MusicManager(this);
+        replayStorage = new ReplayStorage(getDataFolder().toPath().resolve("replays"));
+        replayManager = new ReplayManager(this);
 
         HologramLib.getManager().ifPresentOrElse(
                 manager -> hologramManager = manager,
@@ -152,6 +162,11 @@ public class Main extends JavaPlugin {
         // Restore author displays with particles after server restart
         if (commandManager.getAuthorCommand() != null) {
             commandManager.getAuthorCommand().restoreExistingAuthors();
+        }
+
+        // Restore leaderboard holograms after server restart
+        if (commandManager.getLeaderboardCommand() != null) {
+            commandManager.getLeaderboardCommand().restoreLeaderboards();
         }
 
         Bukkit.getScheduler().runTaskTimer(this, () -> {
@@ -325,13 +340,11 @@ public class Main extends JavaPlugin {
     }
 
     public Integer getRespawnProtectionTime() {
-        final FileConfiguration config = this.getConfig();
+        return this.getConfig().getInt("respawn-protection", 4);
+    }
 
-        if (config.contains("respawn-protection") && config.isInt("respawn-protection")) {
-            return config.getInt("respawn-protection");
-        } else {
-            return 0;
-        }
+    public int getVoidThreshold() {
+        return this.getConfig().getInt("void-threshold", 20);
     }
 
     public void clearGame() {
@@ -484,9 +497,23 @@ public class Main extends JavaPlugin {
                 0, 100, 0);
     }
 
-    // TODO: stub function for now, refactor this
     public Location getMainLobby() {
-        return null;
+        FileConfiguration config = getConfig();
+        if (!config.contains("lobby-spawn"))
+            return null;
+
+        String worldName = config.getString("lobby-spawn.world", "world");
+        World world = Bukkit.getWorld(worldName);
+        if (world == null)
+            return null;
+
+        return new Location(
+                world,
+                config.getDouble("lobby-spawn.x"),
+                config.getDouble("lobby-spawn.y"),
+                config.getDouble("lobby-spawn.z"),
+                (float) config.getDouble("lobby-spawn.yaw"),
+                (float) config.getDouble("lobby-spawn.pitch"));
     }
 
     @Override

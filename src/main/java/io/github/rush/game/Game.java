@@ -3,6 +3,8 @@ package io.github.rush.game;
 import io.github.rush.Main;
 import io.github.rush.menus.TeamSelectionGUI;
 import io.github.rush.objects.Island;
+import io.github.rush.replay.ReplayRecorder;
+import io.github.rush.statistics.PlayerLevelManager;
 import io.github.rush.statistics.PlayerStatistic;
 import lombok.Getter;
 import lombok.Setter;
@@ -64,7 +66,6 @@ public class Game {
 
     @Getter
     private int gameTime = 0;
-    private static final int OVERTIME_SECONDS = 30 * 60;
 
     @Getter
     private List<Team> islandAssignment;
@@ -88,6 +89,8 @@ public class Game {
     @Setter
     @Getter
     private GameRoom gameRoom = null;
+
+    private ReplayRecorder recorder = null;
 
     /**
      * Legacy constructor for single-game mode.
@@ -315,6 +318,11 @@ public class Game {
         if (protectionTime <= 0)
             return;
 
+        if (isGameRoomMode() && recorder != null) {
+            var loc = player.getLocation();
+            recorder.recordRespawn(player.getUniqueId(), loc.getX(), loc.getY(), loc.getZ());
+        }
+
         protectedPlayers.add(player);
 
         player.setGameMode(GameMode.ADVENTURE);
@@ -450,8 +458,15 @@ public class Game {
         }
     }
 
+    private int getOvertimeSeconds() {
+        if (isGameRoomMode()) {
+            return gameRoom.getConfig().overtimeDuration() * 60;
+        }
+        return Main.getInstance().getConfig().getInt("overtime-duration", 30) * 60;
+    }
+
     public boolean isOvertime() {
-        return gameTime >= OVERTIME_SECONDS;
+        return gameTime >= getOvertimeSeconds();
     }
 
     public String getFormattedTime() {
@@ -462,8 +477,11 @@ public class Game {
 
     public void incrementGameTime() {
         gameTime++;
-        if (gameTime == OVERTIME_SECONDS) {
+        if (gameTime == getOvertimeSeconds()) {
             broadcastMessage("§c§lOVERTIME! §7Les restrictions de placement sont levées!");
+            if (isGameRoomMode() && recorder != null) {
+                recorder.recordPhaseChange("OVERTIME");
+            }
         }
     }
 
@@ -516,7 +534,7 @@ public class Game {
             gameTime = 0;
 
             if (isGameRoomMode() && gameRoom.getConfig().overtimeStart()) {
-                gameTime = OVERTIME_SECONDS;
+                gameTime = getOvertimeSeconds();
                 broadcastMessage("§c§lOVERTIME! §7Les restrictions de placement sont levées!");
             }
 
@@ -555,6 +573,10 @@ public class Game {
             startCompassTracker();
 
             cycle.onGameStart();
+
+            if (isGameRoomMode()) {
+                recorder = new ReplayRecorder(this, worldName);
+            }
 
             // Notify GameManager that game started (for GameRoom mode)
             if (isGameRoomMode()) {
@@ -712,7 +734,24 @@ public class Game {
             }
         }
 
+        PlayerLevelManager levelManager = Main.getInstance().getPlayerLevelManager();
+        if (levelManager != null) {
+            if (entity instanceof Player deadPlayer) {
+                levelManager.addXP(deadPlayer.getUniqueId(), -10);
+            }
+            if (killer != null) {
+                levelManager.addXP(killer.getUniqueId(), 15);
+                for (Player assist : assists) {
+                    levelManager.addXP(assist.getUniqueId(), 5);
+                }
+            }
+        }
+
         broadcastKillMessage(entity, playerTeam, killer, assists);
+
+        if (isGameRoomMode() && recorder != null && entity instanceof Player dp) {
+            recorder.recordDeath(dp.getUniqueId());
+        }
 
         boolean bedDestroyed = playerTeam != null && playerTeam.isBedDestroyed();
 
@@ -749,6 +788,10 @@ public class Game {
 
     public void onBedDestroyed(Team team, Player destroyer) {
         team.setBedDestroyed(true);
+
+        if (isGameRoomMode() && recorder != null) {
+            recorder.recordBedDestroy(team.getColor().name(), destroyer != null ? destroyer.getUniqueId() : null);
+        }
 
         String destroyerName = destroyer != null ? destroyer.getName() : "TNT";
         Team destroyerTeam = destroyer != null ? getPlayerTeam(destroyer) : null;
@@ -837,8 +880,13 @@ public class Game {
 
         sendGameSummary();
 
-        // Update all leaderboard holograms
-        updateLeaderboardHolograms();
+        PlayerLevelManager endLevelManager = Main.getInstance().getPlayerLevelManager();
+        if (endLevelManager != null) {
+            for (Player player : playerStats.keySet()) {
+                boolean won = winner != null && winner.equals(getPlayerTeam(player));
+                endLevelManager.addXP(player.getUniqueId(), won ? 100 : 20);
+            }
+        }
 
         // Immediately set all players to spectator and remove mannequins
         for (Team team : teams.values()) {
@@ -853,8 +901,28 @@ public class Game {
 
         cycle.onGameEnd();
 
+        // Update all leaderboard holograms after stats are persisted
+        updateLeaderboardHolograms();
+
         // Notify GameManager that game ended (for GameRoom mode)
         if (isGameRoomMode()) {
+            if (recorder != null) {
+                List<String> participantNames = playerStats.keySet().stream()
+                        .map(Player::getName)
+                        .collect(Collectors.toList());
+                Map<String, String> teamColorsByPlayerUuid = new HashMap<>();
+                for (Team team : teams.values()) {
+                    for (Entity entity : team.getPlayers()) {
+                        if (entity instanceof Player tp) {
+                            teamColorsByPlayerUuid.put(tp.getUniqueId().toString(), team.getColor().name());
+                        }
+                    }
+                }
+                recorder.stop(gameRoom.getId(), winner != null ? winner.getColor().name() : null,
+                        gameRoom.getHostName(), participantNames,
+                        gameRoom.getConfig().mapType().name(), teamColorsByPlayerUuid);
+                recorder = null;
+            }
             Main.getInstance().getGameManager().onGameRoomEnded(gameRoom);
         } else {
             Bukkit.getScheduler().runTaskLater(Main.getInstance(), this::resetGame, 400L);

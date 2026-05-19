@@ -45,7 +45,13 @@ schematicFilename: rush_island.schem
 islandOffset: 40
 
 # Respawn protection time in seconds (0 to disable)
-respawn-protection: 6
+respawn-protection: 4
+
+# Blocks below islandY at which a falling player is rescued and teleported back to their bed
+void-threshold: 20
+
+# Minutes of play before overtime begins (beds destroyed, all restrictions lifted). Default: 30
+overtime-duration: 30
 
 # Villager spawn offsets (distance from island center)
 villagerSpeedOffset: 13

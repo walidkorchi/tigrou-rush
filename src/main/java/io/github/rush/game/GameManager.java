@@ -17,6 +17,7 @@ import io.github.rush.Main;
 import io.github.rush.menus.GUI;
 import io.github.rush.menus.HostConfigGUI;
 import io.github.rush.menus.TeamSelectionGUI;
+
 import io.github.rush.world.VoidGenerator;
 import io.papermc.paper.datacomponent.DataComponentTypes;
 import io.papermc.paper.datacomponent.item.ItemLore;
@@ -28,14 +29,21 @@ import org.bukkit.World;
 import org.bukkit.WorldCreator;
 import org.bukkit.entity.ItemFrame;
 import org.bukkit.entity.Player;
-import net.kyori.adventure.util.TriState;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+
+import io.github.rush.replay.ReplayFile;
+import io.github.rush.replay.ReplayHeader;
+import io.github.rush.replay.ReplayPlayback;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.*;
+import java.util.function.Consumer;
 
 /**
  * Manages multiple game rooms and all game-related operations.
@@ -48,8 +56,19 @@ public class GameManager {
     private final Map<String, Game> legacyGames = new HashMap<>();
     private final Map<Player, Game> playerGameMap = new HashMap<>();
     private final Map<UUID, GameRoomConfig.Builder> pendingConfigs = new HashMap<>();
+    private final Map<UUID, ReconnectData> reconnectDataMap = new HashMap<>();
 
     private int worldCounter = 0;
+
+    /**
+     * Snapshot of a player's in-game state at the moment of disconnect.
+     * Stored by UUID so the same player can be identified on reconnect.
+     *
+     * @param roomId        ID of the GameRoom the player was in
+     * @param teamColorName Color name of the player's team, or null if spectator / free
+     * @param wasSpectator  True if the player was a spectator at disconnect time
+     */
+    public record ReconnectData(String roomId, String teamColorName, boolean wasSpectator) {}
 
     public GameManager(Main plugin) {
         this.plugin = plugin;
@@ -164,7 +183,7 @@ public class GameManager {
             plugin.getLogger().warning("Schematic not found: " + schematicFile.getPath());
             return null;
         }
-        ClipboardFormat format = ClipboardFormats.findByFile(schematicFile);
+        ClipboardFormat format = ClipboardFormats.findByPath(schematicFile.toPath());
         if (format == null) {
             plugin.getLogger().warning("Unknown schematic format: " + filename);
             return null;
@@ -220,8 +239,7 @@ public class GameManager {
     private World createVoidWorld(String worldName) {
         final WorldCreator worldCreator = new WorldCreator(worldName)
                 .generator(new VoidGenerator())
-                .environment(World.Environment.NORMAL)
-                .keepSpawnLoaded(TriState.FALSE); // prevent spawn chunk loading which causes hang
+                .environment(World.Environment.NORMAL);
         final World gameWorld = Bukkit.createWorld(worldCreator);
 
         if (gameWorld != null) {
@@ -285,6 +303,15 @@ public class GameManager {
         return new ArrayList<>(gameRooms.values());
     }
 
+    public GameRoom getGameRoomByWorld(String worldName) {
+        for (GameRoom room : gameRooms.values()) {
+            if (room.getWorld() != null && room.getWorld().getName().equals(worldName)) {
+                return room;
+            }
+        }
+        return null;
+    }
+
     public void removeGameRoom(String id) {
         final GameRoom room = gameRooms.remove(id);
 
@@ -303,8 +330,8 @@ public class GameManager {
 
                 for (Player player : new ArrayList<>(world.getPlayers())) {
                     player.teleport(fallback);
-                    player.getInventory().clear();
                     player.setGameMode(org.bukkit.GameMode.ADVENTURE);
+                    restoreHubInventory(player);
                 }
 
                 // stop the game if running
@@ -361,28 +388,41 @@ public class GameManager {
      * Opens the game listing GUI for a player. Shows WAITING and RUNNING rooms.
      */
     public void openGameList(Player player) {
+        final boolean isAdmin = player.isOp();
         final List<GameRoom> rooms = getAllGameRooms().stream()
                 .filter(r -> r.isWaiting() || r.isRunning())
                 .toList();
+        final List<ReplayHeader> replays = Main.getInstance().getReplayStorage().listReplays();
 
-        final int rows = Math.max(3, (rooms.size() / 9) + 2);
+        final int totalItems = rooms.size() + replays.size();
+        final int rows = Math.min(6, Math.max(3, (totalItems / 9) + 2));
         final GUI gui = new GUI("§8Liste des parties", rows);
 
         int slot = 0;
         for (GameRoom room : rooms) {
+            if (slot >= rows * 9) break;
             final GameRoom targetRoom = room;
-            gui.addItem(slot, createGameRoomItem(room), p -> joinGameRoom(p, targetRoom));
-            slot++;
-
-            if (slot >= rows * 9) {
-                break;
+            if (isAdmin) {
+                gui.addItem(slot, createGameRoomItem(room, true),
+                        p -> joinGameRoom(p, targetRoom),
+                        p -> openDeleteConfirmation(p, targetRoom));
+            } else {
+                gui.addItem(slot, createGameRoomItem(room, false), p -> joinGameRoom(p, targetRoom));
             }
+            slot++;
+        }
+
+        for (ReplayHeader replay : replays) {
+            if (slot >= rows * 9) break;
+            final ReplayHeader targetReplay = replay;
+            gui.addItem(slot, createReplayItem(replay), p -> Main.getInstance().getReplayManager().joinReplay(p, targetReplay));
+            slot++;
         }
 
         gui.openGUI(player);
     }
 
-    private ItemStack createGameRoomItem(GameRoom room) {
+    private ItemStack createGameRoomItem(GameRoom room, boolean isAdmin) {
         final Material material;
         final String status;
         final String actionLine;
@@ -406,15 +446,160 @@ public class GameManager {
         meta.displayName(Component.text(room.getDisplayName()));
         item.setItemMeta(meta);
 
-        item.setData(DataComponentTypes.LORE, ItemLore.lore(List.of(
+        final List<Component> lore = new ArrayList<>(List.of(
                 Component.text("§7Hôte: §f" + room.getHostName()),
                 Component.text("§7Status: " + status),
                 Component.text("§7Carte: §f" + room.getConfig().mapType().displayName()),
                 Component.text("§7Joueurs: §f" + room.getPlayerCount() + "/" + room.getMaxPlayers()),
                 Component.empty(),
-                Component.text(actionLine))));
+                Component.text(actionLine)));
+
+        if (isAdmin) {
+            lore.add(Component.empty());
+            lore.add(Component.text("§c§lClic droit §7pour supprimer cette partie"));
+        }
+
+        item.setData(DataComponentTypes.LORE, ItemLore.lore(lore));
 
         return item;
+    }
+
+    private ItemStack createReplayItem(ReplayHeader header) {
+        final ItemStack item = new ItemStack(Material.ORANGE_WOOL);
+        final ItemMeta meta = item.getItemMeta();
+        meta.displayName(Component.text("§6§lArchive §7— §f" + header.hostName()));
+        item.setItemMeta(meta);
+
+        LocalDateTime dt = LocalDateTime.ofInstant(
+                Instant.ofEpochMilli(header.startTimestamp()), ZoneId.systemDefault());
+        String date = String.format("%02d/%02d/%04d %02d:%02d",
+                dt.getDayOfMonth(), dt.getMonthValue(), dt.getYear(),
+                dt.getHour(), dt.getMinute());
+
+        long totalSeconds = header.durationMs() / 1000;
+        String duration = String.format("%02d:%02d", totalSeconds / 60, totalSeconds % 60);
+
+        String winner = header.winnerTeamColorName() != null ? header.winnerTeamColorName() : "Aucun";
+
+        item.setData(DataComponentTypes.LORE, ItemLore.lore(List.of(
+                Component.text("§7Hôte: §f" + header.hostName()),
+                Component.text("§7Date: §f" + date),
+                Component.text("§7Durée: §f" + duration),
+                Component.text("§7Vainqueur: §f" + winner),
+                Component.text("§7Joueurs: §f" + header.participantNames().size()),
+                Component.empty(),
+                Component.text("§eClic pour regarder"))));
+
+        return item;
+    }
+
+    public void openDeleteConfirmation(Player admin, GameRoom room) {
+        final GUI gui = new GUI("§8Supprimer la partie?", 3);
+
+        gui.addItem(13, createGameRoomItem(room, false));
+
+        final ItemStack confirmItem = new ItemStack(Material.BARRIER);
+        final ItemMeta confirmMeta = confirmItem.getItemMeta();
+        confirmMeta.displayName(Component.text("§c§l⚠ CONFIRMER LA SUPPRESSION"));
+        confirmItem.setItemMeta(confirmMeta);
+        confirmItem.setData(DataComponentTypes.LORE, ItemLore.lore(List.of(
+                Component.text("§7Tous les joueurs seront expulsés."),
+                Component.text("§7La partie sera définitivement supprimée."))));
+        gui.addItem(11, confirmItem, p -> {
+            p.closeInventory();
+            if (getGameRoom(room.getId()) == null) {
+                p.sendMessage(Component.text("§cCette partie n'existe plus."));
+                return;
+            }
+            for (Player roomPlayer : new ArrayList<>(room.getWorld().getPlayers())) {
+                roomPlayer.sendMessage(Component.text("§cCette partie a été supprimée par un administrateur."));
+            }
+            removeGameRoom(room.getId());
+            p.sendMessage(Component.text("§aLa partie §f" + room.getHostName() + "§a a été supprimée."));
+        });
+
+        final ItemStack cancelItem = new ItemStack(Material.LIME_CONCRETE);
+        final ItemMeta cancelMeta = cancelItem.getItemMeta();
+        cancelMeta.displayName(Component.text("§a§lANNULER"));
+        cancelItem.setItemMeta(cancelMeta);
+        gui.addItem(15, cancelItem, p -> {
+            p.closeInventory();
+            openGameList(p);
+        });
+
+        gui.openGUI(admin);
+    }
+
+    public void restoreHubInventory(Player player) {
+        player.getInventory().clear();
+        player.getInventory().setItem(0, createCompassItem());
+        player.getInventory().setItem(7, createGameHostItem());
+        final ItemStack settings = new ItemStack(Material.REPEATER);
+        final ItemMeta settingsMeta = settings.getItemMeta();
+        settingsMeta.displayName(Component.text("§f§lParamètres"));
+        settings.setItemMeta(settingsMeta);
+        player.getInventory().setItem(8, settings);
+    }
+
+    public void recordDisconnect(UUID uuid, ReconnectData data) {
+        reconnectDataMap.put(uuid, data);
+    }
+
+    public ReconnectData consumeReconnectData(UUID uuid) {
+        return reconnectDataMap.remove(uuid);
+    }
+
+    public void handleReconnect(Player player, GameRoom room, ReconnectData data) {
+        if (!player.isOnline() || !room.isRunning()) {
+            // Game ended before the reconnect task ran — send to hub
+            player.setGameMode(org.bukkit.GameMode.SURVIVAL);
+            Location fallback = plugin.getMainLobby();
+            if (fallback == null || fallback.getWorld() == null) {
+                fallback = Bukkit.getWorlds().get(0).getSpawnLocation();
+            }
+            player.teleport(fallback);
+            restoreHubInventory(player);
+            return;
+        }
+
+        Game game = room.getGame();
+
+        if (data.wasSpectator()) {
+            game.addObserver(player);
+            return;
+        }
+
+        if (data.teamColorName() != null) {
+            Team team = game.getTeam(data.teamColorName());
+
+            if (team != null && !team.isBedDestroyed()) {
+                // Re-add to team and apply respawn behaviour (same as normal death)
+                team.addPlayer(player);
+                player.setGameMode(org.bukkit.GameMode.SURVIVAL);
+                player.setHealth(player.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH).getValue());
+                player.setFoodLevel(20);
+                player.setSaturation(20f);
+                player.getInventory().clear();
+                game.equipEntity(player, team);
+
+                Location bedLoc = team.getBedLocation();
+                Location respawn = bedLoc != null
+                        ? new Location(bedLoc.getWorld(), bedLoc.getX() + 0.5, bedLoc.getY() + 1, bedLoc.getZ() + 0.5)
+                        : team.getSpawnLocation();
+                if (respawn != null) {
+                    player.teleport(respawn);
+                }
+
+                game.addProtection(player);
+                player.sendMessage(Component.text("§aVous avez été reconnecté à votre équipe."));
+            } else {
+                // Bed was destroyed while offline — eliminated as spectator
+                game.addSpectator(player);
+            }
+        } else {
+            // Was a free player at disconnect time — rejoin as observer
+            game.addObserver(player);
+        }
     }
 
     /**
@@ -645,6 +830,71 @@ public class GameManager {
             frame.setInvulnerable(true);
             frame.setFixed(true);
             frame.setVisible(false);
+        }
+    }
+
+    /**
+     * Creates a void world for a replay session, pastes island schematics, then calls onReady
+     * with the resulting ReplayPlayback on the main thread. Must be called from the main thread.
+     */
+    public void createReplayWorld(ReplayFile file, Consumer<ReplayPlayback> onReady) {
+        String sessionId = file.header().sessionId();
+        String worldName = "rush_replay_" + sessionId;
+
+        MapType mapType = MapType.NORMAL;
+        if (file.header().mapTypeName() != null) {
+            try {
+                mapType = MapType.valueOf(file.header().mapTypeName());
+            } catch (IllegalArgumentException ignored) {}
+        }
+        final MapType resolvedMapType = mapType;
+
+        World world = createVoidWorld(worldName);
+        if (world == null) {
+            plugin.getLogger().severe("Failed to create replay world for session: " + sessionId);
+            return;
+        }
+
+        final World finalWorld = world;
+        final int islandY = world.getMaxHeight() - 12;
+        final int islandOffset = plugin.getConfig().getInt("islandOffset", 40);
+
+        final List<io.github.rush.objects.Island> islands = List.of(
+                new io.github.rush.objects.Island(-islandOffset, 0, -90),
+                new io.github.rush.objects.Island(islandOffset, 0, 90),
+                new io.github.rush.objects.Island(0, -islandOffset, 180),
+                new io.github.rush.objects.Island(0, islandOffset, 0));
+
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            Clipboard islandClip = readSchematic(resolvedMapType.schematicName());
+
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                if (islandClip != null) {
+                    for (io.github.rush.objects.Island island : islands) {
+                        pasteClipboard(finalWorld, islandClip,
+                                BlockVector3.at(island.getX(), islandY, island.getZ()),
+                                island.getRotation());
+                    }
+                } else {
+                    plugin.getLogger().warning("Replay world for session " + sessionId
+                            + " loaded without islands — schematic '"
+                            + resolvedMapType.schematicName() + "' not found.");
+                }
+                onReady.accept(new ReplayPlayback(file, finalWorld));
+            });
+        });
+    }
+
+    /**
+     * Unloads and deletes a replay world created by createReplayWorld.
+     */
+    public void destroyReplayWorld(World world) {
+        if (world == null) return;
+        Bukkit.unloadWorld(world, false);
+        File worldFolder = new File(Bukkit.getWorldContainer(), world.getName());
+        if (worldFolder.exists()) {
+            Bukkit.getScheduler().runTaskAsynchronously(plugin,
+                    () -> deleteDirectory(worldFolder));
         }
     }
 
