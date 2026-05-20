@@ -534,45 +534,27 @@ public class Game {
     }
 
     public boolean isBlockInRingPath(Location location) {
-        double bx = location.getX();
-        double bz = location.getZ();
-
         List<Island> allIslands = getAllIslandPositions();
         if (allIslands.isEmpty()) return true;
-
-        double cx = 0, cz = 0;
-        for (Island island : allIslands) {
-            cx += island.getX();
-            cz += island.getZ();
-        }
-        cx /= allIslands.size();
-        cz /= allIslands.size();
-
-        double rx = bx - cx;
-        double rz = bz - cz;
-
-        // All island positions are always buildable regardless of team assignment.
-        double islandRadiusSq = 15.0 * 15.0;
-        for (Island island : allIslands) {
-            double dx = bx - island.getX();
-            double dz = bz - island.getZ();
-            if (dx * dx + dz * dz <= islandRadiusSq) return true;
-        }
-
-        // Angular check: must be within ±22.5° of a diagonal direction (NE/SE/SW/NW)
-        double angle = Math.atan2(rz, rx);
-        double normalized = angle % (Math.PI / 2);
-        if (normalized < 0) normalized += Math.PI / 2;
-        if (normalized > Math.PI / 4) normalized = Math.PI / 2 - normalized;
-        return normalized > Math.PI / 8;
+        return RingPath.isOnPath(location.getX(), location.getZ(), allIslands);
     }
 
     private List<Island> getAllIslandPositions() {
+        List<Island> raw;
         if (isGameRoomMode() && gameRoom != null) {
-            return gameRoom.getIslands();
+            raw = gameRoom.getIslands();
+        } else {
+            raw = Main.getInstance().getIslands();
         }
-        List<Island> pluginIslands = Main.getInstance().getIslands();
-        return pluginIslands != null ? pluginIslands : List.of();
+        if (raw == null || raw.isEmpty()) return List.of();
+        // Sort by angle from centroid to guarantee cyclic (N→E→S→W) order for
+        // the bridge-segment check, regardless of how the list was built.
+        double cx = raw.stream().mapToDouble(Island::getX).average().orElse(0);
+        double cz = raw.stream().mapToDouble(Island::getZ).average().orElse(0);
+        return raw.stream()
+                .sorted(Comparator.comparingDouble((Island i) ->
+                        Math.atan2(i.getZ() - cz, i.getX() - cx)))
+                .toList();
     }
 
     private void computeIslandAssignment() {
