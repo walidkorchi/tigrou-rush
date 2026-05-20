@@ -43,6 +43,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import org.bukkit.scheduler.BukkitTask;
 
@@ -86,15 +87,14 @@ public class GameManager {
         final UUID hostUUID = host.getUniqueId();
         final String worldName = "rush_game_" + (++worldCounter) + "_" + host.getName();
 
-        // Persist the action bar throughout all CREATING phases by refreshing every 5
-        // ticks
-        final Component[] currentBar = { buildLoadingBarComponent("Création du monde", 0, 5) };
+        final AtomicReference<Component> currentBar =
+                new AtomicReference<>(buildLoadingBarComponent("Création du monde", 0, 5));
         final BukkitTask[] barTask = { null };
-        barTask[0] = Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, () -> {
+        barTask[0] = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             Player h = Bukkit.getPlayer(hostUUID);
             if (h != null)
-                h.sendActionBar(currentBar[0]);
-        }, 0L, 5L);
+                h.sendActionBar(currentBar.get());
+        }, 0L, 3L);
 
         Bukkit.getScheduler().runTask(plugin, () -> {
             try {
@@ -108,45 +108,46 @@ public class GameManager {
 
                 // Step 2: Register room in CREATING state immediately so host-disconnect
                 // cleanup can find it even if the host goes offline during paste.
-                currentBar[0] = buildLoadingBarComponent("Initialisation", 1, 5);
+                currentBar.set(buildLoadingBarComponent("Initialisation", 1, 5));
                 Location lobbyLocation = new Location(gameWorld, 0, 64, 0);
                 GameRoom room = new GameRoom(host.getName(), hostUUID, gameWorld, config, lobbyLocation);
                 room.getGame().setState(GameState.CREATING);
                 gameRooms.put(room.getId(), room);
 
-                // Steps 3-4: Read schematics on async thread, then paste on main thread
+                // Steps 3-5: Read and paste schematics fully on async thread —
+                // keeps the main thread free so the bar-refresh task fires on time.
                 Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-                    currentBar[0] = buildLoadingBarComponent("Génération du lobby d'attente", 2, 5);
+                    currentBar.set(buildLoadingBarComponent("Génération du lobby d'attente", 2, 5));
                     Clipboard waitingRoomClip = readSchematic("waiting_room.schem");
 
-                    currentBar[0] = buildLoadingBarComponent("Génération des îles", 3, 5);
+                    currentBar.set(buildLoadingBarComponent("Génération des îles", 3, 5));
                     Clipboard islandClip = readSchematic(config.mapType().schematicName());
 
-                    Bukkit.getScheduler().runTask(plugin, () -> {
-                        currentBar[0] = buildLoadingBarComponent("Construction du monde", 4, 5);
+                    currentBar.set(buildLoadingBarComponent("Construction du monde", 4, 5));
 
+                    // Steps 5-6: Paste schematics and finalize on main thread —
+                    // EditSession.close() triggers block onPlace which requires main thread.
+                    Bukkit.getScheduler().runTask(plugin, () -> {
                         if (waitingRoomClip != null) {
                             pasteClipboard(gameWorld, waitingRoomClip, BlockVector3.at(0, 64, 0), 0);
                         }
 
                         if (islandClip != null) {
                             List<io.github.rush.objects.Island> islands = room.getIslands();
-                            for (int i = 0; i < islands.size(); i++) {
-                                io.github.rush.objects.Island isl = islands.get(i);
+                            for (io.github.rush.objects.Island isl : islands) {
                                 pasteClipboard(gameWorld, islandClip,
                                         BlockVector3.at(isl.getX(), room.getIslandY(), isl.getZ()),
                                         isl.getRotation());
                             }
                         }
 
-                        // Step 5: Spawn merchants (main thread)
                         List<io.github.rush.objects.Island> islands = room.getIslands();
                         for (int i = 0; i < islands.size(); i++) {
                             spawnMerchantsForIsland(room, islands.get(i), i);
                         }
                         room.setIslandsLoaded(true);
 
-                        // Step 6: Check host still online — cancel if gone
+                        // Step 7: Check host still online — cancel if gone
                         Player onlineHost = Bukkit.getPlayer(hostUUID);
                         if (onlineHost == null) {
                             barTask[0].cancel();
@@ -154,7 +155,7 @@ public class GameManager {
                             return;
                         }
 
-                        // Step 7: Transition to WAITING and hand off to host
+                        // Step 8: Transition to WAITING and hand off to host
                         room.getGame().setState(GameState.WAITING);
                         playerGameRoomMap.put(onlineHost, room);
 
@@ -262,9 +263,9 @@ public class GameManager {
             Bukkit.getScheduler().runTask(plugin, () -> {
                 gameWorld.setSpawnLocation(0, 64, 0);
                 gameWorld.setAutoSave(false);
-                gameWorld.setGameRule(org.bukkit.GameRules.ADVANCE_TIME, false);
-                gameWorld.setGameRule(org.bukkit.GameRules.ADVANCE_WEATHER, false);
-                gameWorld.setGameRule(org.bukkit.GameRules.SPAWN_PHANTOMS, false);
+                gameWorld.setGameRule(org.bukkit.GameRule.DO_DAYLIGHT_CYCLE, false);
+                gameWorld.setGameRule(org.bukkit.GameRule.DO_WEATHER_CYCLE, false);
+                gameWorld.setGameRule(org.bukkit.GameRule.DO_INSOMNIA, false);
             });
         }
 

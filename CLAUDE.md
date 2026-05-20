@@ -287,7 +287,7 @@ Before overtime, block placement is blocked along the short-path corridor betwee
 midline_angle  = atan2(midZ, midX)          // midpoint between the two teams' spawns
 block_angle    = atan2(block.Z, block.X)
 diff           = block_angle − midline_angle
-half_angle     = π / islandCount             // ±45° for 4-island, ±22.5° for 8-island
+half_angle     = π / (2 × islandCount)       // ±22.5° for 4-island, ±11.25° for 8-island
 if |diff| < half_angle → placement BLOCKED
 ```
 

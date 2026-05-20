@@ -6,7 +6,6 @@ import com.mojang.brigadier.context.CommandContext;
 import io.github.rush.Main;
 import io.github.rush.game.Game;
 import io.github.rush.game.GameState;
-import io.github.rush.game.Team;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -52,42 +51,21 @@ public class DebugZonesCommand {
         }
 
         World world = player.getWorld();
-        int bedRadius = plugin.getConfig().getInt("bedProtectionRadius", 3);
         int placed = 0;
 
-        // Bed protection zones: cube around each living bed
-        for (Team team : game.getTeams().values()) {
-            Location bedLoc = team.getBedLocation();
-            if (bedLoc == null || team.isBedDestroyed()) continue;
-            int bx = (int) bedLoc.getX();
-            int by = (int) bedLoc.getY();
-            int bz = (int) bedLoc.getZ();
-            for (int dx = -bedRadius; dx <= bedRadius; dx++) {
-                for (int dy = -bedRadius; dy <= bedRadius; dy++) {
-                    for (int dz = -bedRadius; dz <= bedRadius; dz++) {
-                        Block b = world.getBlockAt(bx + dx, by + dy, bz + dz);
-                        if (b.getType() == Material.AIR) {
-                            b.setType(Material.BARRIER);
-                            placed++;
-                        }
-                    }
-                }
-            }
-        }
-
-        // Forbidden zone: flat scan at island Y, ±55 blocks from center
-        if (!game.isOvertime()) {
-            int islandY = resolveIslandY(game, world);
-            int scanRadius = 55;
-            for (int x = -scanRadius; x <= scanRadius; x++) {
-                for (int z = -scanRadius; z <= scanRadius; z++) {
-                    Location loc = new Location(world, x, islandY, z);
-                    if (game.isBlockInForbiddenZone(loc)) {
-                        Block b = world.getBlockAt(x, islandY, z);
-                        if (b.getType() == Material.AIR) {
-                            b.setType(Material.BARRIER);
-                            placed++;
-                        }
+        // Ring path + forbidden zone: flat scan at island Y, ±55 blocks from center
+        int islandY = resolveIslandY(game, world);
+        int scanRadius = 55;
+        for (int x = -scanRadius; x <= scanRadius; x++) {
+            for (int z = -scanRadius; z <= scanRadius; z++) {
+                Location loc = new Location(world, x, islandY, z);
+                boolean blocked = !game.isBlockInRingPath(loc)
+                        || game.isBlockInForbiddenZone(loc);
+                if (blocked) {
+                    Block b = world.getBlockAt(x, islandY, z);
+                    if (b.getType() == Material.AIR) {
+                        b.setType(Material.BARRIER);
+                        placed++;
                     }
                 }
             }
@@ -113,9 +91,7 @@ public class DebugZonesCommand {
         World world = player.getWorld();
         int removed = 0;
         int islandY = resolveIslandY(game, world);
-        int bedRadius = plugin.getConfig().getInt("bedProtectionRadius", 3);
 
-        // Clear forbidden zone scan area
         int scanRadius = 55;
         for (int x = -scanRadius; x <= scanRadius; x++) {
             for (int z = -scanRadius; z <= scanRadius; z++) {
@@ -123,26 +99,6 @@ public class DebugZonesCommand {
                 if (b.getType() == Material.BARRIER) {
                     b.setType(Material.AIR);
                     removed++;
-                }
-            }
-        }
-
-        // Clear bed protection zones
-        for (Team team : game.getTeams().values()) {
-            Location bedLoc = team.getBedLocation();
-            if (bedLoc == null) continue;
-            int bx = (int) bedLoc.getX();
-            int by = (int) bedLoc.getY();
-            int bz = (int) bedLoc.getZ();
-            for (int dx = -bedRadius; dx <= bedRadius; dx++) {
-                for (int dy = -bedRadius; dy <= bedRadius; dy++) {
-                    for (int dz = -bedRadius; dz <= bedRadius; dz++) {
-                        Block b = world.getBlockAt(bx + dx, by + dy, bz + dz);
-                        if (b.getType() == Material.BARRIER) {
-                            b.setType(Material.AIR);
-                            removed++;
-                        }
-                    }
                 }
             }
         }

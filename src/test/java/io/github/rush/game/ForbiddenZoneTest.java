@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class ForbiddenZoneTest {
 
-    // ── 4-island (half-angle = π/4 = 45°) ────────────────────────────────────
+    // ── 4-island (half-angle = π/8 = 22.5°) ─────────────────────────────────
 
     // Teams at E (40,0) and S (0,40) → midpoint angle = 45°
     private static final double A4X = 40, A4Z = 0;
@@ -57,8 +57,8 @@ class ForbiddenZoneTest {
     @Test
     void eightIslandBlockJustOutsideNarrowerWedgeIsNotBlocked() {
         // (2,10): atan2(10,2) ≈ 79° → 34° from midline
-        // 4-island: 34° < 45° → blocked; 8-island: 34° > 22.5° → NOT blocked
-        assertTrue(ForbiddenZone.isBlocked(2, 10, A8X, A8Z, B8X, B8Z, 4));
+        // 4-island: 34° > 22.5° → NOT blocked; 8-island: 34° > 11.25° → NOT blocked
+        assertFalse(ForbiddenZone.isBlocked(2, 10, A8X, A8Z, B8X, B8Z, 4));
         assertFalse(ForbiddenZone.isBlocked(2, 10, A8X, A8Z, B8X, B8Z, 8));
     }
 

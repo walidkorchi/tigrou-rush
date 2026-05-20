@@ -63,6 +63,11 @@ public class GameRules implements Listener {
             return;
         }
 
+        if (!game.isBlockInRingPath(event.getBlock().getLocation())) {
+            event.setCancelled(true);
+            return;
+        }
+
         if (event.getBlock().getType() != Material.TNT
                 && hasNearbyBlock(event.getBlock(), plugin.getConfig().getInt("bedProtectionRadius"),
                         b -> b.getBlockData() instanceof Bed)) {

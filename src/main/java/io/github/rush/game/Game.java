@@ -71,7 +71,8 @@ public class Game {
     @Getter
     private List<Team> islandAssignment;
     private List<Integer> islandSlotOrder;
-    private static final int[] PREFERRED_ISLAND_ORDER = { 0, 2, 1, 3 };
+    // Adjacent pair first (S+E) so 2-team forbidden zone covers the SE corridor between them.
+    private static final int[] PREFERRED_ISLAND_ORDER = { 2, 1, 0, 3 };
 
     @Getter
     private int timeLeft = 0;
@@ -530,6 +531,48 @@ public class Game {
                 teamA.getSpawnLocation().getX(), teamA.getSpawnLocation().getZ(),
                 teamB.getSpawnLocation().getX(), teamB.getSpawnLocation().getZ(),
                 islandCount);
+    }
+
+    public boolean isBlockInRingPath(Location location) {
+        double bx = location.getX();
+        double bz = location.getZ();
+
+        List<Island> allIslands = getAllIslandPositions();
+        if (allIslands.isEmpty()) return true;
+
+        double cx = 0, cz = 0;
+        for (Island island : allIslands) {
+            cx += island.getX();
+            cz += island.getZ();
+        }
+        cx /= allIslands.size();
+        cz /= allIslands.size();
+
+        double rx = bx - cx;
+        double rz = bz - cz;
+
+        // All island positions are always buildable regardless of team assignment.
+        double islandRadiusSq = 15.0 * 15.0;
+        for (Island island : allIslands) {
+            double dx = bx - island.getX();
+            double dz = bz - island.getZ();
+            if (dx * dx + dz * dz <= islandRadiusSq) return true;
+        }
+
+        // Angular check: must be within ±22.5° of a diagonal direction (NE/SE/SW/NW)
+        double angle = Math.atan2(rz, rx);
+        double normalized = angle % (Math.PI / 2);
+        if (normalized < 0) normalized += Math.PI / 2;
+        if (normalized > Math.PI / 4) normalized = Math.PI / 2 - normalized;
+        return normalized > Math.PI / 8;
+    }
+
+    private List<Island> getAllIslandPositions() {
+        if (isGameRoomMode() && gameRoom != null) {
+            return gameRoom.getIslands();
+        }
+        List<Island> pluginIslands = Main.getInstance().getIslands();
+        return pluginIslands != null ? pluginIslands : List.of();
     }
 
     private void computeIslandAssignment() {

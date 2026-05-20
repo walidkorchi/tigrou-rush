@@ -19,7 +19,7 @@ public final class ForbiddenZone {
         while (diff >  Math.PI) diff -= 2 * Math.PI;
         while (diff < -Math.PI) diff += 2 * Math.PI;
 
-        double halfAngle = Math.PI / islandCount;
+        double halfAngle = Math.PI / (2 * islandCount);
         return Math.abs(diff) < halfAngle;
     }
 }
