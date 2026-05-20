@@ -66,10 +66,12 @@ public class GameManager {
      * Stored by UUID so the same player can be identified on reconnect.
      *
      * @param roomId        ID of the GameRoom the player was in
-     * @param teamColorName Color name of the player's team, or null if spectator / free
+     * @param teamColorName Color name of the player's team, or null if spectator /
+     *                      free
      * @param wasSpectator  True if the player was a spectator at disconnect time
      */
-    public record ReconnectData(String roomId, String teamColorName, boolean wasSpectator) {}
+    public record ReconnectData(String roomId, String teamColorName, boolean wasSpectator) {
+    }
 
     public GameManager(Main plugin) {
         this.plugin = plugin;
@@ -84,12 +86,14 @@ public class GameManager {
         final UUID hostUUID = host.getUniqueId();
         final String worldName = "rush_game_" + (++worldCounter) + "_" + host.getName();
 
-        // Persist the action bar throughout all CREATING phases by refreshing every 5 ticks
+        // Persist the action bar throughout all CREATING phases by refreshing every 5
+        // ticks
         final Component[] currentBar = { buildLoadingBarComponent("Création du monde", 0, 5) };
         final BukkitTask[] barTask = { null };
         barTask[0] = Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, () -> {
             Player h = Bukkit.getPlayer(hostUUID);
-            if (h != null) h.sendActionBar(currentBar[0]);
+            if (h != null)
+                h.sendActionBar(currentBar[0]);
         }, 0L, 5L);
 
         Bukkit.getScheduler().runTask(plugin, () -> {
@@ -127,7 +131,7 @@ public class GameManager {
 
                         if (islandClip != null) {
                             List<io.github.rush.objects.Island> islands = room.getIslands();
-                            for (int i = 0; i < config.maxTeams() && i < islands.size(); i++) {
+                            for (int i = 0; i < islands.size(); i++) {
                                 io.github.rush.objects.Island isl = islands.get(i);
                                 pasteClipboard(gameWorld, islandClip,
                                         BlockVector3.at(isl.getX(), room.getIslandY(), isl.getZ()),
@@ -137,7 +141,7 @@ public class GameManager {
 
                         // Step 5: Spawn merchants (main thread)
                         List<io.github.rush.objects.Island> islands = room.getIslands();
-                        for (int i = 0; i < config.maxTeams() && i < islands.size(); i++) {
+                        for (int i = 0; i < islands.size(); i++) {
                             spawnMerchantsForIsland(room, islands.get(i), i);
                         }
                         room.setIslandsLoaded(true);
@@ -162,7 +166,8 @@ public class GameManager {
                         barTask[0].cancel();
                         Bukkit.getScheduler().runTaskLater(plugin, () -> {
                             Player h = Bukkit.getPlayer(hostUUID);
-                            if (h != null) h.sendActionBar(Component.empty());
+                            if (h != null)
+                                h.sendActionBar(Component.empty());
                         }, 40L);
                     });
                 });
@@ -200,7 +205,7 @@ public class GameManager {
             return null;
         }
         try (FileInputStream fis = new FileInputStream(schematicFile);
-             ClipboardReader reader = format.getReader(fis)) {
+                ClipboardReader reader = format.getReader(fis)) {
             return reader.read();
         } catch (IOException e) {
             plugin.getLogger().severe("Error reading schematic " + filename + ": " + e.getMessage());
@@ -246,7 +251,6 @@ public class GameManager {
         return Component.text(bar.toString());
     }
 
-
     private World createVoidWorld(String worldName) {
         final WorldCreator worldCreator = new WorldCreator(worldName)
                 .generator(new VoidGenerator())
@@ -258,15 +262,14 @@ public class GameManager {
             Bukkit.getScheduler().runTask(plugin, () -> {
                 gameWorld.setSpawnLocation(0, 64, 0);
                 gameWorld.setAutoSave(false);
-                gameWorld.setGameRule(org.bukkit.GameRule.DO_DAYLIGHT_CYCLE, false);
-                gameWorld.setGameRule(org.bukkit.GameRule.DO_WEATHER_CYCLE, false);
-                gameWorld.setGameRule(org.bukkit.GameRule.DO_INSOMNIA, false);
+                gameWorld.setGameRule(org.bukkit.GameRules.ADVANCE_TIME, false);
+                gameWorld.setGameRule(org.bukkit.GameRules.ADVANCE_WEATHER, false);
+                gameWorld.setGameRule(org.bukkit.GameRules.SPAWN_PHANTOMS, false);
             });
         }
 
         return gameWorld;
     }
-
 
     /**
      * Adds a player to a game room and teleports them.
@@ -319,9 +322,11 @@ public class GameManager {
 
     public Game getGameForPlayer(Player player) {
         GameRoom room = getGameRoomOfPlayer(player);
-        if (room != null) return room.getGame();
+        if (room != null)
+            return room.getGame();
         GameRoom worldRoom = getGameRoomByWorld(player.getWorld().getName());
-        if (worldRoom != null) return worldRoom.getGame();
+        if (worldRoom != null)
+            return worldRoom.getGame();
         return getCurrentGame();
     }
 
@@ -422,7 +427,8 @@ public class GameManager {
 
         int slot = 0;
         for (GameRoom room : rooms) {
-            if (slot >= rows * 9) break;
+            if (slot >= rows * 9)
+                break;
             final GameRoom targetRoom = room;
             if (isAdmin) {
                 gui.addItem(slot, createGameRoomItem(room, true),
@@ -435,9 +441,11 @@ public class GameManager {
         }
 
         for (ReplayHeader replay : replays) {
-            if (slot >= rows * 9) break;
+            if (slot >= rows * 9)
+                break;
             final ReplayHeader targetReplay = replay;
-            gui.addItem(slot, createReplayItem(replay), p -> Main.getInstance().getReplayManager().joinReplay(p, targetReplay));
+            gui.addItem(slot, createReplayItem(replay),
+                    p -> Main.getInstance().getReplayManager().joinReplay(p, targetReplay));
             slot++;
         }
 
@@ -665,7 +673,6 @@ public class GameManager {
         pendingConfigs.remove(player.getUniqueId());
     }
 
-
     // Legacy methods for backward compatibility
     public Game createGame(String name) {
         if (legacyGames.containsKey(name)) {
@@ -788,12 +795,18 @@ public class GameManager {
     }
 
     private void spawnMerchantsForIsland(GameRoom room, io.github.rush.objects.Island island, int islandIndex) {
-        // Direction vectors pointing toward center (0,0)
-        int[][] directions = { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } };
-        float[] yawValues = { -90f, 90f, 0f, 180f };
+        // Direction vectors pointing outward from center (0,0): N→-z, E→+x, S→+z, W→-x
+        int[][] directions = { { 0, -1 }, { 1, 0 }, { 0, 1 }, { -1, 0 } };
+        // Yaw values facing inward (toward center): N→South=0°, E→West=90°,
+        // S→North=180°, W→East=-90°
+        float[] yawValues = { 0f, 90f, 180f, -90f };
         List<Integer> spread = List.of(5, 7);
 
-        int speedOffset = plugin.getConfig().getInt("villagerSpeedOffset", 10);
+        // speedOffset matches Team.placeEnderChests: ender chests are at outward 12
+        // (speedOffset-1),
+        // so speed merchants sit directly 1 block behind each ender chest at outward
+        // 13.
+        int speedOffset = plugin.getConfig().getInt("villagerSpeedOffset", 13);
         int regularOffset = plugin.getConfig().getInt("villagerRegularOffset", speedOffset - 1);
 
         int[] dir = directions[islandIndex];
@@ -801,11 +814,12 @@ public class GameManager {
         int perpZ = -dir[0];
         float facingYaw = yawValues[islandIndex];
 
-        // Spawn speed villagers (2)
+        // Spawn speed villagers (2) — one directly behind each ender chest
+        // (perpendicular ±1)
         for (int i = 0; i < 2; i++) {
             int sign = (i == 0) ? 1 : -1;
-            int speedX = island.getX() + (dir[0] * speedOffset) + (perpX * sign * spread.get(0));
-            int speedZ = island.getZ() + (dir[1] * speedOffset) + (perpZ * sign * spread.get(0));
+            int speedX = island.getX() + (dir[0] * speedOffset) + (perpX * sign);
+            int speedZ = island.getZ() + (dir[1] * speedOffset) + (perpZ * sign);
 
             Location speedLoc = new Location(room.getWorld(), speedX + 0.5, room.getIslandY() + 0.5, speedZ + 0.5,
                     facingYaw, 0);
@@ -835,16 +849,22 @@ public class GameManager {
 
         if (type == io.github.rush.entities.MerchantType.SPEED) {
             villager.setBaby();
+            villager.setAgeLock(true);
         }
 
         io.github.rush.entities.Merchant.apply(villager, type);
 
         if (type.getDisplayItem() != null) {
-            // Item frame 2 blocks in front of the merchant (toward island center)
             float yaw = location.getYaw();
             double rad = Math.toRadians(yaw);
-            int frameX = (int) Math.round(location.getX() - Math.sin(rad) * 2);
-            int frameZ = (int) Math.round(location.getZ() + Math.cos(rad) * 2);
+            // 2 blocks toward center from the merchant's block position.
+            // Integer block coords avoid the double +0.5 offset from the spawn Location.
+            // Yaw in the spawn Location drives ItemFrame facing — setFacingDirection is
+            // intentionally avoided because it repositions the entity onto a block face.
+            int dx = (int) Math.round(-Math.sin(rad));
+            int dz = (int) Math.round(Math.cos(rad));
+            int frameX = location.getBlockX() + dx * 2;
+            int frameZ = location.getBlockZ() + dz * 2;
             Location frameLoc = new Location(world, frameX + 0.5, location.getY(), frameZ + 0.5, yaw, 0);
 
             ItemFrame frame = world.spawn(frameLoc, ItemFrame.class);
@@ -856,8 +876,10 @@ public class GameManager {
     }
 
     /**
-     * Creates a void world for a replay session, pastes island schematics, then calls onReady
-     * with the resulting ReplayPlayback on the main thread. Must be called from the main thread.
+     * Creates a void world for a replay session, pastes island schematics, then
+     * calls onReady
+     * with the resulting ReplayPlayback on the main thread. Must be called from the
+     * main thread.
      */
     public void createReplayWorld(ReplayFile file, Consumer<ReplayPlayback> onReady) {
         String sessionId = file.header().sessionId();
@@ -867,7 +889,8 @@ public class GameManager {
         if (file.header().mapTypeName() != null) {
             try {
                 mapType = MapType.valueOf(file.header().mapTypeName());
-            } catch (IllegalArgumentException ignored) {}
+            } catch (IllegalArgumentException ignored) {
+            }
         }
         final MapType resolvedMapType = mapType;
 
@@ -911,7 +934,8 @@ public class GameManager {
      * Unloads and deletes a replay world created by createReplayWorld.
      */
     public void destroyReplayWorld(World world) {
-        if (world == null) return;
+        if (world == null)
+            return;
         Bukkit.unloadWorld(world, false);
         File worldFolder = new File(Bukkit.getWorldContainer(), world.getName());
         if (worldFolder.exists()) {

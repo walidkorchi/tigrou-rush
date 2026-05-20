@@ -118,16 +118,18 @@ public class Team {
         int count = getResourceSpawnerCount();
         enderChestLocations.clear();
 
-        final int[][] directions = { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } };
+        // Outward direction vectors: N→-z, E→+x, S→+z, W→-x
+        final int[][] directions = { { 0, -1 }, { 1, 0 }, { 0, 1 }, { -1, 0 } };
         final int[] dir = directions[islandIndex];
         final int perpX = dir[1];
         final int perpZ = -dir[0];
 
+        // Ender chest faces inward (toward center)
         final BlockFace facingTowardsCenter = switch (islandIndex) {
-            case 0 -> BlockFace.EAST;
+            case 0 -> BlockFace.SOUTH;
             case 1 -> BlockFace.WEST;
-            case 2 -> BlockFace.SOUTH;
-            case 3 -> BlockFace.NORTH;
+            case 2 -> BlockFace.NORTH;
+            case 3 -> BlockFace.EAST;
             default -> BlockFace.NORTH;
         };
 
@@ -174,27 +176,14 @@ public class Team {
 
         int bedOffset = -6;
 
+        // Bed foot placed outward; bedFacing points from foot toward head (inward = toward center)
         BlockFace bedFacing;
         switch (islandIndex) {
-            case 0 -> {
-                x += bedOffset;
-                bedFacing = BlockFace.EAST;
-            }
-            case 1 -> {
-                x -= bedOffset;
-                bedFacing = BlockFace.WEST;
-            }
-            case 2 -> {
-                z += bedOffset;
-                bedFacing = BlockFace.SOUTH;
-            }
-            case 3 -> {
-                z -= bedOffset;
-                bedFacing = BlockFace.NORTH;
-            }
-            default -> {
-                return;
-            }
+            case 0 -> { z += bedOffset; bedFacing = BlockFace.SOUTH; }  // N: foot at z-6, head south
+            case 1 -> { x -= bedOffset; bedFacing = BlockFace.WEST; }   // E: foot at x+6, head west
+            case 2 -> { z -= bedOffset; bedFacing = BlockFace.NORTH; }  // S: foot at z+6, head north
+            case 3 -> { x += bedOffset; bedFacing = BlockFace.EAST; }   // W: foot at x-6, head east
+            default -> { return; }
         }
 
         Block bedFoot = spawnLocation.getWorld().getBlockAt(x, y, z);

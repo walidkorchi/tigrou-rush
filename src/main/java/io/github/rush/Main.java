@@ -246,6 +246,7 @@ public class Main extends JavaPlugin {
 
         if (type == MerchantType.SPEED) {
             villager.setBaby();
+            villager.setAgeLock(true);
         }
 
         Merchant.apply(villager, type);

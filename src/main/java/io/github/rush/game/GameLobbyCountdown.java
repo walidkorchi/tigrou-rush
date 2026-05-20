@@ -52,8 +52,7 @@ public class GameLobbyCountdown {
     }
 
     private boolean canStart() {
-        long readyCount = game.getPlayersReadyCount();
-        return readyCount >= game.getMinPlayers() && game.getTeamCount() >= game.getMinTeams();
+        return game.areEnoughTeamsFull();
     }
 
     public void cancel() {

@@ -333,6 +333,15 @@ public class PlayerActivity implements Listener {
         Player player = event.getPlayer();
         String worldName = player.getWorld().getName();
 
+        if (worldName.equals(plugin.getGameWorld()) && player.getLocation().getY() < 0) {
+            Location lobby = plugin.getMainLobby();
+            if (lobby != null) {
+                player.setFallDistance(0);
+                player.teleport(lobby);
+            }
+            return;
+        }
+
         if (plugin.isGameStarted() && worldName.equals(plugin.getGameWorld())) {
             Game game = Main.getInstance().getGameManager().getCurrentGame();
             if (game != null && !game.isSpectator(player)) {
@@ -353,18 +362,11 @@ public class PlayerActivity implements Listener {
     private void rescueFromVoid(Player player, Game game, int islandY) {
         double voidThreshold = islandY - Main.getInstance().getVoidThreshold();
         if (player.getLocation().getY() < voidThreshold) {
-            Team team = game.getPlayerTeam(player);
-            if (team != null) {
-                Location respawnLoc = team.getBedLocation() != null
-                        ? new Location(team.getBedLocation().getWorld(), team.getBedLocation().getX() + 0.5,
-                                team.getBedLocation().getY() + 1, team.getBedLocation().getZ() + 0.5)
-                        : team.getSpawnLocation();
-
-                if (respawnLoc != null) {
-                    player.teleport(respawnLoc);
-                    player.setFallDistance(0);
-                }
-            }
+            player.setFallDistance(0);
+            player.setHealth(player.getAttribute(Attribute.MAX_HEALTH).getValue());
+            player.setFoodLevel(20);
+            player.setSaturation(20f);
+            handleEntityDeath(game, player, null);
         }
     }
 

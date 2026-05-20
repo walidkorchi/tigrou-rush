@@ -34,28 +34,28 @@ public class GameRules implements Listener {
         this.plugin = plugin;
     }
 
-    /**
-     * Checks if the game has started and the given world is the game world.
-     *
-     * @param worldName the world name to check
-     * @return true if game is started and world matches game world, false otherwise
-     */
-    public boolean isGameEventRegistered(String worldName) {
-        if (!plugin.isGameStarted()) {
-            return false;
-        }
-        return worldName.equals(plugin.getGameWorld());
-    }
-
     private static final Set<Material> PLACEABLE_BLOCKS = Set.of(
             Material.SANDSTONE, Material.END_STONE, Material.TNT);
 
     private static final Set<Material> BREAKABLE_BLOCKS = Set.of(
             Material.SANDSTONE, Material.END_STONE);
 
+    private Game getRunningGameForWorld(String worldName) {
+        if (plugin.isGameStarted() && worldName.equals(plugin.getGameWorld())) {
+            Game game = plugin.getGameManager().getCurrentGame();
+            if (game != null && game.getState() == GameState.RUNNING)
+                return game;
+        }
+        io.github.rush.game.GameRoom room = plugin.getGameManager().getGameRoomByWorld(worldName);
+        if (room != null && room.getGame() != null && room.getGame().getState() == GameState.RUNNING)
+            return room.getGame();
+        return null;
+    }
+
     @EventHandler
     public void onBlockPlace(BlockPlaceEvent event) {
-        if (!isGameEventRegistered(event.getBlock().getWorld().getName()))
+        Game game = getRunningGameForWorld(event.getBlock().getWorld().getName());
+        if (game == null)
             return;
 
         if (!PLACEABLE_BLOCKS.contains(event.getBlock().getType())) {
@@ -71,9 +71,7 @@ public class GameRules implements Listener {
             return;
         }
 
-        Game game = plugin.getGameManager().getCurrentGame();
-        if (game != null && game.getState() == GameState.RUNNING
-                && game.isBlockInForbiddenZone(event.getBlock().getLocation())) {
+        if (game.isBlockInForbiddenZone(event.getBlock().getLocation())) {
             event.setCancelled(true);
             event.getPlayer().sendMessage(
                     Component.text("§cVous ne pouvez pas placer de blocs dans cette zone avant l'overtime!"));
@@ -82,7 +80,7 @@ public class GameRules implements Listener {
 
     @EventHandler
     public void onBlockBreak(BlockBreakEvent event) {
-        if (!isGameEventRegistered(event.getBlock().getWorld().getName()))
+        if (getRunningGameForWorld(event.getBlock().getWorld().getName()) == null)
             return;
 
         if (!BREAKABLE_BLOCKS.contains(event.getBlock().getType())) {
@@ -92,7 +90,7 @@ public class GameRules implements Listener {
 
     @EventHandler
     public void onPlayerBedEnter(PlayerBedEnterEvent event) {
-        if (!isGameEventRegistered(event.getBed().getWorld().getName()))
+        if (getRunningGameForWorld(event.getBed().getWorld().getName()) == null)
             return;
 
         event.setCancelled(true);
@@ -107,7 +105,7 @@ public class GameRules implements Listener {
         if (block == null || !(block.getBlockData() instanceof Bed))
             return;
 
-        if (!isGameEventRegistered(block.getWorld().getName()))
+        if (getRunningGameForWorld(block.getWorld().getName()) == null)
             return;
 
         event.setCancelled(true);

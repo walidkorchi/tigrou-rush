@@ -74,6 +74,7 @@ public class GameRoom {
     }
 
     public enum TeamSize {
+        VS1(1, "1 vs 1"),
         VS2(2, "2 vs 2"),
         VS3(3, "3 vs 3"),
         VS4(4, "4 vs 4");
@@ -100,7 +101,7 @@ public class GameRoom {
         this.islandType = config.islandType();
         this.teamSize = config.teamSize();
         this.lobbyLocation = lobbyLocation;
-        this.game = new Game(id, world.getName(), lobbyLocation, config.maxTeams(), config.teamSize().getPlayersPerTeam());
+        this.game = new Game(id, world.getName(), lobbyLocation, config.islandType().getCount(), config.maxTeams(), config.teamSize().getPlayersPerTeam());
         this.game.setGameRoom(this);
         this.islands = createIslands();
     }
@@ -109,7 +110,6 @@ public class GameRoom {
         final int islandOffset = Main.getInstance().getConfig().getInt("islandOffset");
         return IslandLayout.positionsFor(config.islandType(), islandOffset)
                 .stream()
-                .limit(config.maxTeams())
                 .map(p -> new Island(p.x(), p.z(), p.rotation()))
                 .toList();
     }
@@ -135,7 +135,7 @@ public class GameRoom {
     }
 
     public int getMaxPlayers() {
-        return islandType.getCount() * teamSize.getPlayersPerTeam();
+        return config.maxTeams() * teamSize.getPlayersPerTeam();
     }
 
     public boolean isFull() {

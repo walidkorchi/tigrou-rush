@@ -70,7 +70,8 @@ public class Game {
 
     @Getter
     private List<Team> islandAssignment;
-    private static final int[] ISLAND_ORDER = { 0, 2, 1, 3 };
+    private List<Integer> islandSlotOrder;
+    private static final int[] PREFERRED_ISLAND_ORDER = { 0, 2, 1, 3 };
 
     @Getter
     private int timeLeft = 0;
@@ -113,16 +114,18 @@ public class Game {
 
     /**
      * Constructor for multi-game mode with configurable team sizes.
+     * islandCount is always islandType.getCount() (4 for FOUR_ISLANDS).
+     * maxTeams is the number of teams actually playing (host choice, 2–islandCount).
      */
-    public Game(String name, String worldName, Location lobby, int islandCount, int playersPerTeam) {
+    public Game(String name, String worldName, Location lobby, int islandCount, int maxTeams, int playersPerTeam) {
         this.state = GameState.WAITING;
         this.cycle = new GameCycle(this);
         this.worldName = worldName;
         this.lobby = lobby;
-        this.maxPlayers = islandCount * playersPerTeam;
+        this.maxPlayers = maxTeams * playersPerTeam;
         this.islandCount = islandCount;
 
-        initializeTeams(islandCount, playersPerTeam);
+        initializeTeams(maxTeams, playersPerTeam);
     }
 
     /**
@@ -132,11 +135,11 @@ public class Game {
         return gameRoom != null;
     }
 
-    private void initializeTeams(int islandCount, int playersPerTeam) {
+    private void initializeTeams(int maxTeams, int playersPerTeam) {
         List<TeamColor> colors = List.of(
                 TeamColor.RED, TeamColor.BLUE, TeamColor.GREEN, TeamColor.YELLOW);
 
-        int teamCount = Math.min(islandCount, colors.size());
+        int teamCount = Math.min(maxTeams, colors.size());
         for (int i = 0; i < teamCount; i++) {
             TeamColor color = colors.get(i);
             Team team = new Team(color.name(), color, playersPerTeam);
@@ -410,9 +413,7 @@ public class Game {
 
     public void checkStartCondition() {
         if (state == GameState.WAITING) {
-            long readyCount = getPlayersReadyCount();
-
-            if (readyCount >= minPlayers && getTeamCount() >= minTeams) {
+            if (areEnoughTeamsFull()) {
                 if (lobbyCountdown == null) {
                     lobbyCountdown = new GameLobbyCountdown(this);
                     lobbyCountdown.start();
@@ -425,6 +426,20 @@ public class Game {
 
             updateActionBar();
         }
+    }
+
+    public boolean areEnoughTeamsFull() {
+        int ppTeam = getPlayersPerTeam();
+        long fullReadyTeams = teams.values().stream()
+                .filter(t -> t.getPlayers().stream()
+                        .filter(e -> Boolean.TRUE.equals(playersReady.get(e)))
+                        .count() >= ppTeam)
+                .count();
+        return fullReadyTeams >= minTeams;
+    }
+
+    private int getPlayersPerTeam() {
+        return teams.values().stream().findFirst().map(Team::getMaxPlayers).orElse(1);
     }
 
     public void forceStart() {
@@ -523,18 +538,17 @@ public class Game {
                 .sorted(Comparator.comparingInt(t -> t.getColor().ordinal()))
                 .collect(Collectors.toList());
 
-        // Spread order for 4 islands: opposite pairs first (0↔1 West/East, then 2↔3 North/South)
-        // Filter out slots that don't exist for smaller island counts.
-        int[] preferredOrder = {0, 2, 1, 3};
-        List<Integer> slotOrder = new ArrayList<>();
-        for (int s : preferredOrder) {
-            if (s < islandCount) slotOrder.add(s);
+        // Build slot order filtered to valid island indices for this island count.
+        // PREFERRED_ISLAND_ORDER spreads teams: opposite pairs first (West/East, then North/South).
+        islandSlotOrder = new ArrayList<>();
+        for (int s : PREFERRED_ISLAND_ORDER) {
+            if (s < islandCount) islandSlotOrder.add(s);
         }
 
         islandAssignment = new ArrayList<>(Collections.nCopies(islandCount, null));
 
-        for (int i = 0; i < orderedTeams.size() && i < slotOrder.size(); i++) {
-            islandAssignment.set(slotOrder.get(i), orderedTeams.get(i));
+        for (int i = 0; i < orderedTeams.size() && i < islandSlotOrder.size(); i++) {
+            islandAssignment.set(islandSlotOrder.get(i), orderedTeams.get(i));
         }
     }
 
@@ -564,7 +578,7 @@ public class Game {
                 final Team team = islandAssignment.get(i);
 
                 if (team != null) {
-                    team.placeBed(ISLAND_ORDER[i]);
+                    team.placeBed(i);
                 }
             }
 
@@ -638,7 +652,7 @@ public class Game {
             if (team == null)
                 continue;
 
-            final Island island = islands.get(ISLAND_ORDER[i]);
+            final Island island = islands.get(i);
             final Location spawnLoc = new Location(gameWorld, island.getX(), islandY + 2, island.getZ());
 
             team.setSpawnLocation(spawnLoc);
@@ -703,10 +717,14 @@ public class Game {
 
     public void onPlayerDeath(Entity entity, Player bukkitKiller) {
         final Team playerTeam = getPlayerTeam(entity);
-        final EntityEquipment inventory = getPlayerInventory(entity);
 
-        inventory.clear();
-        inventory.setArmorContents(null);
+        if (entity instanceof Player player) {
+            player.getInventory().clear();
+        } else {
+            final EntityEquipment equipment = getPlayerInventory(entity);
+            equipment.clear();
+            equipment.setArmorContents(null);
+        }
 
         Location respawnLocation = lobby;
 
@@ -1123,7 +1141,7 @@ public class Game {
                 continue;
             }
 
-            team.placeEnderChests(ISLAND_ORDER[i]);
+            team.placeEnderChests(i);
 
             for (Location chestLocation : team.getEnderChestLocations()) {
                 for (ResourceType type : ResourceType.values()) {
@@ -1156,7 +1174,7 @@ public class Game {
             return;
 
         long readyCount = getPlayersReadyCount();
-        NamedTextColor color = readyCount >= minPlayers ? NamedTextColor.GREEN : NamedTextColor.RED;
+        NamedTextColor color = readyCount >= maxPlayers ? NamedTextColor.GREEN : NamedTextColor.RED;
         TextComponent.Builder builder = Component.text()
                 .content("Joueurs prêts (")
                 .color(NamedTextColor.WHITE);

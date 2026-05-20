@@ -41,10 +41,10 @@ A schematic (`waiting_room.schem`) pasted at `(0, 0, 0)` of each GameRoom's void
 ### 4-Island Schema
 
 - **4 islands** loaded from a map-type schematic (WorldEdit), each rotated and placed at ±40 blocks from center (0, 0)
-  - Island 0: (−offset, 0) rotation −90°
-  - Island 1: (+offset, 0) rotation +90°
-  - Island 2: (0, −offset) rotation 180°
-  - Island 3: (0, +offset) rotation 0°
+  - Island 0: (0, −offset) rotation −90° — North
+  - Island 1: (+offset, 0) rotation 180° — East
+  - Island 2: (0, +offset) rotation 90° — South
+  - Island 3: (−offset, 0) rotation 0° — West
 - The only buildable zone is a **ring path** connecting all 4 islands; the center and outer corners are always blocked
 - Supports 2–4 teams
 
@@ -82,6 +82,7 @@ An enum of 8 visual themes for the island schematic: `NORMAL`, `OLD_SCHOOL`, `NE
 
 - Lobby countdown: **60 seconds**
 - Auto-start check: every **5 seconds** (100 ticks)
+- **Countdown start condition:** the countdown begins — and is cancelled and reset if the condition is no longer met — when **at least `minTeams` (2) teams each have `playersPerTeam` players all marked ready**. A team with fewer than `playersPerTeam` ready players does not count toward the threshold. A VS1 room requires 2 ready players (2 teams × 1), a VS2 room requires 4, a VS3 room requires 6, a VS4 room requires 8.
 - **Overtime** triggered after `overtime-duration` minutes (default 30): all surviving beds are destroyed and all block placement restrictions lifted. The host option `overtimeStart` fires this trigger at tick 0 — the entire game is played in deathmatch mode with no respawns from the very start. The duration is also overridable per room by the host (5–120 min, step 5).
 
 ---
@@ -100,7 +101,7 @@ An enum of 8 visual themes for the island schematic: `NORMAL`, `OLD_SCHOOL`, `NE
 
 ### TeamSize
 
-Fixed enum: `VS2` (2 players/team), `VS3` (3 players/team), `VS4` (4 players/team). Chosen by the host at room creation. Cannot be changed after the room is created.
+Fixed enum: `VS1` (1 player/team), `VS2` (2 players/team), `VS3` (3 players/team), `VS4` (4 players/team). Chosen by the host at room creation. Cannot be changed after the room is created.
 
 ### IslandType
 
@@ -352,7 +353,7 @@ Stats are persisted to PostgreSQL across sessions.
 
 | Context | Content |
 |---|---|
-| WAITING game room | `Joueurs prêts (n/max)` — updates every 2 seconds (40 ticks). Red when below max players, green when full. Sent only to players in that room's world; never shown in the hub. |
+| WAITING game room | `Joueurs prêts (n/max)` — `max = maxTeams × playersPerTeam`. Updates every 2 seconds (40 ticks). Red when `n < max`, green when `n = max` (all required slots filled and ready). Sent only to players in that room's world; never shown in the hub. |
 | RUNNING game room (respawn protection) | `§aProtection: Xs` countdown — sent each tick while protection is active |
 
 ### Scoreboard (FastBoard, updates every tick)
@@ -478,7 +479,7 @@ Hub inventory is restored automatically whenever a player is teleported out of a
 | TNT explosion radius | 4.0 blocks | `radius` |
 | Overtime trigger | 30 min | `overtime-duration` (also host-configurable per room, 5–120 min) |
 | Void rescue threshold | islandY − 20 | `void-threshold` |
-| Min players to start | 2 | hardcoded |
+| Min players to start | `minTeams × playersPerTeam` (e.g. 2 for VS1, 4 for VS2, 6 for VS3, 8 for VS4) | derived |
 | Min teams to start | 2 | hardcoded |
 | Max level | 150 | `maxLevel` |
 | Kill tracker expiry | 10 seconds | hardcoded |
