@@ -26,6 +26,7 @@ public class CommandManager {
     }
 
     private LeaderboardCommand leaderboardCommand;
+    private HubCommand hubCommand;
 
     public void registerAll(Main plugin) {
         register(new LevelDebugCommand(plugin)::createCommand);
@@ -40,6 +41,7 @@ public class CommandManager {
         register(leaderboardCommand::createCommand);
         register(new SettingsCommand()::createCommand);
         register(new SetLobbySpawnCommand(plugin)::createCommand);
+        hubCommand = new HubCommand(plugin);
     }
 
     public LeaderboardCommand getLeaderboardCommand() {
@@ -54,6 +56,9 @@ public class CommandManager {
         Commands registrar = event.registrar();
         for (CommandRegistration cmd : commands) {
             registrar.register(cmd.create().build());
+        }
+        if (hubCommand != null) {
+            registrar.register(hubCommand.createCommand().build(), List.of("spawn", "lobby"));
         }
     }
 }
