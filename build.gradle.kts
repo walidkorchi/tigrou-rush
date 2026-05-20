@@ -25,6 +25,11 @@ repositories {
     }
 
     maven {
+        name = "momirealms"
+        url = uri("https://repo.momirealms.net/releases/")
+    }
+
+    maven {
         name = "jitpack"
         url = uri("https://jitpack.io")
     }
@@ -37,6 +42,9 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     compileOnly("io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT")
     compileOnly("com.google.code.gson:gson:2.13.2")
+    compileOnly("net.momirealms:craft-engine-core:0.0.67")
+    compileOnly("net.momirealms:craft-engine-bukkit:0.0.67")
+    compileOnly("net.momirealms:craft-engine-adventure:0.0.67")
     testImplementation("com.google.code.gson:gson:2.13.2")
     compileOnly(files("../server/plugins/worldedit-bukkit-7.3.17.jar"))
     compileOnly(files("../server/plugins/GMusic-2.1.2.jar"))

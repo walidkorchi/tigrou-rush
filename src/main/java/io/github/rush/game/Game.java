@@ -539,7 +539,7 @@ public class Game {
         return RingPath.isOnPath(location.getX(), location.getZ(), allIslands);
     }
 
-    private List<Island> getAllIslandPositions() {
+    public List<Island> getAllIslandPositions() {
         List<Island> raw;
         if (isGameRoomMode() && gameRoom != null) {
             raw = gameRoom.getIslands();

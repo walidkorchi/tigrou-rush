@@ -617,3 +617,27 @@ Key domain terms used throughout this document and the codebase.
 - GMusic (background music)
 - PacketEvents
 - HologramLib
+- CraftEngine (0.0.67)
+
+---
+
+## Session History
+
+### 2025-05-20 — Speed merchant GUI (CraftEngine PagedGui)
+
+**Goal:** Replace vanilla inventory-based ShopGUI with CraftEngine's `PagedGui`/`GuiLayout` system, driven by configurable title from CraftEngine's `config.yml` at `gui.browser.speed_merchant.title`.
+
+**Changes:**
+
+| File | What |
+|---|---|
+| `build.gradle.kts` | Added Momirealms Maven repo + `craft-engine-core:0.0.67`, `craft-engine-bukkit:0.0.67`, `craft-engine-adventure:0.0.67` (compileOnly) |
+| `paper-plugin.yml` | Added `CraftEngine` server dependency (`required: false`, `join-classpath: true`) |
+| `ShopGUI.java` | Full rewrite: 6-row `PagedGui` (5 content + nav), lazy-loads title from CraftEngine config with `PlayerOptionalContext.tagResolvers()` for `<image:...>` tag resolution, SHIFT/DOUBLE_CLICK blocked, trade handling with currency check |
+
+**Key design decisions:**
+- Reads `CraftEngine/config.yml` directly via `YamlConfiguration.loadConfiguration()` rather than depending on CraftEngine's internal `Config` class
+- Title at `gui.browser.speed_merchant.title` on server: `"<white><shift:-11><image:tland:speed_merchant_browser>"`
+- Fallback title: `"<dark_gray>Boutique"` if config key is missing
+- Category sub-titles remain hardcoded (`<dark_gray>Armes`, etc.)
+- Lazy `Constants` inner class loads once on first `openMainMenu()` call

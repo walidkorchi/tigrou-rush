@@ -18,6 +18,7 @@ import org.bukkit.event.player.PlayerBedEnterEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 
 import io.github.rush.Main;
+import io.github.rush.entities.Merchant;
 import io.github.rush.entities.MerchantType;
 import io.github.rush.game.Game;
 import io.github.rush.game.GameState;
@@ -142,28 +143,21 @@ public class GameRules implements Listener {
         }
 
         Player player = event.getPlayer();
-
-        String gameWorld = Main.getInstance().getGameWorld();
-        if (gameWorld == null || !player.getWorld().getName().equals(gameWorld)) {
+        if (getRunningGameForWorld(player.getWorld().getName()) == null) {
             return;
         }
 
-        Game game = Main.getInstance().getGameManager().getCurrentGame();
-        if (game == null || game.getState() != GameState.RUNNING) {
-            return;
-        }
-
-        if (!Main.getInstance().isMerchantVillager(villager)) {
+        if (!Merchant.isMerchant(villager)) {
             return;
         }
 
         event.setCancelled(true);
 
-        if (Main.getInstance().isSpeedMerchantVillager(villager)) {
+        MerchantType type = Merchant.getType(villager);
+        if (type == MerchantType.SPEED) {
             ShopGUI.openMainMenu(player);
-        } else {
-            MerchantType type = Main.getInstance().getMerchantTypeFor(villager);
-            ShopGUI.Category category = type == null ? null : switch (type) {
+        } else if (type != null) {
+            ShopGUI.Category category = switch (type) {
                 case WEAPONSMITH -> ShopGUI.Category.WEAPONS;
                 case BUILDER -> ShopGUI.Category.BLOCKS;
                 case ALCHEMIST -> ShopGUI.Category.POTIONS;
@@ -181,7 +175,7 @@ public class GameRules implements Listener {
         if (!(event.getEntity() instanceof Villager villager))
             return;
 
-        if (!plugin.isMerchantVillager(villager))
+        if (!Merchant.isMerchant(villager))
             return;
 
         event.setCancelled(true);
