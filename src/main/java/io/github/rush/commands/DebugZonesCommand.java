@@ -6,6 +6,8 @@ import com.mojang.brigadier.context.CommandContext;
 import io.github.rush.Main;
 import io.github.rush.game.Game;
 import io.github.rush.game.GameState;
+import io.github.rush.game.RingPath;
+import io.github.rush.objects.Island;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -21,24 +23,28 @@ import org.jspecify.annotations.NullMarked;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static net.kyori.adventure.text.Component.text;
 
 /**
  * Visualises the block-placement restrictions of the running game.
  *
- * <p>Color legend:
+ * <p>
+ * Color legend:
  * <ul>
- *   <li><b>Red redstone block</b> — always forbidden (outside the ring).
- *       Stays put across the overtime transition.</li>
- *   <li><b>Orange wool</b> — forbidden until overtime (the patched corridor
- *       between the two playing teams). Automatically removed when the game
- *       enters overtime.</li>
+ * <li><b>Red redstone block</b> — always forbidden (outside the ring).
+ * Stays put across the overtime transition.</li>
+ * <li><b>Orange wool</b> — forbidden until overtime (the patched corridor
+ * between the two playing teams). Automatically removed when the game
+ * enters overtime.</li>
  * </ul>
  *
- * <p>Existing non-air blocks (island schematic foundations, beds, anything
+ * <p>
+ * Existing non-air blocks (island schematic foundations, beds, anything
  * players placed) are never overwritten — that is all the island protection
  * the visualiser needs. The triangular gaps between the two bridges leaving
  * each island are air at island Y and will correctly show up red.
@@ -79,7 +85,8 @@ public class DebugZonesCommand {
         int islandY = resolveIslandY(game, world);
 
         OvertimeWatcher prev = overtimeWatchers.remove(world.getName());
-        if (prev != null) prev.cancel();
+        if (prev != null)
+            prev.cancel();
 
         int redPlaced = 0;
         int orangePlaced = 0;
@@ -88,7 +95,8 @@ public class DebugZonesCommand {
         for (int x = -SCAN_RADIUS; x <= SCAN_RADIUS; x++) {
             for (int z = -SCAN_RADIUS; z <= SCAN_RADIUS; z++) {
                 Block b = world.getBlockAt(x, islandY, z);
-                if (b.getType() != Material.AIR) continue;
+                if (b.getType() != Material.AIR)
+                    continue;
 
                 Location loc = new Location(world, x, islandY, z);
 
@@ -106,9 +114,12 @@ public class DebugZonesCommand {
             }
         }
 
+        int platePlaced = placeBridgeEndpointPlates(game, world, islandY);
+
         sender.sendMessage(text(
-                "Placed " + redPlaced + " redstone (ring forbidden) and "
-                        + orangePlaced + " orange wool (forbidden until overtime).",
+                "Placed " + redPlaced + " redstone (ring forbidden), "
+                        + orangePlaced + " orange wool (forbidden until overtime), "
+                        + platePlaced + " pressure plates (bridge endpoints).",
                 NamedTextColor.GREEN));
 
         if (!orangePositions.isEmpty() && !game.isOvertime()) {
@@ -145,14 +156,49 @@ public class DebugZonesCommand {
                     b.setType(Material.AIR);
                     removed++;
                 }
+                Block plate = world.getBlockAt(x, islandY + 1, z);
+                if (plate.getType() == Material.LIGHT_WEIGHTED_PRESSURE_PLATE) {
+                    plate.setType(Material.AIR);
+                    removed++;
+                }
             }
         }
 
         OvertimeWatcher prev = overtimeWatchers.remove(world.getName());
-        if (prev != null) prev.cancel();
+        if (prev != null)
+            prev.cancel();
 
         sender.sendMessage(text("Removed " + removed + " debug blocks.", NamedTextColor.GREEN));
         return Command.SINGLE_SUCCESS;
+    }
+
+    /**
+     * Places a LIGHT_WEIGHTED_PRESSURE_PLATE at the bridge endpoint of every cyclic
+     * island pair. Each island contributes exactly 2 endpoints (one per
+     * adjacent bridge). Returns the number of plates placed.
+     */
+    private int placeBridgeEndpointPlates(Game game, World world, int islandY) {
+        List<Island> islands = game.getAllIslandPositions();
+        int n = islands.size();
+        int placed = 0;
+        Set<Long> seen = new HashSet<>();
+        for (int i = 0; i < n; i++) {
+            int j = (i + 1) % n;
+            Island a = islands.get(i);
+            Island b = islands.get(j);
+            double[] ea = RingPath.bridgeEndpoint(a.getX(), a.getZ(), b.getX(), b.getZ());
+            double[] eb = RingPath.bridgeEndpoint(b.getX(), b.getZ(), a.getX(), a.getZ());
+            for (double[] ep : new double[][] { ea, eb }) {
+                int bx = (int) Math.round(ep[0]);
+                int bz = (int) Math.round(ep[1]);
+                long key = ((long) bx << 32) | (bz & 0xFFFFFFFFL);
+                if (seen.add(key)) {
+                    world.getBlockAt(bx, islandY + 1, bz).setType(Material.LIGHT_WEIGHTED_PRESSURE_PLATE);
+                    placed++;
+                }
+            }
+        }
+        return placed;
     }
 
     private Game getRunningGame(Player player) {

@@ -69,6 +69,20 @@ public class GameRules implements Listener {
             return;
         }
 
+        if (game.isBlockOnResourceSpawn(event.getBlock().getLocation())) {
+            event.setCancelled(true);
+            event.getPlayer().sendMessage(
+                    Component.text("§cVous ne pouvez pas placer de blocs sur les générateurs de ressources!"));
+            return;
+        }
+
+        if (game.isBlockNearRegularMerchant(event.getBlock().getLocation())) {
+            event.setCancelled(true);
+            event.getPlayer().sendMessage(
+                    Component.text("§cVous ne pouvez pas placer de blocs à proximité des marchands!"));
+            return;
+        }
+
         if (event.getBlock().getType() != Material.TNT
                 && hasNearbyBlock(event.getBlock(), plugin.getConfig().getInt("bedProtectionRadius"),
                         b -> b.getBlockData() instanceof Bed)) {

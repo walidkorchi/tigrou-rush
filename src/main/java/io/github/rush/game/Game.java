@@ -73,6 +73,8 @@ public class Game {
     private List<Integer> islandSlotOrder;
     // Adjacent pair first (S+E) so 2-team forbidden zone covers the SE corridor between them.
     private static final int[] PREFERRED_ISLAND_ORDER = { 2, 1, 0, 3 };
+    // Visual centres computed once per game by scanning island blocks outward from paste origin.
+    private final Map<String, double[]> islandVisualCenterCache = new HashMap<>();
 
     @Getter
     private int timeLeft = 0;
@@ -511,6 +513,11 @@ public class Game {
             return false;
         }
 
+        // Island platforms are never part of the forbidden corridor.
+        if (isBlockOnIsland(location)) {
+            return false;
+        }
+
         List<Team> activeTeamList = islandAssignment.stream()
                 .filter(t -> t != null && !t.getPlayers().isEmpty())
                 .collect(Collectors.toList());
@@ -533,10 +540,129 @@ public class Game {
                 islandCount);
     }
 
+    public boolean isBlockOnResourceSpawn(Location location) {
+        int bx = location.getBlockX();
+        int by = location.getBlockY();
+        int bz = location.getBlockZ();
+        for (Team team : islandAssignment) {
+            if (team == null) continue;
+            for (Location chestLoc : team.getEnderChestLocations()) {
+                if (bx == chestLoc.getBlockX() && by == chestLoc.getBlockY() + 1 && bz == chestLoc.getBlockZ()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    public boolean isBlockNearRegularMerchant(Location location) {
+        int bx = location.getBlockX();
+        int by = location.getBlockY();
+        int bz = location.getBlockZ();
+        List<Island> islands = getAllIslandPositions();
+        if (islands.isEmpty()) return false;
+        World world = location.getWorld();
+        if (world == null) return false;
+        int speedOffset = Main.getInstance().getConfig().getInt("villagerSpeedOffset", 13);
+        int regularOffset = Main.getInstance().getConfig().getInt("villagerRegularOffset", speedOffset - 1);
+        List<Integer> spread = List.of(5, 7);
+        int islandY = isGameRoomMode() && gameRoom != null
+                ? gameRoom.getIslandY()
+                : (Main.getISLAND_Y() > 0 ? Main.getISLAND_Y() : world.getMaxHeight() - 12);
+        for (int islandIndex = 0; islandIndex < islands.size(); islandIndex++) {
+            Island island = islands.get(islandIndex);
+            int[][] directions = { { 0, -1 }, { 1, 0 }, { 0, 1 }, { -1, 0 } };
+            int[] dir = directions[islandIndex];
+            int perpX = dir[1];
+            int perpZ = -dir[0];
+            for (int i = 0; i < 4; i++) {
+                int sign = (i < 2) ? 1 : -1;
+                int spreadIdx = (i % 2 == 0) ? 0 : 1;
+                int regX = island.getX() + (dir[0] * regularOffset) + (perpX * spread.get(spreadIdx) * sign);
+                int regZ = island.getZ() + (dir[1] * regularOffset) + (perpZ * spread.get(spreadIdx) * sign);
+                int regY = islandY;
+                if (Math.abs(bx - regX) <= 1 && Math.abs(by - regY) <= 1 && Math.abs(bz - regZ) <= 1) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     public boolean isBlockInRingPath(Location location) {
-        List<Island> allIslands = getAllIslandPositions();
+        final List<Island> allIslands = getAllIslandPositions();
         if (allIslands.isEmpty()) return true;
+        if (isBlockOnIsland(location)) return true;
         return RingPath.isOnPath(location.getX(), location.getZ(), allIslands);
+    }
+
+    /**
+     * Returns true if the location falls within the visual-centre radius of any
+     * island platform. Used to exempt island surfaces from both the ring-path
+     * restriction and the forbidden-zone corridor restriction.
+     */
+    private boolean isBlockOnIsland(Location location) {
+        final World world = location.getWorld();
+        if (world == null) return false;
+
+        final List<Island> allIslands = getAllIslandPositions();
+        if (allIslands.isEmpty()) return false;
+
+        final int islandY = isGameRoomMode() && gameRoom != null
+                ? gameRoom.getIslandY()
+                : (Main.getISLAND_Y() > 0 ? Main.getISLAND_Y() : world.getMaxHeight() - 12);
+
+        final int regularOffset = Main.getInstance().getConfig().getInt("villagerRegularOffset",
+                Main.getInstance().getConfig().getInt("villagerSpeedOffset", 13) - 1);
+        final double islandRadiusSq = (regularOffset + 2.0) * (regularOffset + 2.0);
+        final double bx = location.getX();
+        final double bz = location.getZ();
+
+        for (Island island : allIslands) {
+            final String key = island.getX() + "," + island.getZ();
+            final double[] center = islandVisualCenterCache.computeIfAbsent(key,
+                    k -> computeIslandVisualCenter(island, world, islandY));
+            final double dx = bx - center[0];
+            final double dz = bz - center[1];
+            if (dx * dx + dz * dz <= islandRadiusSq) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Scans outward from the island's paste origin along the radial axis (away
+     * from the map centre) at surface level to find the island's far edge, then
+     * returns the midpoint as the visual centre.
+     *
+     * The paste origin is the inner edge of the island (map-facing side, transversely
+     * centred). The island extends outward from there, so the true visual centre is
+     * at origin + depth/2 along the radial direction.
+     */
+    private double[] computeIslandVisualCenter(Island island, World world, int islandY) {
+        final double ix = island.getX();
+        final double iz = island.getZ();
+        final double len = Math.sqrt(ix * ix + iz * iz);
+        if (len == 0.0) return new double[]{ix, iz};
+
+        // Unit vector pointing away from map centre (outward through the island)
+        final double radX = ix / len;
+        final double radZ = iz / len;
+
+        // Walk outward from the paste origin; remember the farthest non-air block
+        int lastOffset = 0;
+        for (int d = 0; d <= 40; d++) {
+            final int bx = (int) Math.round(ix + d * radX);
+            final int bz = (int) Math.round(iz + d * radZ);
+            if (world.getBlockAt(bx, islandY, bz).getType() != Material.AIR) {
+                lastOffset = d;
+            }
+        }
+
+        // Midpoint between paste origin and far edge = visual centre
+        final double halfDepth = lastOffset / 2.0;
+        return new double[]{ix + halfDepth * radX, iz + halfDepth * radZ};
     }
 
     public List<Island> getAllIslandPositions() {

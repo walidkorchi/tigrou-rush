@@ -37,14 +37,14 @@ public final class RingPath {
      * Distance from an island's center toward map-origin (radial axis) at
      * which a bridge endpoint is anchored.
      */
-    public static final double AXIAL_OFFSET = 2.0;
+    public static final double AXIAL_OFFSET = -2.0;
 
     /**
      * Distance from an island's radial axis (tangential axis) at which a
      * bridge endpoint is anchored. Each island has two bridges, one at
      * {@code +TRANSVERSE_OFFSET} and one at {@code -TRANSVERSE_OFFSET}.
      */
-    public static final double TRANSVERSE_OFFSET = 8.0;
+    public static final double TRANSVERSE_OFFSET = 6.0;
 
     /**
      * Half-width of a bridge corridor, in blocks. Total bridge width is
@@ -100,9 +100,8 @@ public final class RingPath {
      * Bridge endpoint anchored at island A, on the side of A facing B.
      * Pulled {@link #AXIAL_OFFSET} blocks toward origin and
      * {@link #TRANSVERSE_OFFSET} blocks toward B along A's tangential axis.
-     * Package-private so {@link ForbiddenZone} can reuse it.
      */
-    static double[] bridgeEndpoint(double ax, double az, double bx, double bz) {
+    public static double[] bridgeEndpoint(double ax, double az, double bx, double bz) {
         final double aLen = Math.sqrt(ax * ax + az * az);
         if (aLen == 0.0) {
             return new double[] { ax, az };
