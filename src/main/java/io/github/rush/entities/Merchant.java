@@ -25,7 +25,8 @@ public class Merchant {
      */
     public static MerchantType getType(Villager villager) {
         String name = villager.getPersistentDataContainer().get(MERCHANT_TYPE_KEY, PersistentDataType.STRING);
-        if (name == null) return null;
+        if (name == null)
+            return null;
         try {
             return MerchantType.valueOf(name);
         } catch (IllegalArgumentException e) {
@@ -60,7 +61,8 @@ public class Merchant {
     }
 
     /**
-     * Creates a synthetic Bukkit Merchant (not backed by a villager entity) for the given
+     * Creates a synthetic Bukkit Merchant (not backed by a villager entity) for the
+     * given
      * merchant type, ready to be opened via {@code player.openMerchant()}.
      */
     public static org.bukkit.inventory.Merchant createBukkitMerchant(MerchantType type) {

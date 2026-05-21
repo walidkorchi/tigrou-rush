@@ -33,6 +33,7 @@ import org.bukkit.inventory.EntityEquipment;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.EquipmentSlotGroup;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.CompassMeta;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.LeatherArmorMeta;
 import org.bukkit.potion.PotionEffect;
@@ -71,9 +72,11 @@ public class Game {
     @Getter
     private List<Team> islandAssignment;
     private List<Integer> islandSlotOrder;
-    // Adjacent pair first (S+E) so 2-team forbidden zone covers the SE corridor between them.
+    // Adjacent pair first (S+E) so 2-team forbidden zone covers the SE corridor
+    // between them.
     private static final int[] PREFERRED_ISLAND_ORDER = { 2, 1, 0, 3 };
-    // Visual centres computed once per game by scanning island blocks outward from paste origin.
+    // Visual centres computed once per game by scanning island blocks outward from
+    // paste origin.
     private final Map<String, double[]> islandVisualCenterCache = new HashMap<>();
 
     @Getter
@@ -118,7 +121,8 @@ public class Game {
     /**
      * Constructor for multi-game mode with configurable team sizes.
      * islandCount is always islandType.getCount() (4 for FOUR_ISLANDS).
-     * maxTeams is the number of teams actually playing (host choice, 2–islandCount).
+     * maxTeams is the number of teams actually playing (host choice,
+     * 2–islandCount).
      */
     public Game(String name, String worldName, Location lobby, int islandCount, int maxTeams, int playersPerTeam) {
         this.state = GameState.WAITING;
@@ -402,7 +406,7 @@ public class Game {
     }
 
     private void resetPlayerHealth(Player player) {
-        var maxHealth = player.getAttribute(Attribute.MAX_HEALTH);
+        AttributeInstance maxHealth = player.getAttribute(Attribute.MAX_HEALTH);
         if (maxHealth != null) {
             maxHealth.removeModifier(NamespacedKey.minecraft("extra_hearts"));
         }
@@ -545,7 +549,8 @@ public class Game {
         int by = location.getBlockY();
         int bz = location.getBlockZ();
         for (Team team : islandAssignment) {
-            if (team == null) continue;
+            if (team == null)
+                continue;
             for (Location chestLoc : team.getEnderChestLocations()) {
                 if (bx == chestLoc.getBlockX() && by == chestLoc.getBlockY() + 1 && bz == chestLoc.getBlockZ()) {
                     return true;
@@ -560,9 +565,11 @@ public class Game {
         int by = location.getBlockY();
         int bz = location.getBlockZ();
         List<Island> islands = getAllIslandPositions();
-        if (islands.isEmpty()) return false;
+        if (islands.isEmpty())
+            return false;
         World world = location.getWorld();
-        if (world == null) return false;
+        if (world == null)
+            return false;
         int speedOffset = Main.getInstance().getConfig().getInt("villagerSpeedOffset", 13);
         int regularOffset = Main.getInstance().getConfig().getInt("villagerRegularOffset", speedOffset - 1);
         int radius = Main.getInstance().getConfig().getInt("merchantProtectionRadius", 3);
@@ -596,8 +603,10 @@ public class Game {
 
     public boolean isBlockInRingPath(Location location) {
         final List<Island> allIslands = getAllIslandPositions();
-        if (allIslands.isEmpty()) return true;
-        if (isBlockOnIsland(location)) return true;
+        if (allIslands.isEmpty())
+            return true;
+        if (isBlockOnIsland(location))
+            return true;
         return RingPath.isOnPath(location.getX(), location.getZ(), allIslands);
     }
 
@@ -608,10 +617,12 @@ public class Game {
      */
     private boolean isBlockOnIsland(Location location) {
         final World world = location.getWorld();
-        if (world == null) return false;
+        if (world == null)
+            return false;
 
         final List<Island> allIslands = getAllIslandPositions();
-        if (allIslands.isEmpty()) return false;
+        if (allIslands.isEmpty())
+            return false;
 
         final int islandY = isGameRoomMode() && gameRoom != null
                 ? gameRoom.getIslandY()
@@ -641,7 +652,8 @@ public class Game {
      * from the map centre) at surface level to find the island's far edge, then
      * returns the midpoint as the visual centre.
      *
-     * The paste origin is the inner edge of the island (map-facing side, transversely
+     * The paste origin is the inner edge of the island (map-facing side,
+     * transversely
      * centred). The island extends outward from there, so the true visual centre is
      * at origin + depth/2 along the radial direction.
      */
@@ -649,7 +661,8 @@ public class Game {
         final double ix = island.getX();
         final double iz = island.getZ();
         final double len = Math.sqrt(ix * ix + iz * iz);
-        if (len == 0.0) return new double[]{ix, iz};
+        if (len == 0.0)
+            return new double[] { ix, iz };
 
         // Unit vector pointing away from map centre (outward through the island)
         final double radX = ix / len;
@@ -667,7 +680,7 @@ public class Game {
 
         // Midpoint between paste origin and far edge = visual centre
         final double halfDepth = lastOffset / 2.0;
-        return new double[]{ix + halfDepth * radX, iz + halfDepth * radZ};
+        return new double[] { ix + halfDepth * radX, iz + halfDepth * radZ };
     }
 
     public List<Island> getAllIslandPositions() {
@@ -677,14 +690,14 @@ public class Game {
         } else {
             raw = Main.getInstance().getIslands();
         }
-        if (raw == null || raw.isEmpty()) return List.of();
+        if (raw == null || raw.isEmpty())
+            return List.of();
         // Sort by angle from centroid to guarantee cyclic (N→E→S→W) order for
         // the bridge-segment check, regardless of how the list was built.
         double cx = raw.stream().mapToDouble(Island::getX).average().orElse(0);
         double cz = raw.stream().mapToDouble(Island::getZ).average().orElse(0);
         return raw.stream()
-                .sorted(Comparator.comparingDouble((Island i) ->
-                        Math.atan2(i.getZ() - cz, i.getX() - cx)))
+                .sorted(Comparator.comparingDouble((Island i) -> Math.atan2(i.getZ() - cz, i.getX() - cx)))
                 .toList();
     }
 
@@ -695,10 +708,12 @@ public class Game {
                 .collect(Collectors.toList());
 
         // Build slot order filtered to valid island indices for this island count.
-        // PREFERRED_ISLAND_ORDER spreads teams: opposite pairs first (West/East, then North/South).
+        // PREFERRED_ISLAND_ORDER spreads teams: opposite pairs first (West/East, then
+        // North/South).
         islandSlotOrder = new ArrayList<>();
         for (int s : PREFERRED_ISLAND_ORDER) {
-            if (s < islandCount) islandSlotOrder.add(s);
+            if (s < islandCount)
+                islandSlotOrder.add(s);
         }
 
         islandAssignment = new ArrayList<>(Collections.nCopies(islandCount, null));
@@ -1265,8 +1280,10 @@ public class Game {
             for (Team team : teams.values()) {
                 UUID teamId = UUID.nameUUIDFromBytes(team.getColor().name().getBytes());
                 for (Entity entity : team.getPlayers()) {
-                    if (!(entity instanceof Player holder)) continue;
-                    if (holder.getInventory().getItemInMainHand().getType() != org.bukkit.Material.COMPASS) continue;
+                    if (!(entity instanceof Player holder))
+                        continue;
+                    if (holder.getInventory().getItemInMainHand().getType() != Material.COMPASS)
+                        continue;
 
                     CompassTracker.Candidate nearest = CompassTracker.findNearestEnemy(
                             holder.getLocation().getX(),
@@ -1274,12 +1291,13 @@ public class Game {
                             holder.getLocation().getZ(),
                             teamId, candidates);
 
-                    if (nearest == null) continue;
+                    if (nearest == null)
+                        continue;
 
-                    org.bukkit.inventory.ItemStack compass = holder.getInventory().getItemInMainHand();
-                    org.bukkit.inventory.meta.CompassMeta meta =
-                            (org.bukkit.inventory.meta.CompassMeta) compass.getItemMeta();
-                    meta.setLodestone(new org.bukkit.Location(
+                    ItemStack compass = holder.getInventory().getItemInMainHand();
+                    CompassMeta meta = (CompassMeta) compass.getItemMeta();
+
+                    meta.setLodestone(new Location(
                             holder.getWorld(), nearest.x(), nearest.y(), nearest.z()));
                     meta.setLodestoneTracked(false);
                     compass.setItemMeta(meta);

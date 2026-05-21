@@ -10,11 +10,14 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.entity.Display.Billboard;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.TextDisplay.TextAlignment;
 import io.github.rush.config.ConfigManager;
 import org.jspecify.annotations.NullMarked;
 
@@ -149,14 +152,16 @@ public class LeaderboardCommand {
 
     private void saveLeaderboards() {
         ConfigManager configManager = Main.getInstance().getConfigManager();
-        if (configManager == null) return;
+        if (configManager == null)
+            return;
 
         FileConfiguration config = configManager.getConfig();
         List<Map<String, Object>> list = new ArrayList<>();
 
         for (Map.Entry<Location, LeaderboardHologram> entry : holograms.entrySet()) {
             Location loc = entry.getKey();
-            if (loc.getWorld() == null) continue;
+            if (loc.getWorld() == null)
+                continue;
             Map<String, Object> data = new LinkedHashMap<>();
             data.put("world", loc.getWorld().getName());
             data.put("x", loc.getX());
@@ -173,10 +178,12 @@ public class LeaderboardCommand {
     public void restoreLeaderboards() {
         Bukkit.getScheduler().runTaskLater(Main.getInstance(), () -> {
             ConfigManager configManager = Main.getInstance().getConfigManager();
-            if (configManager == null) return;
+            if (configManager == null)
+                return;
 
             FileConfiguration config = configManager.getConfig();
-            if (!config.contains("leaderboards")) return;
+            if (!config.contains("leaderboards"))
+                return;
 
             List<Map<?, ?>> saved = config.getMapList("leaderboards");
             List<Map<String, Object>> valid = new ArrayList<>();
@@ -190,7 +197,8 @@ public class LeaderboardCommand {
 
                 World world = Bukkit.getWorld(worldName);
                 if (world == null) {
-                    Main.getInstance().getLogger().warning("Leaderboard restore: world '" + worldName + "' not found, skipping.");
+                    Main.getInstance().getLogger()
+                            .warning("Leaderboard restore: world '" + worldName + "' not found, skipping.");
                     continue;
                 }
 
@@ -198,7 +206,8 @@ public class LeaderboardCommand {
                 try {
                     type = LeaderboardType.valueOf(typeName);
                 } catch (IllegalArgumentException e) {
-                    Main.getInstance().getLogger().warning("Leaderboard restore: unknown type '" + typeName + "', skipping.");
+                    Main.getInstance().getLogger()
+                            .warning("Leaderboard restore: unknown type '" + typeName + "', skipping.");
                     continue;
                 }
 
@@ -254,12 +263,12 @@ public class LeaderboardCommand {
         public void spawn() {
             hologram = new TextHologram("lb_" + UUID.randomUUID().toString().substring(0, 8))
                     .setMiniMessageText(buildContent())
-                    .setBillboard(org.bukkit.entity.Display.Billboard.CENTER)
+                    .setBillboard(Billboard.CENTER)
                     .setShadow(true)
                     .setScale(1.0F, 1.0F, 1.0F)
                     .setTextOpacity((byte) 255)
-                    .setBackgroundColor(org.bukkit.Color.fromARGB(80, 0, 0, 0).asARGB())
-                    .setAlignment(org.bukkit.entity.TextDisplay.TextAlignment.CENTER)
+                    .setBackgroundColor(Color.fromARGB(80, 0, 0, 0).asARGB())
+                    .setAlignment(TextAlignment.CENTER)
                     .setViewRange(0.3);
 
             Main.getInstance().getHologramManager().spawn(hologram, location);
@@ -308,7 +317,8 @@ public class LeaderboardCommand {
                 } else {
                     sb.append("<").append(color).append(">")
                             .append(medal).append(entry.getKey())
-                            .append(" <dark_gray>-</dark_gray> ").append(entry.getValue()).append(" ").append(type.getSuffix())
+                            .append(" <dark_gray>-</dark_gray> ").append(entry.getValue()).append(" ")
+                            .append(type.getSuffix())
                             .append("</").append(color).append(">\n");
                 }
                 rank++;
@@ -329,10 +339,10 @@ public class LeaderboardCommand {
 
             try {
                 return switch (type) {
-                    case KILLS     -> statManager.getTop10ByKills();
-                    case WINS      -> statManager.getTop10ByWins();
+                    case KILLS -> statManager.getTop10ByKills();
+                    case WINS -> statManager.getTop10ByWins();
                     case WINSTREAK -> statManager.getTop10ByWinStreak();
-                    case LEVEL     -> levelManager.getTop10ByLevel();
+                    case LEVEL -> levelManager.getTop10ByLevel();
                 };
             } catch (Exception e) {
                 Main.getInstance().getLogger().warning("Leaderboard query failed: " + e.getMessage());

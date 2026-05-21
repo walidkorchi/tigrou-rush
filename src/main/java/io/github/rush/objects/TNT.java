@@ -6,6 +6,7 @@ import java.text.DecimalFormat;
 import java.util.Iterator;
 import java.util.List;
 
+import org.bukkit.DyeColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
@@ -196,8 +197,8 @@ public class TNT implements Listener {
     }
 
     private TeamColor getTeamColorFromBed(Bed bed) {
-        org.bukkit.DyeColor dyeColor = bed.getColor();
-        
+        DyeColor dyeColor = bed.getColor();
+
         return switch (dyeColor) {
             case RED -> TeamColor.RED;
             case BLUE -> TeamColor.BLUE;

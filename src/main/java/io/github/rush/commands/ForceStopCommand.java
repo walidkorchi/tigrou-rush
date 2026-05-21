@@ -12,6 +12,7 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 
 import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Player;
 import org.jspecify.annotations.NullMarked;
 
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -42,7 +43,7 @@ public class ForceStopCommand {
             return Command.SINGLE_SUCCESS;
         }
 
-        if (sender instanceof org.bukkit.entity.Player player) {
+        if (sender instanceof Player player) {
             Game game = gameManager.getGameForPlayer(player);
             if (game != null && game.getState() == GameState.RUNNING) {
                 if (game.isGameRoomMode()) {

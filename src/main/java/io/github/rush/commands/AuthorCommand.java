@@ -11,6 +11,7 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Particle;
@@ -390,7 +391,7 @@ public class AuthorCommand {
                 .setShadow(true)
                 .setScale(1.2F, 1.2F, 1.2F)
                 .setTextOpacity((byte) 255)
-                .setBackgroundColor(org.bukkit.Color.fromARGB(0, 0, 0, 0).asARGB())
+                .setBackgroundColor(Color.fromARGB(0, 0, 0, 0).asARGB())
                 .setAlignment(TextDisplay.TextAlignment.CENTER)
                 .setViewRange(0.5);
 

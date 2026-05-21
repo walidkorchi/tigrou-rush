@@ -5,6 +5,7 @@ import io.github.rush.game.GameRoom;
 import io.github.rush.utils.ItemBuilder;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Material;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
@@ -12,7 +13,8 @@ import java.util.List;
 
 public final class HostPanelGUI {
 
-    private HostPanelGUI() {}
+    private HostPanelGUI() {
+    }
 
     public static void open(Player host, GameRoom room, GameManager manager) {
         List<Player> players = room.getGame().getPlayers().stream()
@@ -20,7 +22,8 @@ public final class HostPanelGUI {
                 .map(e -> (Player) e)
                 .toList();
 
-        // Rows: 1 for the force-start button + ceil(players / 9) for kick list, min 2 rows
+        // Rows: 1 for the force-start button + ceil(players / 9) for kick list, min 2
+        // rows
         int rows = Math.max(2, 1 + (int) Math.ceil(players.size() / 9.0));
         GUI gui = new GUI("§8Panneau de l'Hôte", rows);
 
@@ -32,7 +35,7 @@ public final class HostPanelGUI {
 
         gui.addItem(0, deleteRoom, p -> {
             p.closeInventory();
-            for (org.bukkit.entity.Entity entity : new java.util.ArrayList<>(room.getWorld().getPlayers())) {
+            for (Entity entity : new java.util.ArrayList<>(room.getWorld().getPlayers())) {
                 if (entity instanceof Player roomPlayer) {
                     roomPlayer.sendMessage(Component.text("§cLa partie a été supprimée par l'hôte."));
                 }
@@ -54,7 +57,8 @@ public final class HostPanelGUI {
         // Per-player kick buttons (row 2+, one slot per player)
         int slot = 9;
         for (Player target : players) {
-            if (target.equals(host)) continue;
+            if (target.equals(host))
+                continue;
 
             ItemStack head = ItemBuilder.of(Material.PLAYER_HEAD)
                     .name("§c§lExpulser §f" + target.getName())

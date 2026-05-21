@@ -29,9 +29,11 @@ import org.bukkit.Material;
 import org.bukkit.Tag;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.block.Block;
+import org.bukkit.block.Container;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Mannequin;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Projectile;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
@@ -52,6 +54,7 @@ import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerSwapHandItemsEvent;
+import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
@@ -178,9 +181,9 @@ public class PlayerActivity implements Listener {
                         UUID nextHostUUID = HostTransfer.nextHost(
                                 r.getJoinOrder(),
                                 player.getUniqueId(),
-                                uuid -> org.bukkit.Bukkit.getPlayer(uuid) != null);
+                                uuid -> Bukkit.getPlayer(uuid) != null);
                         if (nextHostUUID != null) {
-                            org.bukkit.entity.Player nextHost = org.bukkit.Bukkit.getPlayer(nextHostUUID);
+                            Player nextHost = Bukkit.getPlayer(nextHostUUID);
                             r.setHostUUID(nextHostUUID);
                             r.setHostName(nextHost.getName());
                             nextHost.getInventory().setItem(8, plugin.getGameManager().createHostPanelItem());
@@ -309,7 +312,6 @@ public class PlayerActivity implements Listener {
                 && entityBox.getMinZ() < blockBox.getMaxZ()
                 && entityBox.getMaxZ() > blockBox.getMinZ();
     }
-
 
     @EventHandler
     public void onPlayerDropItem(PlayerDropItemEvent event) {
@@ -784,7 +786,7 @@ public class PlayerActivity implements Listener {
         Player attacker = null;
         if (event.getDamager() instanceof Player p) {
             attacker = p;
-        } else if (event.getDamager() instanceof org.bukkit.entity.Projectile projectile
+        } else if (event.getDamager() instanceof Projectile projectile
                 && projectile.getShooter() instanceof Player p) {
             attacker = p;
         }
@@ -883,7 +885,7 @@ public class PlayerActivity implements Listener {
 
     private boolean isHubRestrictedBlock(Block block) {
         Material material = block.getType();
-        return block.getState() instanceof org.bukkit.block.Container
+        return block.getState() instanceof Container
                 || Tag.DOORS.isTagged(material)
                 || Tag.TRAPDOORS.isTagged(material);
     }

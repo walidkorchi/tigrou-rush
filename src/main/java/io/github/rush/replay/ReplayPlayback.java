@@ -15,6 +15,7 @@ import org.bukkit.entity.Mannequin;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.LeatherArmorMeta;
+import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.ArrayList;
@@ -30,7 +31,7 @@ public final class ReplayPlayback {
 
     private static final UUID GLOBAL = new UUID(0L, 0L);
     private static final int DISTANCE_HEIGHT_LIMIT = 12;
-    private static final double[] SPEED_STEPS = {0.25, 0.5, 1.0, 2.0, 3.0, 4.0};
+    private static final double[] SPEED_STEPS = { 0.25, 0.5, 1.0, 2.0, 3.0, 4.0 };
 
     private final ReplayFile file;
     private final World world;
@@ -62,14 +63,16 @@ public final class ReplayPlayback {
 
         for (Map.Entry<UUID, List<ReplayAction>> entry : file.actions().entrySet()) {
             UUID uuid = entry.getKey();
-            if (uuid.equals(GLOBAL)) continue;
+            if (uuid.equals(GLOBAL))
+                continue;
 
             MoveAction firstMove = entry.getValue().stream()
                     .filter(a -> a instanceof MoveAction)
                     .map(a -> (MoveAction) a)
                     .findFirst()
                     .orElse(null);
-            if (firstMove == null) continue;
+            if (firstMove == null)
+                continue;
 
             Location loc = new Location(world,
                     firstMove.x(), firstMove.y(), firstMove.z(),
@@ -90,7 +93,8 @@ public final class ReplayPlayback {
     }
 
     private Color resolveColor(String teamColorName) {
-        if (teamColorName == null) return Color.WHITE;
+        if (teamColorName == null)
+            return Color.WHITE;
         try {
             return TeamColor.valueOf(teamColorName).getColor();
         } catch (IllegalArgumentException e) {
@@ -118,7 +122,8 @@ public final class ReplayPlayback {
     // -------------------------------------------------------------------------
 
     private void tick() {
-        if (isPaused) return;
+        if (isPaused)
+            return;
 
         playheadMs += (long) (50 * speedMultiplier);
 
@@ -137,9 +142,11 @@ public final class ReplayPlayback {
 
         for (Player viewer : viewers) {
             UUID targetUuid = followerTargets.get(viewer.getUniqueId());
-            if (targetUuid == null) continue;
+            if (targetUuid == null)
+                continue;
             Mannequin mannequin = mannequinByPlayer.get(targetUuid);
-            if (mannequin == null) continue;
+            if (mannequin == null)
+                continue;
             Location mLoc = mannequin.getLocation();
             if (mLoc.getY() > world.getMinHeight() + 1) {
                 viewer.teleport(mLoc);
@@ -149,7 +156,8 @@ public final class ReplayPlayback {
 
     private void dispatchAction(UUID uuid, ReplayAction action) {
         if (action instanceof MoveAction move) {
-            if (deadPlayers.contains(uuid)) return;
+            if (deadPlayers.contains(uuid))
+                return;
             Mannequin mannequin = mannequinByPlayer.get(uuid);
             if (mannequin != null) {
                 mannequin.teleport(new Location(world,
@@ -158,7 +166,7 @@ public final class ReplayPlayback {
             }
         } else if (action instanceof BlockChangeAction block) {
             world.getBlockAt(block.x(), block.y(), block.z())
-                 .setType(Material.valueOf(block.newMaterial()), false);
+                    .setType(Material.valueOf(block.newMaterial()), false);
         } else if (action instanceof DeathAction) {
             deadPlayers.add(uuid);
             Mannequin mannequin = mannequinByPlayer.get(uuid);
@@ -188,7 +196,8 @@ public final class ReplayPlayback {
                     destroyerName = online.getName();
                 } else {
                     String cached = Bukkit.getOfflinePlayer(bed.destroyerUuid()).getName();
-                    if (cached != null) destroyerName = cached;
+                    if (cached != null)
+                        destroyerName = cached;
                 }
             }
             String msg = "§c" + destroyerName + " §7a détruit le lit de l'équipe §c" + bed.teamColorName();
@@ -298,7 +307,8 @@ public final class ReplayPlayback {
             List<ReplayAction> allBlockActions = new ArrayList<>();
             for (List<ReplayAction> actions : file.actions().values()) {
                 for (ReplayAction a : actions) {
-                    if (a instanceof BlockChangeAction) allBlockActions.add(a);
+                    if (a instanceof BlockChangeAction)
+                        allBlockActions.add(a);
                 }
             }
             for (BlockRestore r : ReplaySeek.computeRestores(allBlockActions, playheadMs, targetMs)) {
@@ -322,9 +332,11 @@ public final class ReplayPlayback {
             }
             frameIndices.put(uuid, idx);
 
-            if (uuid.equals(GLOBAL)) continue;
+            if (uuid.equals(GLOBAL))
+                continue;
             Mannequin mannequin = mannequinByPlayer.get(uuid);
-            if (mannequin == null) continue;
+            if (mannequin == null)
+                continue;
 
             boolean alive = true;
             double lastX = Double.NaN, lastY = Double.NaN, lastZ = Double.NaN;
@@ -333,14 +345,20 @@ public final class ReplayPlayback {
             for (int i = 0; i < idx; i++) {
                 ReplayAction a = actions.get(i);
                 if (a instanceof MoveAction m) {
-                    lastX = m.x(); lastY = m.y(); lastZ = m.z();
-                    lastYaw = m.yaw(); lastPitch = m.pitch();
+                    lastX = m.x();
+                    lastY = m.y();
+                    lastZ = m.z();
+                    lastYaw = m.yaw();
+                    lastPitch = m.pitch();
                     alive = true;
                 } else if (a instanceof DeathAction) {
                     alive = false;
                 } else if (a instanceof RespawnAction r) {
-                    lastX = r.x(); lastY = r.y(); lastZ = r.z();
-                    lastYaw = 0; lastPitch = 0;
+                    lastX = r.x();
+                    lastY = r.y();
+                    lastZ = r.z();
+                    lastYaw = 0;
+                    lastPitch = 0;
                     alive = true;
                 }
             }
@@ -366,13 +384,14 @@ public final class ReplayPlayback {
         player.setGameMode(GameMode.SPECTATOR);
         player.teleport(new Location(world, 0.5, islandY + 10, 0.5, 0f, -30f));
         ReplayViewerInventory.give(player, isPaused, speedMultiplier);
-        player.sendMessage(Component.text("§7Replay de §f" + file.header().hostName() + "§7. Clic droit sur §e▶ Reprendre §7pour lancer la lecture."));
+        player.sendMessage(Component.text("§7Replay de §f" + file.header().hostName()
+                + "§7. Clic droit sur §e▶ Reprendre §7pour lancer la lecture."));
     }
 
     public boolean removeViewer(Player player) {
         viewers.remove(player);
         followerTargets.remove(player.getUniqueId());
-        player.removePotionEffect(org.bukkit.potion.PotionEffectType.NIGHT_VISION);
+        player.removePotionEffect(PotionEffectType.NIGHT_VISION);
         Location lobby = Main.getInstance().getMainLobby();
         if (lobby == null) {
             lobby = Bukkit.getWorlds().get(0).getSpawnLocation();
