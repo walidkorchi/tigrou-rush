@@ -51,16 +51,24 @@ public class ShopGUI {
         }
     }
 
+    private static GuiElement createFillerElement() {
+        ItemStack stack = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
+        Item<ItemStack> item = itemManager().wrap(stack);
+        item.customNameComponent(AdventureHelper.miniMessage().deserialize(" "));
+        return GuiElement.constant(item, (element, click) -> click.cancel());
+    }
+
     private static GuiLayout createMainLayout() {
         return new GuiLayout(
                 "_________",
-                "__A_A___",
+                "__A__A___",
                 "_________",
-                "__A_A___",
+                "__A__A___",
                 "_________",
                 "_________"
         )
-                .addIngredient('A', Ingredient.paged());
+                .addIngredient('A', Ingredient.paged())
+                .addIngredient('_', createFillerElement());
     }
 
     private static GuiLayout createCategoryLayout() {
@@ -73,6 +81,7 @@ public class ShopGUI {
                 "________="
         )
                 .addIngredient('A', Ingredient.paged())
+                .addIngredient('_', createFillerElement())
                 .addIngredient('=', createBackElement());
     }
 

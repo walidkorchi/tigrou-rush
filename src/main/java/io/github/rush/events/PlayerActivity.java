@@ -742,6 +742,13 @@ public class PlayerActivity implements Listener {
             return gameState == GameState.RUNNING;
         }
 
+        if (plugin.getGameManager() != null) {
+            GameRoom room = plugin.getGameManager().getGameRoomByWorld(player.getWorld().getName());
+            if (room != null && room.isRunning()) {
+                return true;
+            }
+        }
+
         return false;
     }
 

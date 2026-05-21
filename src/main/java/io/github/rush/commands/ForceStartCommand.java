@@ -5,6 +5,7 @@ import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.github.rush.Main;
 import io.github.rush.game.Game;
 import io.github.rush.game.GameManager;
+import io.github.rush.game.GameRoom;
 
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
@@ -42,6 +43,22 @@ public class ForceStartCommand {
             return Command.SINGLE_SUCCESS;
         }
 
+        // If sender is a player in a GameRoom, force-start that room
+        if (sender instanceof Player player) {
+            GameRoom room = gameManager.getGameRoomByWorld(player.getWorld().getName());
+            if (room != null && room.isWaiting()) {
+                room.getGame().start();
+                for (Player online : plugin.getServer().getOnlinePlayers()) {
+                    if (online.getWorld().equals(room.getWorld())) {
+                        online.sendMessage(text("§c⚠ Un administrateur a forcé le démarrage de la partie!"));
+                    }
+                }
+                sender.sendMessage(text("Game force started.", NamedTextColor.GREEN));
+                return Command.SINGLE_SUCCESS;
+            }
+        }
+
+        // Fallback: legacy game force-start
         Game game = gameManager.getCurrentGame();
 
         if (game == null) {
@@ -49,13 +66,15 @@ public class ForceStartCommand {
             return Command.SINGLE_SUCCESS;
         }
 
-        game.forceStart();
+        game.start();
 
-        for (Player player : plugin.getServer().getOnlinePlayers()) {
-            player.sendMessage(text("§c⚠ Un administrateur a forcé le démarrage de la partie!"));
+        for (Player online : plugin.getServer().getOnlinePlayers()) {
+            if (online.getWorld().getName().equals(plugin.getGameWorld())) {
+                online.sendMessage(text("§c⚠ Un administrateur a forcé le démarrage de la partie!"));
+            }
         }
 
-        sender.sendMessage(text("Game force started with 5 second countdown.", NamedTextColor.GREEN));
+        sender.sendMessage(text("Game force started.", NamedTextColor.GREEN));
 
         return Command.SINGLE_SUCCESS;
     }

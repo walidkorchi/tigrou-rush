@@ -6,71 +6,59 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class ForbiddenZoneTest {
 
-    // ── 4-island (half-angle = π/8 = 22.5°) ─────────────────────────────────
+    // ── 4-island, two playing teams on adjacent islands ─────────────────────
+    //
+    // PREFERRED_ISLAND_ORDER places the two playing teams on adjacent islands
+    // (S and E for the 2-team case). The forbidden corridor follows the same
+    // offset-endpoint geometry the ring uses:
+    // - endpoint on S (toward E): (+6, +38)
+    // - endpoint on E (toward S): (+38, +6)
+    // Half-width = RingPath.BRIDGE_SPREAD (5 blocks).
 
-    // Teams at E (40,0) and S (0,40) → midpoint angle = 45°
-    private static final double A4X = 40, A4Z = 0;
-    private static final double B4X = 0,  B4Z = 40;
+    private static final double SX = 0, SZ = 40; // South (team A)
+    private static final double EX = 40, EZ = 0; // East (team B)
 
     @Test
-    void blockAtMidpointAngleIsBlocked() {
-        assertTrue(ForbiddenZone.isBlocked(10, 10, A4X, A4Z, B4X, B4Z, 4));
+    void midpointOfOffsetCorridorIsBlocked() {
+        // Midpoint of (6,38)→(38,6) is (22,22)
+        assertTrue(ForbiddenZone.isBlocked(22, 22, SX, SZ, EX, EZ, 4));
     }
 
     @Test
-    void blockAtBoundaryIsNotBlocked() {
-        // Block at (10,0) is exactly 45° from 45° midline → not strictly inside
-        assertFalse(ForbiddenZone.isBlocked(10, 0, A4X, A4Z, B4X, B4Z, 4));
+    void bridgeEndpointsAreBlocked() {
+        assertTrue(ForbiddenZone.isBlocked(6, 38, SX, SZ, EX, EZ, 4));
+        assertTrue(ForbiddenZone.isBlocked(38, 6, SX, SZ, EX, EZ, 4));
     }
 
     @Test
-    void blockJustInsideBoundaryIsBlocked() {
-        // (10,7) ≈ 35° — clearly inside ±45° wedge around 45° midline
-        assertTrue(ForbiddenZone.isBlocked(10, 7, A4X, A4Z, B4X, B4Z, 4));
+    void islandCenterItselfIsNotBlocked() {
+        // The corridor stops ~6.3 blocks from each island center — outside the
+        // 4-block spread.
+        assertFalse(ForbiddenZone.isBlocked(SX, SZ, SX, SZ, EX, EZ, 4));
+        assertFalse(ForbiddenZone.isBlocked(EX, EZ, SX, SZ, EX, EZ, 4));
     }
 
     @Test
-    void blockClearlyOutsideWedgeIsNotBlocked() {
-        // (-10,0) = 180° — 135° from 45° midline
-        assertFalse(ForbiddenZone.isBlocked(-10, 0, A4X, A4Z, B4X, B4Z, 4));
+    void pointWellInsideDiamondIsNotBlocked() {
+        // (15, 15) is well inside the diamond; offset bridge line x+z=44,
+        // perpendicular distance ≈ 9.9 > 4.
+        assertFalse(ForbiddenZone.isBlocked(15, 15, SX, SZ, EX, EZ, 4));
     }
 
     @Test
-    void angleWraparoundNearPiIsHandledCorrectly() {
-        // Teams near ±180°: NW (-40,1) and SW (-40,-1), midline = 180°
-        assertTrue(ForbiddenZone.isBlocked(-10, 2, -40, 1, -40, -1, 4));
-        assertFalse(ForbiddenZone.isBlocked(10, 0, -40, 1, -40, -1, 4));
-    }
-
-    // ── 8-island (half-angle = π/8 = 22.5°) ──────────────────────────────────
-
-    // Same spawn positions, but narrower wedge
-    private static final double A8X = 40, A8Z = 0;
-    private static final double B8X = 0,  B8Z = 40;
-
-    @Test
-    void eightIslandBlockAtMidpointIsBlocked() {
-        // (10,10) sits on 45° midline — still inside ±22.5° wedge
-        assertTrue(ForbiddenZone.isBlocked(10, 10, A8X, A8Z, B8X, B8Z, 8));
+    void pointOnOppositeBridgeIsNotBlocked() {
+        // Midpoint of the N→W offset bridge is around (-22, -22)
+        assertFalse(ForbiddenZone.isBlocked(-22, -22, SX, SZ, EX, EZ, 4));
     }
 
     @Test
-    void eightIslandBlockJustOutsideNarrowerWedgeIsNotBlocked() {
-        // (2,10): atan2(10,2) ≈ 79° → 34° from midline
-        // 4-island: 34° > 22.5° → NOT blocked; 8-island: 34° > 11.25° → NOT blocked
-        assertFalse(ForbiddenZone.isBlocked(2, 10, A8X, A8Z, B8X, B8Z, 4));
-        assertFalse(ForbiddenZone.isBlocked(2, 10, A8X, A8Z, B8X, B8Z, 8));
+    void mapCenterIsNotBlocked() {
+        assertFalse(ForbiddenZone.isBlocked(0, 0, SX, SZ, EX, EZ, 4));
     }
 
     @Test
-    void eightIslandBlockTightlyOnMidlineIsBlocked() {
-        // (10,11): atan2(11,10) ≈ 47.7° → 2.7° from 45° midline → inside ±22.5°
-        assertTrue(ForbiddenZone.isBlocked(10, 11, A8X, A8Z, B8X, B8Z, 8));
-    }
-
-    @Test
-    void eightIslandBlockClearlyOutsideIsNotBlocked() {
-        // (-10,0) = 180° — 135° from midline, well outside ±22.5°
-        assertFalse(ForbiddenZone.isBlocked(-10, 0, A8X, A8Z, B8X, B8Z, 8));
+    void pointFarPerpendicularToCorridorIsNotBlocked() {
+        // (0, 30): distance to corridor endpoint (6,38) is √(36+64) = 10 > 4.
+        assertFalse(ForbiddenZone.isBlocked(0, 30, SX, SZ, EX, EZ, 4));
     }
 }

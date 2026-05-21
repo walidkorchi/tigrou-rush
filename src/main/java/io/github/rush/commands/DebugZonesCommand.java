@@ -6,7 +6,6 @@ import com.mojang.brigadier.context.CommandContext;
 import io.github.rush.Main;
 import io.github.rush.game.Game;
 import io.github.rush.game.GameState;
-import io.github.rush.objects.Island;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -28,17 +27,26 @@ import java.util.Map;
 import static net.kyori.adventure.text.Component.text;
 
 /**
- * Visualizes block-placement restrictions for the current running game.
+ * Visualises the block-placement restrictions of the running game.
  *
- * Color legend:
- *   REDSTONE_BLOCK — always forbidden (outside the ring path)
- *   ORANGE_WOOL    — forbidden until overtime (corridor between 2 playing teams)
+ * <p>Color legend:
+ * <ul>
+ *   <li><b>Red redstone block</b> — always forbidden (outside the ring).
+ *       Stays put across the overtime transition.</li>
+ *   <li><b>Orange wool</b> — forbidden until overtime (the patched corridor
+ *       between the two playing teams). Automatically removed when the game
+ *       enters overtime.</li>
+ * </ul>
+ *
+ * <p>Existing non-air blocks (island schematic foundations, beds, anything
+ * players placed) are never overwritten — that is all the island protection
+ * the visualiser needs. The triangular gaps between the two bridges leaving
+ * each island are air at island Y and will correctly show up red.
  */
 @NullMarked
 public class DebugZonesCommand {
 
     private static final int SCAN_RADIUS = 100;
-    private static final int ISLAND_FOOTPRINT_HALF = 16;
 
     private final Main plugin;
     private final Map<String, OvertimeWatcher> overtimeWatchers = new HashMap<>();
@@ -69,7 +77,6 @@ public class DebugZonesCommand {
 
         World world = player.getWorld();
         int islandY = resolveIslandY(game, world);
-        List<Island> islands = game.getAllIslandPositions();
 
         OvertimeWatcher prev = overtimeWatchers.remove(world.getName());
         if (prev != null) prev.cancel();
@@ -80,12 +87,11 @@ public class DebugZonesCommand {
 
         for (int x = -SCAN_RADIUS; x <= SCAN_RADIUS; x++) {
             for (int z = -SCAN_RADIUS; z <= SCAN_RADIUS; z++) {
-                if (isInsideIslandFootprint(x, z, islands)) continue;
-
                 Block b = world.getBlockAt(x, islandY, z);
                 if (b.getType() != Material.AIR) continue;
 
                 Location loc = new Location(world, x, islandY, z);
+
                 if (!game.isBlockInRingPath(loc)) {
                     b.setType(Material.REDSTONE_BLOCK);
                     redPlaced++;
@@ -163,16 +169,6 @@ public class DebugZonesCommand {
         }
         int y = Main.getISLAND_Y();
         return y > 0 ? y : world.getMaxHeight() - 12;
-    }
-
-    private boolean isInsideIslandFootprint(int x, int z, List<Island> islands) {
-        for (Island island : islands) {
-            if (Math.abs(x - island.getX()) < ISLAND_FOOTPRINT_HALF
-                    && Math.abs(z - island.getZ()) < ISLAND_FOOTPRINT_HALF) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private final class OvertimeWatcher {
