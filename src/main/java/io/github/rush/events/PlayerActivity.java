@@ -235,8 +235,13 @@ public class PlayerActivity implements Listener {
         Player player = event.getPlayer();
         Block block = event.getBlock();
         Material blockType = block.getType();
+        String worldName = player.getWorld().getName();
 
-        if (!player.getWorld().getName().equals(plugin.getGameWorld())) {
+        boolean isLegacyOrHubWorld = worldName.equals(plugin.getGameWorld());
+        GameRoom breakRoom = isLegacyOrHubWorld ? null
+                : Main.getInstance().getGameManager().getGameRoomByWorld(worldName);
+
+        if (!isLegacyOrHubWorld && breakRoom == null) {
             return;
         }
 
@@ -246,7 +251,9 @@ public class PlayerActivity implements Listener {
 
         // sandstone/endstone are emancipated from island block protection logic
         if (blockType == Material.SANDSTONE || blockType == Material.END_STONE) {
-            final Game game = Main.getInstance().getGameManager().getCurrentGame();
+            Game game = isLegacyOrHubWorld
+                    ? Main.getInstance().getGameManager().getCurrentGame()
+                    : breakRoom.getGame();
 
             if (game != null) {
                 final Team breakerTeam = game.getPlayerTeam(player);
@@ -262,7 +269,7 @@ public class PlayerActivity implements Listener {
 
                     final Team entityTeam = game.getPlayerTeam(entity);
 
-                    if (entityTeam != null && breakerTeam.equals(entityTeam)) {
+                    if (breakerTeam != null && entityTeam != null && breakerTeam.equals(entityTeam)) {
                         event.setCancelled(true);
                         return;
                     }
@@ -372,42 +379,39 @@ public class PlayerActivity implements Listener {
 
     @EventHandler
     public void onPlayerDie(PlayerDeathEvent pd) {
-        if (!plugin.isGameStarted()) {
-            return;
-        }
-
-        Entity entity = pd.getEntity();
-        Game game = Main.getInstance().getGameManager().getCurrentGame();
-
-        if (game == null)
+        Player player = pd.getEntity();
+        Game game = Main.getInstance().getGameManager().getGameForPlayer(player);
+        if (game == null || game.getState() != GameState.RUNNING)
             return;
 
         pd.setCancelled(true);
         pd.setDroppedExp(0);
         pd.deathMessage(null);
 
-        Player killer = null;
-        if (entity instanceof Player player) {
-            player.setHealth(player.getAttribute(Attribute.MAX_HEALTH).getValue());
-            player.setFoodLevel(20);
-            player.setSaturation(20f);
-            killer = player.getKiller();
-        }
+        player.setHealth(player.getAttribute(Attribute.MAX_HEALTH).getValue());
+        player.setFoodLevel(20);
+        player.setSaturation(20f);
+        Player killer = player.getKiller();
 
-        handleEntityDeath(game, entity, killer);
+        handleEntityDeath(game, player, killer);
     }
 
     @EventHandler
     public void onMannequinDie(EntityDeathEvent event) {
-        if (!plugin.isGameStarted()) {
-            return;
-        }
-
         if (!(event.getEntity() instanceof Mannequin mannequin)) {
             return;
         }
 
-        Game game = Main.getInstance().getGameManager().getCurrentGame();
+        GameRoom room = Main.getInstance().getGameManager().getGameRoomByWorld(mannequin.getWorld().getName());
+        Game game;
+        if (room != null) {
+            game = room.getGame();
+        } else if (plugin.isGameStarted()) {
+            game = Main.getInstance().getGameManager().getCurrentGame();
+        } else {
+            return;
+        }
+
         if (game == null || game.getPlayerTeam(mannequin) == null) {
             return;
         }
@@ -497,37 +501,18 @@ public class PlayerActivity implements Listener {
             return;
         }
 
-        if (plugin.isGameStarted()) {
-            Game game = Main.getInstance().getGameManager().getCurrentGame();
-            if (game != null && game.isSpectator(player)) {
-                if (pie.getAction() == Action.RIGHT_CLICK_AIR || pie.getAction() == Action.RIGHT_CLICK_BLOCK) {
-                    if (item != null && item.getType() == Material.COMPASS) {
-                        game.removeSpectator(player);
-                        pie.setCancelled(true);
-                        return;
-                    }
-                }
-            }
-        }
-
         if (pie.getAction() == Action.RIGHT_CLICK_AIR || pie.getAction() == Action.RIGHT_CLICK_BLOCK) {
             if (item != null && item.getType() == Material.COMPASS) {
-                // Spectator in a GameRoom: compass returns to main lobby
-                GameRoom spectatorRoom = plugin.getGameManager().getGameRoomOfPlayer(player);
-                if (spectatorRoom != null && spectatorRoom.getGame().isSpectator(player)) {
-                    spectatorRoom.getGame().removeSpectator(player);
-                    plugin.getGameManager().removePlayerFromGameRoom(player);
+                // Spectator compass: return to lobby (GameRoom or legacy game)
+                Game spectatorGame = Main.getInstance().getGameManager().getGameForPlayer(player);
+                if (spectatorGame != null && spectatorGame.isSpectator(player)) {
+                    spectatorGame.removeSpectator(player);
+                    GameRoom spectatorRoom = plugin.getGameManager().getGameRoomOfPlayer(player);
+                    if (spectatorRoom != null) {
+                        plugin.getGameManager().removePlayerFromGameRoom(player);
+                    }
                     pie.setCancelled(true);
                     return;
-                }
-                // Check if player is in spectator mode during legacy game
-                if (plugin.isGameStarted()) {
-                    Game game = Main.getInstance().getGameManager().getCurrentGame();
-                    if (game != null && game.isSpectator(player)) {
-                        game.removeSpectator(player);
-                        pie.setCancelled(true);
-                        return;
-                    }
                 }
                 // Open game listing GUI
                 Main.getInstance().getGameManager().openGameList(player);
@@ -783,11 +768,7 @@ public class PlayerActivity implements Listener {
             return;
         }
 
-        if (!plugin.isGameStarted()) {
-            return;
-        }
-
-        Game game = Main.getInstance().getGameManager().getCurrentGame();
+        Game game = Main.getInstance().getGameManager().getGameForPlayer(player);
         if (game != null && game.isProtected(player)) {
             event.setCancelled(true);
         }
@@ -795,10 +776,6 @@ public class PlayerActivity implements Listener {
 
     @EventHandler
     public void onPlayerDamageByEntity(EntityDamageByEntityEvent event) {
-        if (!plugin.isGameStarted()) {
-            return;
-        }
-
         Entity victim = event.getEntity();
         if (!(victim instanceof Player) && !(victim instanceof Mannequin)) {
             return;
@@ -816,19 +793,26 @@ public class PlayerActivity implements Listener {
             return;
         }
 
-        Game game = Main.getInstance().getGameManager().getCurrentGame();
-        if (game != null) {
-            Team victimTeam = game.getPlayerTeam(victim);
-            Team attackerTeam = game.getPlayerTeam(attacker);
+        Game game = plugin.getGameManager().getGameForPlayer(attacker);
+        if (game == null) {
+            return;
+        }
 
-            if (victimTeam != null && victimTeam.equals(attackerTeam)) {
-                event.setCancelled(true);
-                return;
-            }
+        if (game.isProtected(attacker)) {
+            event.setCancelled(true);
+            return;
+        }
 
-            if (victim instanceof Player playerVictim) {
-                game.getKillTracker().recordDamage(playerVictim, attacker, event.getFinalDamage());
-            }
+        Team victimTeam = game.getPlayerTeam(victim);
+        Team attackerTeam = game.getPlayerTeam(attacker);
+
+        if (victimTeam != null && victimTeam.equals(attackerTeam)) {
+            event.setCancelled(true);
+            return;
+        }
+
+        if (victim instanceof Player playerVictim) {
+            game.getKillTracker().recordDamage(playerVictim, attacker, event.getFinalDamage());
         }
     }
 
@@ -853,27 +837,23 @@ public class PlayerActivity implements Listener {
                     .append(player.displayName())
                     .append(Component.text(" §f> "))
                     .append(Component.text(message));
-        } else if (plugin.isGameStarted()) {
-            Game game = Main.getInstance().getGameManager().getCurrentGame();
-            Team team = game.getPlayerTeam(player);
+        } else {
+            Game game = Main.getInstance().getGameManager().getGameForPlayer(player);
+            Team team = (game != null && game.getState() == GameState.RUNNING)
+                    ? game.getPlayerTeam(player)
+                    : null;
 
             if (team != null) {
                 TeamColor color = team.getColor();
                 String teamColorCode = color.getTextColor().toString();
 
-                if (isGlobal) {
-                    formatComponent = Component
-                            .text("§7[" + formattedLevel + "§7] [" + teamColorCode + color.name() + "§7] §f")
-                            .append(player.displayName())
-                            .append(Component.text(" §f> "))
-                            .append(Component.text(message));
-                } else {
-                    formatComponent = Component
-                            .text("§7[" + formattedLevel + "§7] [" + teamColorCode + color.name() + "§7] §f")
-                            .append(player.displayName())
-                            .append(Component.text(" §f> "))
-                            .append(Component.text(message));
+                formatComponent = Component
+                        .text("§7[" + formattedLevel + "§7] [" + teamColorCode + color.name() + "§7] §f")
+                        .append(player.displayName())
+                        .append(Component.text(" §f> "))
+                        .append(Component.text(message));
 
+                if (!isGlobal) {
                     event.setCancelled(true);
                     for (Player recipient : plugin.getServer().getOnlinePlayers()) {
                         Team recipientTeam = game.getPlayerTeam(recipient);
@@ -889,11 +869,6 @@ public class PlayerActivity implements Listener {
                         .append(Component.text(" §f> "))
                         .append(Component.text(message));
             }
-        } else {
-            formatComponent = Component.text("§7[" + formattedLevel + "§7] §f")
-                    .append(player.displayName())
-                    .append(Component.text(" §f> "))
-                    .append(Component.text(message));
         }
 
         event.renderer((source, sourceDisplayName, msg, viewer) -> formatComponent);

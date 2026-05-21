@@ -32,6 +32,7 @@ import org.bukkit.util.Vector;
 
 import io.github.rush.Main;
 import io.github.rush.game.Game;
+import io.github.rush.game.GameRoom;
 import io.github.rush.game.Team;
 import io.github.rush.game.TeamColor;
 import net.kyori.adventure.text.Component;
@@ -132,14 +133,13 @@ public class TNT implements Listener {
     }
 
     private void handleBedDestruction(Block bedBlock, Entity source) {
-        if (!plugin.isGameStarted()) {
+        GameRoom room = Main.getInstance().getGameManager()
+                .getGameRoomByWorld(bedBlock.getWorld().getName());
+        if (room == null || !room.isRunning()) {
             return;
         }
 
-        Game game = Main.getInstance().getGameManager().getCurrentGame();
-        if (game == null) {
-            return;
-        }
+        Game game = room.getGame();
 
         BlockState state = bedBlock.getState();
         if (!(state instanceof Bed bed)) {

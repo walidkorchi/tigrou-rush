@@ -27,7 +27,12 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.WorldCreator;
+import org.bukkit.attribute.Attribute;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.ItemFrame;
+import org.bukkit.GameMode;
+import org.bukkit.GameRule;
+import org.bukkit.entity.Villager;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -87,8 +92,8 @@ public class GameManager {
         final UUID hostUUID = host.getUniqueId();
         final String worldName = "rush_game_" + (++worldCounter) + "_" + host.getName();
 
-        final AtomicReference<Component> currentBar =
-                new AtomicReference<>(buildLoadingBarComponent("Création du monde", 0, 5));
+        final AtomicReference<Component> currentBar = new AtomicReference<>(
+                buildLoadingBarComponent("Création du monde", 0, 5));
         final BukkitTask[] barTask = { null };
         barTask[0] = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             Player h = Bukkit.getPlayer(hostUUID);
@@ -257,15 +262,19 @@ public class GameManager {
                 .generator(new VoidGenerator())
                 .environment(World.Environment.NORMAL);
         final World gameWorld = Bukkit.createWorld(worldCreator);
+        final ArrayList<GameRule> gameRules = new ArrayList<>(List.of(
+                GameRule.DO_DAYLIGHT_CYCLE,
+                GameRule.DO_WEATHER_CYCLE,
+                GameRule.DO_INSOMNIA));
 
         if (gameWorld != null) {
             // Set spawn on main thread after world is created
             Bukkit.getScheduler().runTask(plugin, () -> {
                 gameWorld.setSpawnLocation(0, 64, 0);
                 gameWorld.setAutoSave(false);
-                gameWorld.setGameRule(org.bukkit.GameRule.DO_DAYLIGHT_CYCLE, false);
-                gameWorld.setGameRule(org.bukkit.GameRule.DO_WEATHER_CYCLE, false);
-                gameWorld.setGameRule(org.bukkit.GameRule.DO_INSOMNIA, false);
+                for (GameRule gameRule : gameRules) {
+                    gameWorld.setGameRule(gameRule, false);
+                }
             });
         }
 
@@ -358,7 +367,7 @@ public class GameManager {
 
                 for (Player player : new ArrayList<>(world.getPlayers())) {
                     player.teleport(fallback);
-                    player.setGameMode(org.bukkit.GameMode.ADVENTURE);
+                    player.setGameMode(GameMode.ADVENTURE);
                     restoreHubInventory(player);
                 }
 
@@ -583,7 +592,7 @@ public class GameManager {
     public void handleReconnect(Player player, GameRoom room, ReconnectData data) {
         if (!player.isOnline() || !room.isRunning()) {
             // Game ended before the reconnect task ran — send to hub
-            player.setGameMode(org.bukkit.GameMode.SURVIVAL);
+            player.setGameMode(GameMode.SURVIVAL);
             Location fallback = plugin.getMainLobby();
             if (fallback == null || fallback.getWorld() == null) {
                 fallback = Bukkit.getWorlds().get(0).getSpawnLocation();
@@ -606,8 +615,8 @@ public class GameManager {
             if (team != null && !team.isBedDestroyed()) {
                 // Re-add to team and apply respawn behaviour (same as normal death)
                 team.addPlayer(player);
-                player.setGameMode(org.bukkit.GameMode.SURVIVAL);
-                player.setHealth(player.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH).getValue());
+                player.setGameMode(GameMode.SURVIVAL);
+                player.setHealth(player.getAttribute(Attribute.MAX_HEALTH).getValue());
                 player.setFoodLevel(20);
                 player.setSaturation(20f);
                 player.getInventory().clear();
@@ -639,10 +648,11 @@ public class GameManager {
     public ItemStack createCompassItem() {
         final ItemStack compass = new ItemStack(Material.COMPASS);
         final ItemMeta meta = compass.getItemMeta();
-        meta.displayName(Component.text("§f§lRejoindre une partie"));
+        meta.displayName(Component.text("Navigateur"));
         compass.setItemMeta(meta);
         compass.setData(DataComponentTypes.LORE, ItemLore.lore(List.of(
-                Component.text("§7Clic droit pour voir les parties disponibles"))));
+                Component.text("§7Clic droit pour voir les parties"),
+                Component.text("§7disponibles, en cours et archivées."))));
         return compass;
     }
 
@@ -842,7 +852,7 @@ public class GameManager {
     }
 
     private void spawnMerchant(World world, Location location, io.github.rush.entities.MerchantType type) {
-        org.bukkit.entity.Villager villager = world.spawn(location, org.bukkit.entity.Villager.class);
+        Villager villager = world.spawn(location, Villager.class);
         villager.setAI(false);
         villager.setInvulnerable(true);
         villager.setCollidable(false);
@@ -961,16 +971,16 @@ public class GameManager {
 
         final Location mainLobby = plugin.getMainLobby();
 
-        for (org.bukkit.entity.Entity entity : room.getGame().getPlayers()) {
+        for (Entity entity : room.getGame().getPlayers()) {
             if (entity instanceof Player player) {
                 player.teleport(mainLobby);
                 player.getInventory().clear();
-                player.setGameMode(org.bukkit.GameMode.ADVENTURE);
+                player.setGameMode(GameMode.ADVENTURE);
             }
         }
 
         for (Player spectator : room.getGame().getSpectators()) {
-            spectator.setGameMode(org.bukkit.GameMode.ADVENTURE);
+            spectator.setGameMode(GameMode.ADVENTURE);
             spectator.teleport(mainLobby);
             spectator.getInventory().clear();
             spectator.sendMessage(Component.text("§7La partie est terminée. Vous avez été renvoyé au lobby."));
@@ -978,4 +988,5 @@ public class GameManager {
 
         Bukkit.getScheduler().runTaskLater(plugin, () -> removeGameRoom(room.getId()), 100L);
     }
+
 }

@@ -165,23 +165,13 @@ public class GameRules implements Listener {
             return;
         }
 
-        event.setCancelled(true);
-
         MerchantType type = Merchant.getType(villager);
-        if (type == MerchantType.SPEED) {
-            ShopGUI.openMainMenu(player);
-        } else if (type != null) {
-            ShopGUI.Category category = switch (type) {
-                case WEAPONSMITH -> ShopGUI.Category.WEAPONS;
-                case BUILDER -> ShopGUI.Category.BLOCKS;
-                case ALCHEMIST -> ShopGUI.Category.POTIONS;
-                case ARMORSMITH -> ShopGUI.Category.ARMOR;
-                default -> null;
-            };
-            if (category != null) {
-                ShopGUI.openCategory(player, category);
-            }
+        if (type != MerchantType.SPEED) {
+            return;
         }
+
+        event.setCancelled(true);
+        ShopGUI.openMainMenu(player);
     }
 
     @EventHandler

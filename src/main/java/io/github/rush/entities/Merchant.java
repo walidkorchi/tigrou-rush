@@ -1,6 +1,8 @@
 package io.github.rush.entities;
 
 import io.github.rush.Main;
+import net.kyori.adventure.text.Component;
+import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Villager;
 import org.bukkit.inventory.ItemStack;
@@ -58,12 +60,25 @@ public class Merchant {
     }
 
     /**
-     * Converts a Trade to a MerchantRecipe.
-     *
-     * @param trade the trade to convert
-     * @return the corresponding MerchantRecipe
+     * Creates a synthetic Bukkit Merchant (not backed by a villager entity) for the given
+     * merchant type, ready to be opened via {@code player.openMerchant()}.
      */
-    private static MerchantRecipe toMerchantRecipe(Trade trade) {
+    public static org.bukkit.inventory.Merchant createBukkitMerchant(MerchantType type) {
+        String displayName = switch (type) {
+            case WEAPONSMITH -> "Forgeron";
+            case BUILDER -> "Constructeur";
+            case ALCHEMIST -> "Alchimiste";
+            case ARMORSMITH -> "Armurier";
+            default -> type.name();
+        };
+        org.bukkit.inventory.Merchant merchant = Bukkit.createMerchant(Component.text(displayName));
+        merchant.setRecipes(type.getTrades().stream()
+                .map(Merchant::toMerchantRecipe)
+                .toList());
+        return merchant;
+    }
+
+    static MerchantRecipe toMerchantRecipe(Trade trade) {
         final ItemStack result = new ItemStack(trade.result(), trade.resultAmount());
 
         if (trade.enchantments() != null && !trade.enchantments().isEmpty()) {

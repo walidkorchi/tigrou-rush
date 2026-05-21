@@ -100,26 +100,11 @@ public class PlayerStatistic {
         this.currentWins = 0;
     }
 
-    public double getCurrentKD() {
-        int totalDeaths = this.getDeaths() + this.getCurrentDeaths();
-        int totalKills = this.getKills() + this.getCurrentKills();
-
-        if (totalDeaths == 0) {
-            return totalKills;
-        } else if (totalKills == 0) {
-            return 0.0;
+    public double getWeightedScore() {
+        if (getDeaths() == 0) {
+            return (double) getKills() * 2 + getAssists();
         }
-
-        return Math.round((double) totalKills / totalDeaths * 100.0) / 100.0;
+        return Math.round((getKills() * 2.0 + getAssists() - getDeaths()) * 10.0) / 10.0;
     }
 
-    public double getKD() {
-        if (this.getDeaths() == 0) {
-            return this.getKills();
-        } else if (this.getKills() == 0) {
-            return 0.0;
-        }
-
-        return Math.round((double) this.getKills() / this.getDeaths() * 100.0) / 100.0;
-    }
 }

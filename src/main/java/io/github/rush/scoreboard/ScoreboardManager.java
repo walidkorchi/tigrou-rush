@@ -78,27 +78,18 @@ public class ScoreboardManager {
         final PlayerStatistic stat = plugin.getPlayerStatisticManager().loadStatistic(player.getUniqueId());
         final PlayerLevel playerLevel = plugin.getPlayerLevelManager().loadPlayerLevel(player.getUniqueId());
 
-        final int totalKills = stat != null ? stat.getKills() : 0;
-        final int totalDeaths = stat != null ? stat.getDeaths() : 0;
-        final int totalAssists = stat != null ? stat.getAssists() : 0;
-
-        final double ratio = calculateRatio(totalKills, totalDeaths, totalAssists);
-
-        final String progressBar = generateProgressBar(playerLevel);
-        final String formattedLevel = playerLevel.getFormattedLevel();
-        final int currentXP = playerLevel.getCurrentXP();
-        final int nextLevelXP = playerLevel.getXPForNextLevel();
-
         final List<String> lines = new ArrayList<>();
 
         lines.add(getAnimatedSeparator());
         lines.add("");
-        lines.add("§7✪ Niveau: " + formattedLevel + " §8[" + currentXP + "/" + nextLevelXP + "§8]");
-        lines.add("§8[" + progressBar + "§8]");
+        lines.add("§7✪ Niveau: " + playerLevel.getFormattedLevel() + " §8[" + playerLevel.getCurrentXP() + "/"
+                + playerLevel.getXPForNextLevel() + "§8]");
+        lines.add("§8[" + generateProgressBar(playerLevel) + "§8]");
         lines.add("");
         lines.add("§f☆ §7Statistiques:");
-        lines.add(totalKills + " §c\uD83D\uDDE1 §f" + totalAssists + " §c\u2694 §f" + totalDeaths + " §c☠ §8("
-                + String.format("%.1f", ratio) + ")");
+        lines.add(stat.getKills() + " §c\uD83D\uDDE1 §f" + stat.getAssists() + " §c\u2694 §f" + stat.getDeaths()
+                + " §c☠ §8("
+                + String.format("%.1f", stat.getWeightedScore()) + ")");
         lines.add("");
         lines.add(getAnimatedSeparator());
 
@@ -177,14 +168,6 @@ public class ScoreboardManager {
             case YELLOW -> "§eJ";
             default -> "§7" + color.name().substring(0, 1);
         };
-    }
-
-    private double calculateRatio(int kills, int deaths, int assists) {
-        if (deaths == 0) {
-            return kills * 2 + assists;
-        } else {
-            return Math.round((kills * 2.0 + assists - deaths) * 10.0) / 10.0;
-        }
     }
 
     public void removeScoreboard(Player player) {

@@ -217,7 +217,4 @@ public class Team {
         return bedDestroyed;
     }
 
-    public boolean isDead(Game game) {
-        return bedDestroyed;
-    }
 }

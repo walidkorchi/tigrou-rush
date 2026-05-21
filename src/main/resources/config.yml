@@ -15,6 +15,9 @@ database:
 # Radius around beds where block placement is prevented
 bedProtectionRadius: 3
 
+# Radius around regular merchants where block placement is prevented
+merchantProtectionRadius: 3
+
 # Maximum player level (default: 150)
 maxLevel: 150
 

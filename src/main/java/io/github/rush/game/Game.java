@@ -565,6 +565,7 @@ public class Game {
         if (world == null) return false;
         int speedOffset = Main.getInstance().getConfig().getInt("villagerSpeedOffset", 13);
         int regularOffset = Main.getInstance().getConfig().getInt("villagerRegularOffset", speedOffset - 1);
+        int radius = Main.getInstance().getConfig().getInt("merchantProtectionRadius", 3);
         List<Integer> spread = List.of(5, 7);
         int islandY = isGameRoomMode() && gameRoom != null
                 ? gameRoom.getIslandY()
@@ -580,9 +581,13 @@ public class Game {
                 int spreadIdx = (i % 2 == 0) ? 0 : 1;
                 int regX = island.getX() + (dir[0] * regularOffset) + (perpX * spread.get(spreadIdx) * sign);
                 int regZ = island.getZ() + (dir[1] * regularOffset) + (perpZ * spread.get(spreadIdx) * sign);
-                int regY = islandY;
-                if (Math.abs(bx - regX) <= 1 && Math.abs(by - regY) <= 1 && Math.abs(bz - regZ) <= 1) {
-                    return true;
+                // Regular merchants are 2 blocks tall: foot at islandY+1, head at islandY+2
+                for (int partY = islandY + 1; partY <= islandY + 2; partY++) {
+                    if (Math.abs(bx - regX) <= radius
+                            && Math.abs(by - partY) <= radius
+                            && Math.abs(bz - regZ) <= radius) {
+                        return true;
+                    }
                 }
             }
         }
