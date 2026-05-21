@@ -1,9 +1,9 @@
 [
   {
-    "adapter": "java",
-    "name": "Remote Debug Minecraft",
+    "label": "Attach to Paper Server",
+    "adapter": "Java",
     "request": "attach",
-    "hostName": "127.0.0.1",
+    "hostName": "localhost",
     "port": 5005
   }
 ]

@@ -1,6 +1,7 @@
 [
   {
-    "label": "Build & Deploy to Server",
-    "command": "./gradlew clean build --no-configuration-cache -x checkstyleMain -x checkstyleTest -x spotbugsMain -x spotbugsTest"
+    "label": "Build & Deploy Plugin",
+    "command": "./gradlew shadowJar copyToPlugins --no-daemon --no-configuration-cache -x checkstyleMain -x spotbugsMain",
+    "allow_concurrent_runs": false
   }
 ]
