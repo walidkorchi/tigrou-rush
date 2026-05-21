@@ -79,13 +79,14 @@ public class TeamSelectionGUI {
         meta.displayName(Component.text(color.getTextColor() + color.name() + " Team §7(" + current + "/" + max + ")"));
         wool.setItemMeta(meta);
         wool.setData(DataComponentTypes.LORE,
-                ItemLore.lore(List.of(Component.text("§7Clic droit pour choisir une équipe"))));
+                ItemLore.lore(List.of(Component.translatable("rush.chooseTeam"))));
         return wool;
     }
 
     private static void selectTeam(Player player, TeamColor color) {
         final Game game = getGameForPlayer(player);
-        if (game == null) return;
+        if (game == null)
+            return;
 
         game.joinTeam(player, color);
 
@@ -94,14 +95,14 @@ public class TeamSelectionGUI {
         player.getInventory().setHelmet(createTeamBanner(color));
         player.closeInventory();
 
-        player.sendMessage(Component.text("§aVous avez rejoint l'équipe " + color.name()).color(color.getTextColor()));
+        player.sendMessage(Component.translatable("rush.joinTeam", color.name()).color(color.getTextColor()));
     }
 
     public static ItemStack createBannerItem() {
         final ItemStack banner = new ItemStack(Material.WHITE_BANNER);
         final BannerMeta meta = (BannerMeta) banner.getItemMeta();
 
-        meta.displayName(Component.text("§f§lChoix d'équipe"));
+        meta.displayName(Component.translatable("rush.bannerName"));
         meta.addItemFlags(ItemFlag.HIDE_DYE);
         banner.setItemMeta(meta);
 
@@ -118,7 +119,7 @@ public class TeamSelectionGUI {
 
         meta.displayName(Component.text("§c§lQuitter l'équipe"));
         slimeball.setItemMeta(meta);
-        slimeball.setData(DataComponentTypes.LORE, ItemLore.lore(List.of(Component.text("§7Clic droit pour quitter"))));
+        slimeball.setData(DataComponentTypes.LORE, ItemLore.lore(List.of(Component.translatable("rush.quitLore"))));
 
         return slimeball;
     }
@@ -129,14 +130,14 @@ public class TeamSelectionGUI {
         final ItemMeta meta = dye.getItemMeta();
 
         if (ready) {
-            meta.displayName(Component.text("§a§lPrêt"));
+            meta.displayName(Component.translatable("rush.ready"));
         } else {
-            meta.displayName(Component.text("§c§lPas prêt"));
+            meta.displayName(Component.translatable("rush.notReady"));
         }
 
         dye.setItemMeta(meta);
         dye.setData(DataComponentTypes.LORE, ItemLore.lore(
-                List.of(Component.text(ready ? "§7Clic droit pour annuler" : "§7Clic droit pour se déclarer prêt"))));
+                List.of(Component.translatable(ready ? "rush.notReadyLore" : "rush.readyLore"))));
 
         return dye;
     }
@@ -147,7 +148,8 @@ public class TeamSelectionGUI {
 
     public static void openLeaveTeamMenu(Player player) {
         Game game = getGameForPlayer(player);
-        if (game == null || game.getState() != GameState.WAITING) return;
+        if (game == null || game.getState() != GameState.WAITING)
+            return;
 
         {
             game.leaveTeam(player);
@@ -183,7 +185,8 @@ public class TeamSelectionGUI {
 
     public static void toggleReady(Player player) {
         Game game = getGameForPlayer(player);
-        if (game == null || game.getState() != GameState.WAITING) return;
+        if (game == null || game.getState() != GameState.WAITING)
+            return;
 
         {
             final boolean currentlyReady = game.isPlayerReady(player);
@@ -196,12 +199,6 @@ public class TeamSelectionGUI {
             final TeamColor color = game.getPlayerTeam(player).getColor();
 
             player.getInventory().setHelmet(createTeamBanner(color));
-
-            if (!currentlyReady) {
-                player.sendMessage(Component.text("§aVous êtes prêt!"));
-            } else {
-                player.sendMessage(Component.text("§7Vous n'êtes plus prêt."));
-            }
 
             // Immediately push updated action bar without waiting for the 40-tick cycle
             GameManager gm = Main.getInstance().getGameManager();

@@ -72,14 +72,14 @@ public class GameRules implements Listener {
         if (game.isBlockOnResourceSpawn(event.getBlock().getLocation())) {
             event.setCancelled(true);
             event.getPlayer().sendMessage(
-                    Component.text("§cVous ne pouvez pas placer de blocs sur les générateurs de ressources!"));
+                    Component.translatable("rush.blockPlaceOnResourceSpawn"));
             return;
         }
 
         if (game.isBlockNearRegularMerchant(event.getBlock().getLocation())) {
             event.setCancelled(true);
             event.getPlayer().sendMessage(
-                    Component.text("§cVous ne pouvez pas placer de blocs à proximité des marchands!"));
+                    Component.translatable("rush.blockPlaceNearRegularMerchant"));
             return;
         }
 
@@ -87,14 +87,14 @@ public class GameRules implements Listener {
                 && hasNearbyBlock(event.getBlock(), plugin.getConfig().getInt("bedProtectionRadius"),
                         b -> b.getBlockData() instanceof Bed)) {
             event.setCancelled(true);
-            event.getPlayer().sendMessage(Component.text("Cannot place blocks near beds!"));
+            event.getPlayer().sendMessage(Component.translatable("rush.blockPlaceNearBeds"));
             return;
         }
 
         if (game.isBlockInForbiddenZone(event.getBlock().getLocation())) {
             event.setCancelled(true);
             event.getPlayer().sendMessage(
-                    Component.text("§cVous ne pouvez pas placer de blocs dans cette zone avant l'overtime!"));
+                    Component.translatable("rush.blockPlaceNearForbiddenZone"));
         }
     }
 
@@ -130,9 +130,6 @@ public class GameRules implements Listener {
 
         event.setCancelled(true);
     }
-
-    // Removed legacy onVillagerInteract — merchant interaction is handled by
-    // onPlayerInteractEntity
 
     @EventHandler
     public void onCraft(CraftItemEvent cie) {

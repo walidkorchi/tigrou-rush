@@ -75,6 +75,9 @@ public class Game {
     // Adjacent pair first (S+E) so 2-team forbidden zone covers the SE corridor
     // between them.
     private static final int[] PREFERRED_ISLAND_ORDER = { 2, 1, 0, 3 };
+    private static final int[][] ISLAND_DIRECTIONS = { { 0, -1 }, { 1, 0 }, { 0, 1 }, { -1, 0 } };
+    private static final int[] MERCHANT_SPREADS = { 5, 7 };
+    private static final int[] SIGNS = { 1, -1 };
     // Visual centres computed once per game by scanning island blocks outward from
     // paste origin.
     private final Map<String, double[]> islandVisualCenterCache = new HashMap<>();
@@ -250,7 +253,7 @@ public class Game {
             player.teleport(lobby);
         }
 
-        player.sendMessage(Component.text("§cVotre lit a été détruit! Vous êtes maintenant spectateur."));
+        player.sendMessage(Component.translatable("rush.spectatorModeEnteredAfterBedDestroyed"));
         updatePlayerList();
     }
 
@@ -277,7 +280,7 @@ public class Game {
             player.teleport(lobbyLoc);
         }
 
-        player.sendMessage(Component.text("§aVous avez quitté le mode spectateur."));
+        player.sendMessage(Component.translatable("rush.spectatorModeQuit"));
     }
 
     public void addObserver(Player player) {
@@ -306,7 +309,7 @@ public class Game {
             return;
 
         if (isGameRoomMode() && recorder != null) {
-            var loc = player.getLocation();
+            Location loc = player.getLocation();
             recorder.recordRespawn(player.getUniqueId(), loc.getX(), loc.getY(), loc.getZ());
         }
 
@@ -505,7 +508,7 @@ public class Game {
     public void incrementGameTime() {
         gameTime++;
         if (gameTime == getOvertimeSeconds()) {
-            broadcastMessage("§c§lOVERTIME! §7Les restrictions de placement sont levées!");
+            broadcastMessage(Component.translatable("rush.overtime"));
             if (isGameRoomMode() && recorder != null) {
                 recorder.recordPhaseChange("OVERTIME");
             }
@@ -561,38 +564,41 @@ public class Game {
     }
 
     public boolean isBlockNearRegularMerchant(Location location) {
-        int bx = location.getBlockX();
-        int by = location.getBlockY();
-        int bz = location.getBlockZ();
-        List<Island> islands = getAllIslandPositions();
-        if (islands.isEmpty())
-            return false;
         World world = location.getWorld();
         if (world == null)
             return false;
+        List<Island> islands = getAllIslandPositions();
+        if (islands.isEmpty())
+            return false;
+
+        int bx = location.getBlockX();
+        int by = location.getBlockY();
+        int bz = location.getBlockZ();
         int speedOffset = Main.getInstance().getConfig().getInt("villagerSpeedOffset", 13);
         int regularOffset = Main.getInstance().getConfig().getInt("villagerRegularOffset", speedOffset - 1);
         int radius = Main.getInstance().getConfig().getInt("merchantProtectionRadius", 3);
-        List<Integer> spread = List.of(5, 7);
         int islandY = isGameRoomMode() && gameRoom != null
                 ? gameRoom.getIslandY()
                 : (Main.getISLAND_Y() > 0 ? Main.getISLAND_Y() : world.getMaxHeight() - 12);
+
+        // Merchants span islandY+1 (feet) to islandY+2 (head); skip all iteration if Y
+        // is out of range
+        if (by < islandY + 1 - radius || by > islandY + 2 + radius)
+            return false;
+
         for (int islandIndex = 0; islandIndex < islands.size(); islandIndex++) {
             Island island = islands.get(islandIndex);
-            int[][] directions = { { 0, -1 }, { 1, 0 }, { 0, 1 }, { -1, 0 } };
-            int[] dir = directions[islandIndex];
+            int[] dir = ISLAND_DIRECTIONS[islandIndex];
             int perpX = dir[1];
             int perpZ = -dir[0];
-            for (int i = 0; i < 4; i++) {
-                int sign = (i < 2) ? 1 : -1;
-                int spreadIdx = (i % 2 == 0) ? 0 : 1;
-                int regX = island.getX() + (dir[0] * regularOffset) + (perpX * spread.get(spreadIdx) * sign);
-                int regZ = island.getZ() + (dir[1] * regularOffset) + (perpZ * spread.get(spreadIdx) * sign);
-                // Regular merchants are 2 blocks tall: foot at islandY+1, head at islandY+2
-                for (int partY = islandY + 1; partY <= islandY + 2; partY++) {
-                    if (Math.abs(bx - regX) <= radius
-                            && Math.abs(by - partY) <= radius
-                            && Math.abs(bz - regZ) <= radius) {
+            int baseX = island.getX() + dir[0] * regularOffset;
+            int baseZ = island.getZ() + dir[1] * regularOffset;
+
+            for (int spread : MERCHANT_SPREADS) {
+                for (int sign : SIGNS) {
+                    int regX = baseX + perpX * spread * sign;
+                    int regZ = baseZ + perpZ * spread * sign;
+                    if (Math.abs(bx - regX) <= radius && Math.abs(bz - regZ) <= radius) {
                         return true;
                     }
                 }
@@ -734,7 +740,7 @@ public class Game {
 
             if (isGameRoomMode() && gameRoom.getConfig().overtimeStart()) {
                 gameTime = getOvertimeSeconds();
-                broadcastMessage("§c§lOVERTIME! §7Les restrictions de placement sont levées!");
+                broadcastMessage(Component.translatable("rush.overtime"));
             }
 
             // Only set global game started flag for legacy mode
@@ -777,7 +783,6 @@ public class Game {
                 recorder = new ReplayRecorder(this, worldName);
             }
 
-            // Notify GameManager that game started (for GameRoom mode)
             if (isGameRoomMode()) {
                 Main.getInstance().getGameManager().onGameRoomStarted(gameRoom);
             }
@@ -795,7 +800,6 @@ public class Game {
             islands = gameRoom.getIslands();
             islandY = gameRoom.getIslandY();
 
-            // Load islands if not already loaded
             if (!gameRoom.isIslandsLoaded()) {
                 Main.getInstance().getGameManager().loadIslandsForGameRoom(gameRoom);
             }
@@ -1015,7 +1019,7 @@ public class Game {
                 double bonusHealth = destroyerTeam.getBedsDestroyed() * 4.0;
                 for (Entity entity : destroyerTeam.getPlayers()) {
                     if (entity instanceof Player player) {
-                        var maxHealth = player.getAttribute(Attribute.MAX_HEALTH);
+                        AttributeInstance maxHealth = player.getAttribute(Attribute.MAX_HEALTH);
                         if (maxHealth != null) {
                             maxHealth.removeModifier(NamespacedKey.minecraft("extra_hearts"));
                             maxHealth.addModifier(
@@ -1031,7 +1035,7 @@ public class Game {
 
         for (Entity entity : team.getPlayers()) {
             if (entity instanceof Player player) {
-                player.sendMessage(Component.text("§cVotre lit a été détruit!"));
+                player.sendMessage(Component.translatable("rush.bed_destroyed"));
             }
         }
 
@@ -1064,14 +1068,17 @@ public class Game {
         Main.getInstance().setGameStarted(false);
 
         if (winner != null) {
-            String winMessage = "Victoire de l'équipe " + winner.getColor().name();
             for (Entity entity : getPlayers()) {
                 if (entity instanceof Player player) {
-                    player.showTitle(Title.title(Component.text(winMessage), Component.empty()));
+                    player.showTitle(Title.title(
+                            Component.translatable("rush.win", Component.text(winner.getColor().name())),
+                            Component.empty()));
                 }
             }
             for (Player spectator : spectators) {
-                spectator.showTitle(Title.title(Component.text(winMessage), Component.empty()));
+                spectator.showTitle(
+                        Title.title(Component.translatable("rush.win", Component.text(winner.getColor().name())),
+                                Component.empty()));
             }
 
             // Update winstreaks: increment for winners, reset for losers
@@ -1374,7 +1381,7 @@ public class Game {
     private void updatePlayerList() {
         for (Entity entity : freePlayers) {
             if (entity instanceof Player player) {
-                Boolean isReady = playersReady.get(player);
+                final Boolean isReady = playersReady.get(player);
                 player.playerListName(
                         Component.text(entity.getName()).color(isReady ? NamedTextColor.GREEN : NamedTextColor.RED));
             }
@@ -1392,12 +1399,10 @@ public class Game {
     }
 
     public List<Entity> getPlayers() {
-        List<Entity> allPlayers = new ArrayList<>(freePlayers);
-
+        final List<Entity> allPlayers = new ArrayList<>(freePlayers);
         for (Team team : teams.values()) {
             allPlayers.addAll(team.getPlayers());
         }
-
         return allPlayers;
     }
 
@@ -1435,21 +1440,23 @@ public class Game {
     private void updateWinStreaks(Team winner) {
         for (Entity entity : getPlayers()) {
             if (entity instanceof Player player) {
-                PlayerStatistic stats = playerStats.get(player);
+                final PlayerStatistic stats = playerStats.get(player);
                 if (stats != null) {
-                    Team playerTeam = getPlayerTeam(player);
+                    final Team playerTeam = getPlayerTeam(player);
                     if (playerTeam != null && playerTeam.equals(winner)) {
-                        // Winner: increment winstreak
                         stats.setWinStreak(stats.getWinStreak() + 1);
                     } else {
-                        // Loser: reset winstreak to 0
-                        stats.setWinStreak(0);
+                        stats.setWinStreak(0); // streak is lost
                     }
                 }
             }
         }
     }
 
+    /**
+     * Removes all items from the ender chests
+     * of all players/spectators.
+     */
     private void clearAllEnderChests() {
         for (Entity entity : getPlayers()) {
             if (entity instanceof Player player) {
@@ -1466,31 +1473,26 @@ public class Game {
      * Called during plugin shutdown or when a game room is removed.
      */
     public void stop() {
-        // Cancel all running tasks
         for (BukkitTask task : runningTasks) {
             task.cancel();
         }
         runningTasks.clear();
 
-        // Stop resource spawners
         stopResourceSpawners();
 
-        // Reset kill tracker
         killTracker.reset();
 
-        // Clear all collections
         freePlayers.clear();
         playersReady.clear();
         playerStats.clear();
         spectators.clear();
         protectedPlayers.clear();
 
-        // Reset teams
         for (Team team : teams.values()) {
             team.getPlayers().clear();
         }
 
-        // Set state to stopped
         state = GameState.STOPPED;
     }
+
 }

@@ -34,7 +34,10 @@ import io.papermc.paper.datacomponent.DataComponentTypes;
 import io.papermc.paper.datacomponent.item.PotionContents;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import fr.mrmicky.fastboard.FastBoard;
+import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.translation.GlobalTranslator;
+import net.kyori.adventure.translation.TranslationStore;
 import org.bukkit.entity.Player;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
@@ -56,10 +59,12 @@ import org.bukkit.potion.PotionType;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.util.HashMap;
+import java.text.MessageFormat;
 import java.util.List;
+import java.util.Locale;
 import java.util.ArrayList;
 import java.util.Map;
+import java.util.ResourceBundle;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -167,6 +172,18 @@ public class Main extends JavaPlugin {
         // Restore leaderboard holograms after server restart
         if (commandManager.getLeaderboardCommand() != null) {
             commandManager.getLeaderboardCommand().restoreLeaderboards();
+        }
+
+        final TranslationStore.StringBased<MessageFormat> i18n = TranslationStore.messageFormat(Key.key("rush", "main"));
+
+        try {
+            final ResourceBundle bundle = ResourceBundle.getBundle("io.github.rush.i18n.Bundle", Locale.FRANCE);
+
+            i18n.registerAll(Locale.FRANCE, bundle, true);
+            GlobalTranslator.translator().addSource(i18n);
+            getLogger().info("Registered French translations");
+        } catch (Exception e) {
+            getLogger().warning("Failed to register translations: " + e.getMessage());
         }
 
         Bukkit.getScheduler().runTaskTimer(this, () -> {
