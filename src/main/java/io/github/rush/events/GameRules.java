@@ -44,12 +44,12 @@ public class GameRules implements Listener {
 
     private Game getRunningGameForWorld(String worldName) {
         if (plugin.isGameStarted() && worldName.equals(plugin.getGameWorld())) {
-            Game game = plugin.getGameManager().getCurrentGame();
+            final Game game = plugin.getGameManager().getCurrentGame();
             if (game != null && game.getState() == GameState.RUNNING)
                 return game;
         }
 
-        GameRoom room = plugin.getGameManager().getGameRoomByWorld(worldName);
+        final GameRoom room = plugin.getGameManager().getGameRoomByWorld(worldName);
 
         if (room != null && room.getGame() != null && room.getGame().getState() == GameState.RUNNING)
             return room.getGame();

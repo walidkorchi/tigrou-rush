@@ -1,6 +1,7 @@
 package io.github.rush.menus;
 
 import io.github.rush.Main;
+import io.github.rush.TranslationLoader;
 import io.github.rush.game.Game;
 import io.github.rush.game.GameManager;
 import io.github.rush.game.GameRoom;
@@ -76,13 +77,13 @@ public class TeamSelectionGUI {
 
         ItemStack wool = new ItemStack(woolMaterial);
         ItemMeta meta = wool.getItemMeta();
-        meta.displayName(Component.translatable("rush.team_wool_name",
-                Component.text(color.name()).color(color.getTextColor()),
-                Component.text(current),
-                Component.text(max)));
+        meta.displayName(TranslationLoader.txt("rush.team_wool_name",
+                color.name(),
+                String.valueOf(current),
+                String.valueOf(max)));
         wool.setItemMeta(meta);
         wool.setData(DataComponentTypes.LORE,
-                ItemLore.lore(List.of(Component.translatable("rush.chooseTeam"))));
+                ItemLore.lore(List.of(TranslationLoader.txt("rush.chooseTeam"))));
         return wool;
     }
 
@@ -105,7 +106,7 @@ public class TeamSelectionGUI {
         final ItemStack banner = new ItemStack(Material.WHITE_BANNER);
         final BannerMeta meta = (BannerMeta) banner.getItemMeta();
 
-        meta.displayName(Component.translatable("rush.bannerName"));
+        meta.displayName(TranslationLoader.txt("rush.bannerName"));
         meta.addItemFlags(ItemFlag.HIDE_DYE);
         banner.setItemMeta(meta);
 
@@ -120,9 +121,9 @@ public class TeamSelectionGUI {
         final ItemStack slimeball = new ItemStack(Material.SLIME_BALL);
         final ItemMeta meta = slimeball.getItemMeta();
 
-        meta.displayName(Component.translatable("rush.quit_team_confirm"));
+        meta.displayName(TranslationLoader.txt("rush.quit_team_confirm"));
         slimeball.setItemMeta(meta);
-        slimeball.setData(DataComponentTypes.LORE, ItemLore.lore(List.of(Component.translatable("rush.quitLore"))));
+        slimeball.setData(DataComponentTypes.LORE, ItemLore.lore(List.of(TranslationLoader.txt("rush.quitLore"))));
 
         return slimeball;
     }
@@ -133,14 +134,14 @@ public class TeamSelectionGUI {
         final ItemMeta meta = dye.getItemMeta();
 
         if (ready) {
-            meta.displayName(Component.translatable("rush.ready"));
+            meta.displayName(TranslationLoader.txt("rush.ready"));
         } else {
-            meta.displayName(Component.translatable("rush.notReady"));
+            meta.displayName(TranslationLoader.txt("rush.notReady"));
         }
 
         dye.setItemMeta(meta);
         dye.setData(DataComponentTypes.LORE, ItemLore.lore(
-                List.of(Component.translatable(ready ? "rush.notReadyLore" : "rush.readyLore"))));
+                List.of(TranslationLoader.txt(ready ? "rush.notReadyLore" : "rush.readyLore"))));
 
         return dye;
     }

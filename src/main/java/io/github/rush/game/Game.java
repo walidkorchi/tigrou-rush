@@ -1,6 +1,7 @@
 package io.github.rush.game;
 
 import io.github.rush.Main;
+import io.github.rush.TranslationLoader;
 import io.github.rush.menus.TeamSelectionGUI;
 import io.github.rush.utils.ItemBuilder;
 import io.github.rush.objects.Island;
@@ -911,7 +912,7 @@ public class Game {
 
         ItemStack pickaxe = new ItemStack(Material.WOODEN_PICKAXE);
         ItemMeta pickMeta = pickaxe.getItemMeta();
-        pickMeta.displayName(Component.translatable("rush.item_pickaxe"));
+        pickMeta.displayName(TranslationLoader.txt("rush.item_pickaxe"));
         pickMeta.addEnchant(Enchantment.EFFICIENCY, 1, true);
         pickaxe.setItemMeta(pickMeta);
 

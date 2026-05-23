@@ -1,6 +1,7 @@
 package io.github.rush.menus;
 
 import io.github.rush.Main;
+import io.github.rush.TranslationLoader;
 import io.github.rush.settings.PlayerSettings;
 import io.github.rush.settings.PlayerSettingsManager;
 import io.github.rush.utils.ItemBuilder;
@@ -54,13 +55,12 @@ public class PlayerSettingsGUI {
     }
 
     private static ItemStack createToggleItem(Material on, Material off, String labelKey, boolean enabled) {
-        Component status = Component
-                .translatable(enabled ? "gui.player_settings.enabled" : "gui.player_settings.disabled");
         return ItemBuilder.of(enabled ? on : off)
-                .name(Component.translatable(labelKey))
+                .name(TranslationLoader.txt(labelKey))
                 .lore(
-                        Component.translatable("gui.player_settings.status", status),
-                        Component.translatable("gui.player_settings.click_toggle"))
+                        TranslationLoader.txt("gui.player_settings.status",
+                                TranslationLoader.raw(enabled ? "gui.player_settings.enabled" : "gui.player_settings.disabled")),
+                        TranslationLoader.txt("gui.player_settings.click_toggle"))
                 .build();
     }
 }

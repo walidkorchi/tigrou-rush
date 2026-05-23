@@ -179,9 +179,11 @@ public class PlayerActivity implements Listener {
                                 uuid -> Bukkit.getPlayer(uuid) != null);
 
                         if (nextHostUUID != null) {
-                            Player nextHost = Bukkit.getPlayer(nextHostUUID);
+                            final Player nextHost = Bukkit.getPlayer(nextHostUUID);
+
                             r.setHostUUID(nextHostUUID);
                             r.setHostName(nextHost.getName());
+
                             nextHost.getInventory().setItem(8, plugin.getGameManager().createHostPanelItem());
                             nextHost.sendMessage(Component.translatable("rush.room_host_transfer"));
                         } else {
@@ -189,8 +191,9 @@ public class PlayerActivity implements Listener {
                         }
                     });
 
-            // Take away host panel from the disconnecting player if they had it
-            GameRoom room = plugin.getGameManager().getGameRoomOfPlayer(player);
+            // take away host GUI from the disconnecting player if they had it
+            final GameRoom room = plugin.getGameManager().getGameRoomOfPlayer(player);
+
             if (room != null) {
                 // Snapshot in-game state so the player can be restored on reconnect
                 if (room.isRunning()) {
@@ -208,7 +211,7 @@ public class PlayerActivity implements Listener {
                 room.removePlayer(player);
                 plugin.getGameManager().removePlayerFromGameRoom(player);
 
-                // If room is now empty and waiting, remove it
+                // edge case : room empty and waiting > room is removed
                 if (room.getPlayerCount() == 0 && room.isWaiting()) {
                     plugin.getGameManager().removeGameRoom(room.getId());
                 }

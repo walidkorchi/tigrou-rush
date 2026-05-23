@@ -1,5 +1,6 @@
 package io.github.rush.replay;
 
+import io.github.rush.TranslationLoader;
 import io.github.rush.menus.GUI;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
@@ -31,15 +32,15 @@ public final class ReplayFollowGUI {
             ItemStack head = new ItemStack(Material.PLAYER_HEAD);
             SkullMeta meta = (SkullMeta) head.getItemMeta();
             meta.setOwningPlayer(Bukkit.getOfflinePlayer(uuid));
-            meta.displayName(Component.translatable("rush.replay_follow_name", Component.text(displayName)));
+            meta.displayName(TranslationLoader.txt("rush.replay_follow_name", displayName));
 
             UUID currentTarget = playback.getFollowTarget(viewer.getUniqueId());
             if (targetUuid.equals(currentTarget)) {
                 meta.lore(List.of(
-                        Component.translatable("rush.replay_following"),
-                        Component.translatable("rush.replay_stop_follow")));
+                        TranslationLoader.txt("rush.replay_following"),
+                        TranslationLoader.txt("rush.replay_stop_follow")));
             } else {
-                meta.lore(List.of(Component.translatable("rush.replay_click_follow")));
+                meta.lore(List.of(TranslationLoader.txt("rush.replay_click_follow")));
             }
             head.setItemMeta(meta);
 

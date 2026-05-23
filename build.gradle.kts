@@ -3,6 +3,7 @@ plugins {
     id("com.github.spotbugs") version "6.5.5"
     id("com.gradleup.shadow") version "9.3.1"
     id("java")
+    id("eclipse")
 }
 
 repositories {
@@ -57,6 +58,14 @@ dependencies {
 java {
     sourceCompatibility = JavaVersion.VERSION_25
     targetCompatibility = JavaVersion.VERSION_25
+}
+
+eclipse {
+    jdt {
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
+        javaRuntimeName = "JavaSE-21"
+    }
 }
 
 checkstyle {

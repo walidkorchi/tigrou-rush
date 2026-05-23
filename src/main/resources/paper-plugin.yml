@@ -23,3 +23,6 @@ dependencies:
       load: BEFORE
       required: false
       join-classpath: true
+
+translations:
+  - "translations/fr_fr.json"

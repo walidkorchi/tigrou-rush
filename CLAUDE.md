@@ -1,6 +1,6 @@
 # TigrouRush — Game Design Document
 
-**Platform:** Minecraft Bukkit plugin (Paper 1.21.11), Java 21  
+**Platform:** Minecraft Bukkit plugin (Paper 26.1.2), Java 21  
 **Type:** Bed Wars / Rush hybrid — 4-team arena, each team on its own island. Destroy enemy beds to prevent their respawns. Last team standing wins.
 
 ---
@@ -57,7 +57,7 @@ A schematic (`waiting_room.schem`) pasted at `(0, 0, 0)` of each GameRoom's void
 
 ### Common
 
-- Islands are pasted at `worldMaxHeight − 12` (Y ≈ 308 in 1.21)
+- Islands are pasted at `worldMaxHeight − 12`
 - **Void world generator** — no terrain between islands
 - **Multi-room support:** each `GameRoom` gets a dedicated void world
 
@@ -601,7 +601,7 @@ Key domain terms used throughout this document and the codebase.
 
 | Library | Version | Purpose |
 |---|---|---|
-| Paper API | 1.21.11 | Minecraft server API (compileOnly) |
+| Paper API | 26.1.2 | Minecraft server API (compileOnly) |
 | FastAsyncWorldEdit Bukkit | 2.13.0 | Schematic loading & pasting (compileOnly) |
 | PostgreSQL JDBC | 42.7.1 | Database driver |
 | Hibernate ORM | 6.4.1 | ORM for stats & levels |

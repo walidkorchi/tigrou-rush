@@ -14,6 +14,7 @@ import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.math.transform.AffineTransform;
 import com.sk89q.worldedit.session.ClipboardHolder;
 import io.github.rush.Main;
+import io.github.rush.TranslationLoader;
 import io.github.rush.menus.GUI;
 import io.github.rush.menus.HostConfigGUI;
 import io.github.rush.menus.TeamSelectionGUI;
@@ -287,7 +288,7 @@ public class GameManager {
     public ItemStack createHostPanelItem() {
         ItemStack item = new ItemStack(Material.NETHER_STAR);
         ItemMeta meta = item.getItemMeta();
-        meta.displayName(Component.translatable("rush.host_panel_name"));
+        meta.displayName(TranslationLoader.txt("rush.host_panel_name"));
         item.setItemMeta(meta);
         return item;
     }
@@ -559,7 +560,7 @@ public class GameManager {
     private ItemStack createReplayItem(ReplayHeader header) {
         final ItemStack item = new ItemStack(Material.ORANGE_WOOL);
         final ItemMeta meta = item.getItemMeta();
-        meta.displayName(Component.translatable("rush.replay_item_name", Component.text(header.hostName())));
+        meta.displayName(TranslationLoader.txt("rush.replay_item_name", header.hostName()));
         item.setItemMeta(meta);
 
         LocalDateTime dt = LocalDateTime.ofInstant(
@@ -592,7 +593,7 @@ public class GameManager {
 
         final ItemStack confirmItem = new ItemStack(Material.BARRIER);
         final ItemMeta confirmMeta = confirmItem.getItemMeta();
-        confirmMeta.displayName(Component.translatable("rush.delete_confirm_name"));
+        confirmMeta.displayName(TranslationLoader.txt("rush.delete_confirm_name"));
         confirmItem.setItemMeta(confirmMeta);
         confirmItem.setData(DataComponentTypes.LORE, ItemLore.lore(List.of(
                 Component.translatable("rush.delete_confirm_lore1"),
@@ -612,7 +613,7 @@ public class GameManager {
 
         final ItemStack cancelItem = new ItemStack(Material.LIME_CONCRETE);
         final ItemMeta cancelMeta = cancelItem.getItemMeta();
-        cancelMeta.displayName(Component.translatable("rush.delete_cancel"));
+        cancelMeta.displayName(TranslationLoader.txt("rush.delete_cancel"));
         cancelItem.setItemMeta(cancelMeta);
         gui.addItem(15, cancelItem, p -> {
             p.closeInventory();
@@ -628,7 +629,7 @@ public class GameManager {
         player.getInventory().setItem(7, createGameHostItem());
         final ItemStack settings = new ItemStack(Material.REPEATER);
         final ItemMeta settingsMeta = settings.getItemMeta();
-        settingsMeta.displayName(Component.translatable("rush.settings_name"));
+        settingsMeta.displayName(TranslationLoader.txt("rush.settings_name"));
         settings.setItemMeta(settingsMeta);
         player.getInventory().setItem(8, settings);
     }
@@ -700,7 +701,7 @@ public class GameManager {
     public ItemStack createCompassItem() {
         final ItemStack compass = new ItemStack(Material.COMPASS);
         final ItemMeta meta = compass.getItemMeta();
-        meta.displayName(Component.translatable("rush.compass_name"));
+        meta.displayName(TranslationLoader.txt("rush.compass_name"));
         compass.setItemMeta(meta);
         compass.setData(DataComponentTypes.LORE, ItemLore.lore(List.of(
                 Component.translatable("rush.compass_lore1"),
@@ -715,7 +716,7 @@ public class GameManager {
     public ItemStack createGameHostItem() {
         final ItemStack item = new ItemStack(Material.BEACON);
         final ItemMeta meta = item.getItemMeta();
-        meta.displayName(Component.translatable("rush.create_game_name"));
+        meta.displayName(TranslationLoader.txt("rush.create_game_name"));
         item.setItemMeta(meta);
         item.setData(DataComponentTypes.LORE, ItemLore.lore(List.of(
                 Component.translatable("rush.create_game_lore1"),

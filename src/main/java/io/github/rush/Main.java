@@ -159,6 +159,9 @@ public class Main extends JavaPlugin {
         ResourceType.loadFromConfig(configManager.getConfig());
         DISTANCE_HEIGHT_LIMIT = configManager.getConfig().getInt("distance-height-limit", 12);
 
+        // Load translations into Adventure's GlobalTranslator
+        TranslationLoader.register(this);
+
         scoreboardManager = new ScoreboardManager(this);
         playerSettingsManager = new PlayerSettingsManager(this);
         playerStatisticManager = new PlayerStatisticManager(this);

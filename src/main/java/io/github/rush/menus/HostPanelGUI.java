@@ -2,6 +2,7 @@ package io.github.rush.menus;
 
 import io.github.rush.game.GameManager;
 import io.github.rush.game.GameRoom;
+import io.github.rush.TranslationLoader;
 import io.github.rush.utils.ItemBuilder;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Material;
@@ -28,10 +29,10 @@ public final class HostPanelGUI {
 
         // Delete room button (slot 0, top row left)
         final ItemStack deleteRoom = ItemBuilder.of(Material.BARRIER)
-                .name(Component.translatable("rush.host_panel_delete"))
+                .name(TranslationLoader.txt("rush.host_panel_delete"))
                 .lore(
-                        Component.translatable("rush.host_panel_delete_lore1"),
-                        Component.translatable("rush.host_panel_delete_lore2"))
+                        TranslationLoader.txt("rush.host_panel_delete_lore1"),
+                        TranslationLoader.txt("rush.host_panel_delete_lore2"))
                 .build();
 
         gui.addItem(0, deleteRoom, p -> {
@@ -46,10 +47,10 @@ public final class HostPanelGUI {
 
         // Force-start button (slot 4, top row centre)
         final ItemStack forceStart = ItemBuilder.of(Material.LIME_DYE)
-                .name(Component.translatable("rush.host_panel_force_start"))
+                .name(TranslationLoader.txt("rush.host_panel_force_start"))
                 .lore(
-                        Component.translatable("rush.host_panel_force_start_lore1"),
-                        Component.translatable("rush.host_panel_force_start_lore2"))
+                        TranslationLoader.txt("rush.host_panel_force_start_lore1"),
+                        TranslationLoader.txt("rush.host_panel_force_start_lore2"))
                 .build();
 
         gui.addItem(4, forceStart, p -> {
@@ -64,10 +65,10 @@ public final class HostPanelGUI {
                 continue;
 
             final ItemStack head = ItemBuilder.of(Material.PLAYER_HEAD)
-                    .name(Component.translatable("rush.host_panel_kick_name", Component.text(target.getName())))
+                    .name(TranslationLoader.txt("rush.host_panel_kick_name", target.getName()))
                     .lore(
-                            Component.translatable("rush.host_panel_kick_lore1", Component.text(target.getName())),
-                            Component.translatable("rush.host_panel_kick_lore2"))
+                            TranslationLoader.txt("rush.host_panel_kick_lore1", target.getName()),
+                            TranslationLoader.txt("rush.host_panel_kick_lore2"))
                     .build();
             final Player kicked = target;
 

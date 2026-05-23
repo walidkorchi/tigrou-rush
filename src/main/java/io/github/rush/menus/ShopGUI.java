@@ -135,7 +135,6 @@ public class ShopGUI {
             final org.bukkit.inventory.Merchant merchant = Merchant.createBukkitMerchant(merchantType);
 
             Bukkit.getScheduler().runTask(Main.getInstance(), () -> {
-                //noinspection deprecation — Merchant.getInventory() not available until Paper 1.21.5+
                 bukkitPlayer.openMerchant(merchant, true);
             });
         });
