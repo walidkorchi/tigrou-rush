@@ -19,6 +19,7 @@ public class ConfigManager {
     public ConfigManager(Main plugin) {
         this.plugin = plugin;
         this.configFile = new File(plugin.getDataFolder(), "config.yml");
+
         loadConfig();
     }
 

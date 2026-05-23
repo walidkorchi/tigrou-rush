@@ -18,6 +18,7 @@ public class GameCycle {
             if (game.getState() != GameState.RUNNING) {
                 return;
             }
+
             game.incrementGameTime();
         }, 0L, 20L);
     }

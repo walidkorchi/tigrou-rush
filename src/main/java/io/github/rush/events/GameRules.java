@@ -21,6 +21,7 @@ import io.github.rush.Main;
 import io.github.rush.entities.Merchant;
 import io.github.rush.entities.MerchantType;
 import io.github.rush.game.Game;
+import io.github.rush.game.GameRoom;
 import io.github.rush.game.GameState;
 import io.github.rush.menus.ShopGUI;
 
@@ -47,15 +48,19 @@ public class GameRules implements Listener {
             if (game != null && game.getState() == GameState.RUNNING)
                 return game;
         }
-        io.github.rush.game.GameRoom room = plugin.getGameManager().getGameRoomByWorld(worldName);
+
+        GameRoom room = plugin.getGameManager().getGameRoomByWorld(worldName);
+
         if (room != null && room.getGame() != null && room.getGame().getState() == GameState.RUNNING)
             return room.getGame();
+
         return null;
     }
 
     @EventHandler
     public void onBlockPlace(BlockPlaceEvent event) {
-        Game game = getRunningGameForWorld(event.getBlock().getWorld().getName());
+        final Game game = getRunningGameForWorld(event.getBlock().getWorld().getName());
+
         if (game == null)
             return;
 
@@ -121,7 +126,8 @@ public class GameRules implements Listener {
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK)
             return;
 
-        Block block = event.getClickedBlock();
+        final Block block = event.getClickedBlock();
+
         if (block == null || !(block.getBlockData() instanceof Bed))
             return;
 
@@ -133,8 +139,8 @@ public class GameRules implements Listener {
 
     @EventHandler
     public void onCraft(CraftItemEvent cie) {
-        Player player = (Player) cie.getWhoClicked();
-        Game game = Main.getInstance().getGameManager().getGameOfPlayer(player);
+        final Player player = (Player) cie.getWhoClicked();
+        final Game game = Main.getInstance().getGameManager().getGameOfPlayer(player);
 
         if (game == null) {
             return;
@@ -153,7 +159,8 @@ public class GameRules implements Listener {
             return;
         }
 
-        Player player = event.getPlayer();
+        final Player player = event.getPlayer();
+
         if (getRunningGameForWorld(player.getWorld().getName()) == null) {
             return;
         }
@@ -162,7 +169,8 @@ public class GameRules implements Listener {
             return;
         }
 
-        MerchantType type = Merchant.getType(villager);
+        final MerchantType type = Merchant.getType(villager);
+
         if (type != MerchantType.SPEED) {
             return;
         }
@@ -177,7 +185,6 @@ public class GameRules implements Listener {
             return;
         if (!(event.getEntity() instanceof Villager villager))
             return;
-
         if (!Merchant.isMerchant(villager))
             return;
 
@@ -190,7 +197,6 @@ public class GameRules implements Listener {
                 for (int z = -radius; z <= radius; z++) {
                     if (x == 0 && y == 0 && z == 0)
                         continue;
-
                     if (predicate.test(center.getRelative(x, y, z))) {
                         return true;
                     }

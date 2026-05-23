@@ -20,15 +20,18 @@ public final class CompassTracker {
 
         for (Candidate c : candidates) {
             if (c.teamId().equals(holderTeamId)) continue;
-            double dx = c.x() - holderX;
-            double dy = c.y() - holderY;
-            double dz = c.z() - holderZ;
-            double dist = dx * dx + dy * dy + dz * dz;
+
+            final double dx = c.x() - holderX;
+            final double dy = c.y() - holderY;
+            final double dz = c.z() - holderZ;
+            final double dist = dx * dx + dy * dy + dz * dz;
+
             if (dist < nearestDist) {
                 nearestDist = dist;
                 nearest = c;
             }
         }
+
         return nearest;
     }
 }

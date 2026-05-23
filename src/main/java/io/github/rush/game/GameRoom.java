@@ -53,7 +53,7 @@ public class GameRoom {
     @Getter
     private final List<Island> islands;
 
-    @Getter
+    @Getter @Setter
     private boolean islandsLoaded = false;
 
     private int islandY = 0;
@@ -123,10 +123,6 @@ public class GameRoom {
         }
 
         return islandY;
-    }
-
-    public void setIslandsLoaded(boolean loaded) {
-        this.islandsLoaded = loaded;
     }
 
     public Component getDisplayName() {

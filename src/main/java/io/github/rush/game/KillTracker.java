@@ -18,7 +18,6 @@ public class KillTracker {
 
         damageDealt.computeIfAbsent(victimId, k -> new HashMap<>())
                 .merge(attackerId, damage, Double::sum);
-
         lastHitBy.put(victimId, new LastHitRecord(attackerId, System.currentTimeMillis()));
     }
 

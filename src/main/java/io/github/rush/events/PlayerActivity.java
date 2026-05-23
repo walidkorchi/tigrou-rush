@@ -131,7 +131,9 @@ public class PlayerActivity implements Listener {
         player.setFoodLevel(20);
         player.setSaturation(20f);
         plugin.getGameManager().restoreHubInventory(player);
-        Location mainLobby = Main.getInstance().getMainLobby();
+
+        final Location mainLobby = Main.getInstance().getMainLobby();
+
         if (mainLobby != null && mainLobby.getWorld() != null) {
             player.teleport(mainLobby);
         }
@@ -139,7 +141,7 @@ public class PlayerActivity implements Listener {
 
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
-        Player player = event.getPlayer();
+        final Player player = event.getPlayer();
 
         event.quitMessage(Component.translatable("rush.chat_quit", Component.text(player.getName())));
 
@@ -157,25 +159,25 @@ public class PlayerActivity implements Listener {
             plugin.getPlayerSettingsManager().removePlayer(player.getUniqueId());
         }
 
-        // Remove from GameRoom
         if (plugin.getGameManager() != null) {
-            // Host disconnect during CREATING: cancel the room
+            // edge case n1: host disconnect during game phase creation, we cancel the room
             plugin.getGameManager().getAllGameRooms().stream()
                     .filter(r -> r.getGame().getState() == GameState.CREATING
                             && player.getUniqueId().equals(r.getHostUUID()))
                     .findFirst()
                     .ifPresent(r -> plugin.getGameManager().cancelRoomCreation(r));
 
-            // Host disconnect during WAITING: transfer host status
+            // edge case n2: host disconnect during WAITING phase, we transfer host status
             plugin.getGameManager().getAllGameRooms().stream()
                     .filter(r -> r.getGame().getState() == GameState.WAITING
                             && player.getUniqueId().equals(r.getHostUUID()))
                     .findFirst()
                     .ifPresent(r -> {
-                        UUID nextHostUUID = HostTransfer.nextHost(
+                        final UUID nextHostUUID = HostTransfer.nextHost(
                                 r.getJoinOrder(),
                                 player.getUniqueId(),
                                 uuid -> Bukkit.getPlayer(uuid) != null);
+
                         if (nextHostUUID != null) {
                             Player nextHost = Bukkit.getPlayer(nextHostUUID);
                             r.setHostUUID(nextHostUUID);
@@ -192,9 +194,10 @@ public class PlayerActivity implements Listener {
             if (room != null) {
                 // Snapshot in-game state so the player can be restored on reconnect
                 if (room.isRunning()) {
-                    Game roomGame = room.getGame();
-                    Team team = roomGame.getPlayerTeam(player);
-                    boolean wasSpectator = roomGame.isSpectator(player);
+                    final Game roomGame = room.getGame();
+                    final Team team = roomGame.getPlayerTeam(player);
+                    final boolean wasSpectator = roomGame.isSpectator(player);
+
                     plugin.getGameManager().recordDisconnect(player.getUniqueId(),
                             new GameManager.ReconnectData(
                                     room.getId(),
@@ -212,18 +215,15 @@ public class PlayerActivity implements Listener {
             }
 
             // Remove from legacy game
-            Game game = plugin.getGameManager().getGameOfPlayer(player);
-            if (game != null) {
-                // Remove from KillTracker
-                game.getKillTracker().removePlayer(player.getUniqueId());
+            final Game game = plugin.getGameManager().getGameOfPlayer(player);
 
-                // Remove player from game
+            if (game != null) {
+                game.getKillTracker().removePlayer(player.getUniqueId());
                 game.removePlayer(player);
                 plugin.getGameManager().removePlayerFromGame(player);
             }
         }
 
-        // Remove from playerBoards
         plugin.setFastBoard(player, null);
     }
 
@@ -231,13 +231,14 @@ public class PlayerActivity implements Listener {
     public void onBlockBreak(BlockBreakEvent event) {
         if (event.isCancelled())
             return;
-        Player player = event.getPlayer();
-        Block block = event.getBlock();
-        Material blockType = block.getType();
-        String worldName = player.getWorld().getName();
 
-        boolean isLegacyOrHubWorld = worldName.equals(plugin.getGameWorld());
-        GameRoom breakRoom = isLegacyOrHubWorld ? null
+        final Player player = event.getPlayer();
+        final Block block = event.getBlock();
+        final Material blockType = block.getType();
+        final String worldName = player.getWorld().getName();
+
+        final boolean isLegacyOrHubWorld = worldName.equals(plugin.getGameWorld());
+        final GameRoom breakRoom = isLegacyOrHubWorld ? null
                 : Main.getInstance().getGameManager().getGameRoomByWorld(worldName);
 
         if (!isLegacyOrHubWorld && breakRoom == null) {
@@ -250,7 +251,7 @@ public class PlayerActivity implements Listener {
 
         // sandstone/endstone are emancipated from island block protection logic
         if (blockType == Material.SANDSTONE || blockType == Material.END_STONE) {
-            Game game = isLegacyOrHubWorld
+            final Game game = isLegacyOrHubWorld
                     ? Main.getInstance().getGameManager().getCurrentGame()
                     : breakRoom.getGame();
 
@@ -286,16 +287,16 @@ public class PlayerActivity implements Listener {
      * on a given block bounding boxes only
      */
     private boolean isStandingOn(Entity entity, Block block) {
-        BoundingBox entityBox = entity.getBoundingBox();
-        BoundingBox blockBox = block.getBoundingBox();
+        final BoundingBox entityBox = entity.getBoundingBox();
+        final BoundingBox blockBox = block.getBoundingBox();
 
         // skip empty bounding box (no collision shape)
         if (blockBox.getVolume() == 0) {
             return false;
         }
 
-        double feetY = entityBox.getMinY();
-        double blockTopY = blockBox.getMaxY();
+        final double feetY = entityBox.getMinY();
+        final double blockTopY = blockBox.getMaxY();
 
         if (Math.abs(feetY - blockTopY) > EPSILON) {
             return false;
@@ -340,29 +341,35 @@ public class PlayerActivity implements Listener {
 
     @EventHandler
     public void onPlayerMove(PlayerMoveEvent event) {
-        Player player = event.getPlayer();
-        String worldName = player.getWorld().getName();
+        final Player player = event.getPlayer();
+        final String worldName = player.getWorld().getName();
 
         if (worldName.equals(plugin.getGameWorld()) && player.getLocation().getY() < 0) {
-            Location lobby = plugin.getMainLobby();
+            final Location lobby = plugin.getMainLobby();
+
             if (lobby != null) {
                 player.setFallDistance(0);
                 player.teleport(lobby);
             }
+
             return;
         }
 
         if (plugin.isGameStarted() && worldName.equals(plugin.getGameWorld())) {
-            Game game = Main.getInstance().getGameManager().getCurrentGame();
+            final Game game = Main.getInstance().getGameManager().getCurrentGame();
+
             if (game != null && !game.isSpectator(player)) {
                 rescueFromVoid(player, game, Main.getISLAND_Y());
             }
+
             return;
         }
 
-        GameRoom room = plugin.getGameManager().getGameRoomByWorld(worldName);
+        final GameRoom room = plugin.getGameManager().getGameRoomByWorld(worldName);
+
         if (room != null && room.isRunning()) {
-            Game game = room.getGame();
+            final Game game = room.getGame();
+
             if (game != null && !game.isSpectator(player)) {
                 rescueFromVoid(player, game, room.getIslandY());
             }
@@ -370,7 +377,8 @@ public class PlayerActivity implements Listener {
     }
 
     private void rescueFromVoid(Player player, Game game, int islandY) {
-        double voidThreshold = islandY - Main.getInstance().getVoidThreshold();
+        final double voidThreshold = islandY - Main.getInstance().getVoidThreshold();
+
         if (player.getLocation().getY() < voidThreshold) {
             player.setFallDistance(0);
             player.setHealth(0);
@@ -381,8 +389,9 @@ public class PlayerActivity implements Listener {
 
     @EventHandler
     public void onPlayerDie(PlayerDeathEvent pd) {
-        Player player = pd.getEntity();
-        Game game = Main.getInstance().getGameManager().getGameForPlayer(player);
+        final Player player = pd.getEntity();
+        final Game game = Main.getInstance().getGameManager().getGameForPlayer(player);
+
         if (game == null || game.getState() != GameState.RUNNING)
             return;
 

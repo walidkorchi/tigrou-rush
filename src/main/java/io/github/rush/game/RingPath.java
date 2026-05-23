@@ -70,12 +70,14 @@ public final class RingPath {
 
         for (int i = 0; i < n; i++) {
             final int j = (i + 1) % n;
-            double[] ea = bridgeEndpoint(islandsX[i], islandsZ[i], islandsX[j], islandsZ[j]);
-            double[] eb = bridgeEndpoint(islandsX[j], islandsZ[j], islandsX[i], islandsZ[i]);
+            final double[] ea = bridgeEndpoint(islandsX[i], islandsZ[i], islandsX[j], islandsZ[j]);
+            final double[] eb = bridgeEndpoint(islandsX[j], islandsZ[j], islandsX[i], islandsZ[i]);
+
             if (distanceSqToSegment(blockX, blockZ, ea[0], ea[1], eb[0], eb[1]) <= spreadSq) {
                 return true;
             }
         }
+
         return false;
     }
 
@@ -89,10 +91,12 @@ public final class RingPath {
         final int n = islands.size();
         final double[] xs = new double[n];
         final double[] zs = new double[n];
+
         for (int i = 0; i < n; i++) {
             xs[i] = islands.get(i).getX();
             zs[i] = islands.get(i).getZ();
         }
+
         return isOnPath(blockX, blockZ, xs, zs);
     }
 
@@ -103,9 +107,11 @@ public final class RingPath {
      */
     public static double[] bridgeEndpoint(double ax, double az, double bx, double bz) {
         final double aLen = Math.sqrt(ax * ax + az * az);
+
         if (aLen == 0.0) {
             return new double[] { ax, az };
         }
+
         final double axialX = -ax / aLen;
         final double axialZ = -az / aLen;
         // Tangential axis: rotate axial 90° clockwise.
@@ -114,6 +120,7 @@ public final class RingPath {
         // Sign that points toward B along the tangential axis.
         final double dot = (bx - ax) * perpX + (bz - az) * perpZ;
         final double sign = dot >= 0.0 ? 1.0 : -1.0;
+
         return new double[] {
                 ax + AXIAL_OFFSET * axialX + TRANSVERSE_OFFSET * sign * perpX,
                 az + AXIAL_OFFSET * axialZ + TRANSVERSE_OFFSET * sign * perpZ
@@ -133,12 +140,14 @@ public final class RingPath {
         if (ab2 == 0.0) {
             final double dpx = px - ax;
             final double dpz = pz - az;
+
             return dpx * dpx + dpz * dpz;
         }
 
         final double apx = px - ax;
         final double apz = pz - az;
         double t = (apx * abx + apz * abz) / ab2;
+
         if (t < 0.0)
             t = 0.0;
         else if (t > 1.0)
@@ -148,6 +157,7 @@ public final class RingPath {
         final double cz = az + t * abz;
         final double dx = px - cx;
         final double dz = pz - cz;
+
         return dx * dx + dz * dz;
     }
 }

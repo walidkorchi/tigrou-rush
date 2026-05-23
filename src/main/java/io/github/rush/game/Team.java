@@ -48,7 +48,7 @@ public class Team {
     @Getter
     private final List<Location> enderChestLocations = new ArrayList<>();
 
-    @Setter
+    @Getter @Setter
     private boolean bedDestroyed = false;
 
     @Getter
@@ -208,10 +208,6 @@ public class Team {
             case LIGHT_PURPLE -> Material.PINK_BED;
             case WHITE -> Material.WHITE_BED;
         };
-    }
-
-    public boolean isBedDestroyed() {
-        return bedDestroyed;
     }
 
 }

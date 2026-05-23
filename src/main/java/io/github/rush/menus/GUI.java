@@ -9,6 +9,7 @@ import org.bukkit.event.inventory.ClickType;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
+import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -47,6 +48,7 @@ public class GUI implements InventoryHolder {
     /**
      * The title of the GUI.
      */
+    @Getter
     private final String title;
 
     /**
@@ -156,15 +158,6 @@ public class GUI implements InventoryHolder {
     @Override
     public @NotNull Inventory getInventory() {
         return inventory;
-    }
-
-    /**
-     * Returns the title of the GUI.
-     *
-     * @return The title
-     */
-    public String getTitle() {
-        return title;
     }
 
     /**

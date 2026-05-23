@@ -19,10 +19,11 @@ public final class ReplayManager {
     }
 
     public void joinReplay(Player player, ReplayHeader header) {
-        String sessionId = header.sessionId();
+        final String sessionId = header.sessionId();
 
         // World already ready — add viewer immediately
-        ReplayPlayback existing = activePlaybacks.get(sessionId);
+        final ReplayPlayback existing = activePlaybacks.get(sessionId);
+
         if (existing != null) {
             existing.addViewer(player);
             viewerToSession.put(player, sessionId);
@@ -43,12 +44,15 @@ public final class ReplayManager {
         player.sendMessage(Component.translatable("rush.replay_loading"));
 
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            Optional<ReplayFile> opt = plugin.getReplayStorage().load(sessionId);
+            final Optional<ReplayFile> opt = plugin.getReplayStorage().load(sessionId);
+
             Bukkit.getScheduler().runTask(plugin, () -> {
                 opt.ifPresentOrElse(
                         file -> plugin.getGameManager().createReplayWorld(file, playback -> {
                             activePlaybacks.put(sessionId, playback);
-                            List<Player> pending = pendingViewers.remove(sessionId);
+
+                            final List<Player> pending = pendingViewers.remove(sessionId);
+
                             if (pending != null) {
                                 for (Player p : pending) {
                                     if (p.isOnline()) {
@@ -60,7 +64,8 @@ public final class ReplayManager {
                             }
                         }),
                         () -> {
-                            List<Player> pending = pendingViewers.remove(sessionId);
+                            final List<Player> pending = pendingViewers.remove(sessionId);
+
                             if (pending != null) {
                                 for (Player p : pending) {
                                     viewerToSession.remove(p);
@@ -74,10 +79,10 @@ public final class ReplayManager {
     }
 
     public void leaveReplay(Player player) {
-        String sessionId = viewerToSession.remove(player);
+        final String sessionId = viewerToSession.remove(player);
         if (sessionId == null) return;
 
-        ReplayPlayback playback = activePlaybacks.get(sessionId);
+        final ReplayPlayback playback = activePlaybacks.get(sessionId);
         if (playback != null && playback.removeViewer(player)) {
             activePlaybacks.remove(sessionId);
             playback.cleanup();
@@ -89,7 +94,7 @@ public final class ReplayManager {
     }
 
     public ReplayPlayback getPlayback(Player player) {
-        String sessionId = viewerToSession.get(player);
+        final String sessionId = viewerToSession.get(player);
         return sessionId != null ? activePlaybacks.get(sessionId) : null;
     }
 }

@@ -24,7 +24,11 @@ public class DatabaseManager {
         configuration.setProperty("hibernate.connection.password", getPassword());
         configuration.setProperty("hibernate.hbm2ddl.auto", "update");
         configuration.setProperty("hibernate.show_sql", "false");
-        configuration.setProperty("hibernate.connection.pool_size", "10");
+        configuration.setProperty("hibernate.connection.provider_class",
+                "org.hibernate.hikaricp.internal.HikariCPConnectionProvider");
+        configuration.setProperty("hibernate.hikari.minimumIdle", "2");
+        configuration.setProperty("hibernate.hikari.maximumPoolSize", "10");
+        configuration.setProperty("hibernate.hikari.idleTimeout", "30000");
 
         configuration.addAnnotatedClass(io.github.rush.statistics.PlayerStatistic.class);
         configuration.addAnnotatedClass(io.github.rush.statistics.PlayerLevel.class);

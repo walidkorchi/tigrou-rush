@@ -16,13 +16,16 @@ public final class ReplaySeek {
     public static List<BlockRestore> computeRestores(List<ReplayAction> frames, long fromMs, long toMs) {
         if (toMs >= fromMs) return List.of();
 
-        List<BlockRestore> restores = new ArrayList<>();
+        final List<BlockRestore> restores = new ArrayList<>();
+
         for (ReplayAction frame : frames) {
             if (frame instanceof BlockChangeAction b && b.timestamp() > toMs && b.timestamp() <= fromMs) {
                 restores.add(new BlockRestore(b.x(), b.y(), b.z(), b.worldName(), b.oldMaterial()));
             }
         }
+
         Collections.reverse(restores);
+
         return restores;
     }
 }

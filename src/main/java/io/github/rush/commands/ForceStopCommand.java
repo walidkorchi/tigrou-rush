@@ -11,14 +11,9 @@ import com.mojang.brigadier.Command;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 
-import org.bukkit.command.CommandSender;
-import org.bukkit.entity.Player;
 import org.jspecify.annotations.NullMarked;
 
-import net.kyori.adventure.text.format.NamedTextColor;
-
 import net.kyori.adventure.text.Component;
-import static net.kyori.adventure.text.Component.text;
 
 @NullMarked
 public class ForceStopCommand {
@@ -36,15 +31,13 @@ public class ForceStopCommand {
     }
 
     private int runForceStop(CommandContext<CommandSourceStack> ctx) {
-        CommandSender sender = ctx.getSource().getSender();
+        return CommandManager.requirePlayer(ctx, player -> {
+            GameManager gameManager = plugin.getGameManager();
+            if (gameManager == null) {
+                ctx.getSource().getSender().sendMessage(Component.translatable("rush.game_manager_unavailable"));
+                return Command.SINGLE_SUCCESS;
+            }
 
-        GameManager gameManager = plugin.getGameManager();
-        if (gameManager == null) {
-            sender.sendMessage(text("Game manager not available.", NamedTextColor.RED));
-            return Command.SINGLE_SUCCESS;
-        }
-
-        if (sender instanceof Player player) {
             Game game = gameManager.getGameForPlayer(player);
             if (game != null && game.getState() == GameState.RUNNING) {
                 if (game.isGameRoomMode()) {
@@ -56,12 +49,12 @@ public class ForceStopCommand {
                         p.sendMessage(Component.translatable("rush.force_stop_broadcast"));
                     }
                 }
-                sender.sendMessage(text("Game force stopped.", NamedTextColor.GREEN));
+                ctx.getSource().getSender().sendMessage(Component.translatable("rush.game_force_stopped"));
                 return Command.SINGLE_SUCCESS;
             }
-        }
 
-        sender.sendMessage(text("No running game found.", NamedTextColor.RED));
-        return Command.SINGLE_SUCCESS;
+            ctx.getSource().getSender().sendMessage(Component.translatable("rush.no_running_game"));
+            return Command.SINGLE_SUCCESS;
+        });
     }
 }

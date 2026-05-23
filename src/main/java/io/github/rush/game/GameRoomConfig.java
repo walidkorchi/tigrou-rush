@@ -1,5 +1,8 @@
 package io.github.rush.game;
 
+import lombok.Getter;
+import lombok.experimental.Accessors;
+
 public record GameRoomConfig(
         GameRoom.IslandType islandType,
         int maxTeams,
@@ -20,6 +23,7 @@ public record GameRoomConfig(
         return new Builder();
     }
 
+    @Getter @Accessors(fluent = true)
     public static final class Builder {
         private GameRoom.IslandType islandType = GameRoom.IslandType.FOUR_ISLANDS;
         private int maxTeams = 2;
@@ -66,34 +70,6 @@ public record GameRoomConfig(
         public Builder overtimeDuration(int delta) {
             overtimeDuration = Math.max(5, Math.min(120, overtimeDuration + delta));
             return this;
-        }
-
-        public GameRoom.IslandType islandType() {
-            return islandType;
-        }
-
-        public int maxTeams() {
-            return maxTeams;
-        }
-
-        public GameRoom.TeamSize teamSize() {
-            return teamSize;
-        }
-
-        public MapType mapType() {
-            return mapType;
-        }
-
-        public boolean extraHearts() {
-            return extraHearts;
-        }
-
-        public boolean overtimeStart() {
-            return overtimeStart;
-        }
-
-        public int overtimeDuration() {
-            return overtimeDuration;
         }
 
         public GameRoomConfig build() {

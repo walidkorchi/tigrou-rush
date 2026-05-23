@@ -7,8 +7,6 @@ import io.github.rush.Main;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
 import org.bukkit.Location;
-import org.bukkit.command.CommandSender;
-import org.bukkit.entity.Player;
 import org.jspecify.annotations.NullMarked;
 
 import net.kyori.adventure.text.Component;
@@ -29,30 +27,25 @@ public class SetLobbySpawnCommand {
     }
 
     private int run(CommandContext<CommandSourceStack> ctx) {
-        CommandSender sender = ctx.getSource().getSender();
+        return CommandManager.requirePlayer(ctx, player -> {
+            final Location loc = player.getLocation();
 
-        if (!(sender instanceof Player player)) {
-            sender.sendMessage(Component.translatable("rush.command_player_only"));
+            plugin.getConfig().set("lobby-spawn.world", loc.getWorld().getName());
+            plugin.getConfig().set("lobby-spawn.x", loc.getX());
+            plugin.getConfig().set("lobby-spawn.y", loc.getY());
+            plugin.getConfig().set("lobby-spawn.z", loc.getZ());
+            plugin.getConfig().set("lobby-spawn.yaw", (double) loc.getYaw());
+            plugin.getConfig().set("lobby-spawn.pitch", (double) loc.getPitch());
+            plugin.saveConfig();
+
+            ctx.getSource().getSender().sendMessage(Component.translatable("rush.setlobby_spawn_set",
+                    Component.text(String.format("%.2f", loc.getX())),
+                    Component.text(String.format("%.2f", loc.getY())),
+                    Component.text(String.format("%.2f", loc.getZ())),
+                    Component.text(String.format("%.1f", loc.getYaw())),
+                    Component.text(String.format("%.1f", loc.getPitch()))));
+
             return Command.SINGLE_SUCCESS;
-        }
-
-        Location loc = player.getLocation();
-
-        plugin.getConfig().set("lobby-spawn.world", loc.getWorld().getName());
-        plugin.getConfig().set("lobby-spawn.x", loc.getX());
-        plugin.getConfig().set("lobby-spawn.y", loc.getY());
-        plugin.getConfig().set("lobby-spawn.z", loc.getZ());
-        plugin.getConfig().set("lobby-spawn.yaw", (double) loc.getYaw());
-        plugin.getConfig().set("lobby-spawn.pitch", (double) loc.getPitch());
-        plugin.saveConfig();
-
-        sender.sendMessage(Component.translatable("rush.setlobby_spawn_set",
-                Component.text(String.format("%.2f", loc.getX())),
-                Component.text(String.format("%.2f", loc.getY())),
-                Component.text(String.format("%.2f", loc.getZ())),
-                Component.text(String.format("%.1f", loc.getYaw())),
-                Component.text(String.format("%.1f", loc.getPitch()))));
-
-        return Command.SINGLE_SUCCESS;
+        });
     }
 }

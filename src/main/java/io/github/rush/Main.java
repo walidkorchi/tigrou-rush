@@ -155,6 +155,7 @@ public class Main extends JavaPlugin {
 
         // Initialize config manager first (other managers may depend on it)
         configManager = new ConfigManager(this);
+        ResourceType.loadFromConfig(configManager.getConfig());
 
         scoreboardManager = new ScoreboardManager(this);
         playerSettingsManager = new PlayerSettingsManager(this);

@@ -9,9 +9,9 @@ public class PlayerSettings {
 
     @Getter
     private final UUID playerId;
-    @Setter
+    @Getter @Setter
     private boolean scoreboardEnabled;
-    @Setter
+    @Getter @Setter
     private boolean musicEnabled;
 
     public PlayerSettings(UUID playerId) {
@@ -26,11 +26,4 @@ public class PlayerSettings {
         this.musicEnabled = musicEnabled;
     }
 
-    public boolean isScoreboardEnabled() {
-        return scoreboardEnabled;
-    }
-
-    public boolean isMusicEnabled() {
-        return musicEnabled;
-    }
 }

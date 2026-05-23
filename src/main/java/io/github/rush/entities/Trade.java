@@ -56,8 +56,10 @@ public record Trade(
     }
 
     public Trade withEnchantment(Enchantment enchantment, int level) {
-        Map<Enchantment, Integer> newEnchantments = new java.util.HashMap<>(enchantments());
+        final Map<Enchantment, Integer> newEnchantments = new java.util.HashMap<>(enchantments());
+
         newEnchantments.put(enchantment, level);
+
         return new Trade(result(), currency(), costAmount(), resultAmount(), secondCost(), newEnchantments, durability());
     }
 

@@ -17,7 +17,6 @@ import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.World;
 import org.bukkit.block.Block;
-import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Entity;
@@ -29,6 +28,7 @@ import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.entity.Display;
 import org.bukkit.entity.TextDisplay;
 import org.bukkit.util.Vector;
+import lombok.Getter;
 import org.jspecify.annotations.NullMarked;
 
 import java.util.HashMap;
@@ -53,6 +53,7 @@ public class AuthorCommand {
     private final Main plugin;
     private final Map<UUID, BukkitTask> particleTasks = new HashMap<>();
     private final Map<UUID, TextHologram> holograms = new HashMap<>();
+    @Getter
     private final Map<Location, UUID> glassBlocks = new HashMap<>();
 
     public AuthorCommand(Main plugin) {
@@ -210,10 +211,6 @@ public class AuthorCommand {
         return null;
     }
 
-    public Map<Location, UUID> getGlassBlocks() {
-        return glassBlocks;
-    }
-
     public LiteralArgumentBuilder<CommandSourceStack> createCommand() {
         return Commands.literal("author")
                 .then(Commands.literal("add")
@@ -223,99 +220,86 @@ public class AuthorCommand {
     }
 
     private int runAdd(CommandContext<CommandSourceStack> ctx) {
-        CommandSender sender = ctx.getSource().getSender();
+        return CommandManager.requirePlayer(ctx, player -> {
+            Block glassBlock = findGlassBeneath(player);
 
-        if (!(sender instanceof Player player)) {
-            sender.sendMessage(text("This command must be run by a player.", NamedTextColor.RED));
-            return 0;
-        }
+            if (glassBlock == null) {
+                player.sendMessage(text("Aucun bloc de verre trouvé sous vos pieds.", NamedTextColor.RED));
+                return 0;
+            }
 
-        Block glassBlock = findGlassBeneath(player);
+            float yaw = getYawFacingPlayer(glassBlock, player);
 
-        if (glassBlock == null) {
-            player.sendMessage(text("Aucun bloc de verre trouvé sous vos pieds.", NamedTextColor.RED));
-            return 0;
-        }
+            Location spawnLoc = glassBlock.getLocation().add(0.5, -1.25, 0.5);
+            spawnLoc.setYaw(yaw);
 
-        float yaw = getYawFacingPlayer(glassBlock, player);
-
-        Location spawnLoc = glassBlock.getLocation().add(0.5, -1.25, 0.5);
-        spawnLoc.setYaw(yaw);
-
-        ArmorStand armorStand = player.getWorld().spawn(spawnLoc, ArmorStand.class, stand -> {
-            stand.setVisible(false);
-            stand.setGravity(false);
-            stand.setInvulnerable(true);
-            stand.setSmall(false);
-            stand.setBasePlate(false);
-            stand.setArms(false);
-            stand.addScoreboardTag(ARMOR_STAND_TAG);
-        });
-
-        ItemStack skull = new ItemStack(Material.PLAYER_HEAD);
-        SkullMeta meta = (SkullMeta) skull.getItemMeta();
-
-        PlayerProfile profile = Bukkit.createProfile(getAuthorName());
-        profile.update().thenAccept(updatedProfile -> {
-            Bukkit.getScheduler().runTask(plugin, () -> {
-                meta.setPlayerProfile(updatedProfile);
-                skull.setItemMeta(meta);
-                armorStand.getEquipment().setHelmet(skull);
+            ArmorStand armorStand = player.getWorld().spawn(spawnLoc, ArmorStand.class, stand -> {
+                stand.setVisible(false);
+                stand.setGravity(false);
+                stand.setInvulnerable(true);
+                stand.setSmall(false);
+                stand.setBasePlate(false);
+                stand.setArms(false);
+                stand.addScoreboardTag(ARMOR_STAND_TAG);
             });
+
+            ItemStack skull = new ItemStack(Material.PLAYER_HEAD);
+            SkullMeta meta = (SkullMeta) skull.getItemMeta();
+
+            PlayerProfile profile = Bukkit.createProfile(getAuthorName());
+            profile.update().thenAccept(updatedProfile -> {
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    meta.setPlayerProfile(updatedProfile);
+                    skull.setItemMeta(meta);
+                    armorStand.getEquipment().setHelmet(skull);
+                });
+            });
+
+            playFancyParticles(armorStand.getUniqueId(), glassBlock.getLocation().add(0.5, 0.5, 0.5));
+
+            spawnHologram(armorStand.getUniqueId(), glassBlock.getLocation().add(0.5, 2.2, 0.5));
+
+            glassBlocks.put(glassBlock.getLocation(), armorStand.getUniqueId());
+
+            saveAuthorLocation(glassBlock.getLocation(), armorStand.getUniqueId());
+
+            player.sendMessage(text("Armor stand de " + getAuthorName() + " placé!", NamedTextColor.GREEN));
+            return Command.SINGLE_SUCCESS;
         });
-
-        playFancyParticles(armorStand.getUniqueId(), glassBlock.getLocation().add(0.5, 0.5, 0.5));
-
-        spawnHologram(armorStand.getUniqueId(), glassBlock.getLocation().add(0.5, 2.2, 0.5));
-
-        glassBlocks.put(glassBlock.getLocation(), armorStand.getUniqueId());
-
-        // Save to config
-        saveAuthorLocation(glassBlock.getLocation(), armorStand.getUniqueId());
-
-        player.sendMessage(text("Armor stand de " + getAuthorName() + " placé!", NamedTextColor.GREEN));
-
-        return Command.SINGLE_SUCCESS;
     }
 
     private int runRemove(CommandContext<CommandSourceStack> ctx) {
-        CommandSender sender = ctx.getSource().getSender();
+        return CommandManager.requirePlayer(ctx, player -> {
+            int removed = 0;
 
-        if (!(sender instanceof Player player)) {
-            sender.sendMessage(text("This command must be run by a player.", NamedTextColor.RED));
-            return 0;
-        }
+            for (Entity entity : player.getWorld().getEntities()) {
+                if (entity instanceof ArmorStand stand && stand.getScoreboardTags().contains(ARMOR_STAND_TAG)) {
+                    UUID standId = stand.getUniqueId();
+                    BukkitTask task = particleTasks.remove(standId);
+                    if (task != null) {
+                        task.cancel();
+                    }
+                    TextHologram hologram = holograms.remove(standId);
+                    if (hologram != null && plugin.getHologramManager() != null) {
+                        plugin.getHologramManager().remove(hologram);
+                    }
+                    glassBlocks.values().remove(standId);
 
-        int removed = 0;
+                    removeAuthorLocation();
 
-        for (Entity entity : player.getWorld().getEntities()) {
-            if (entity instanceof ArmorStand stand && stand.getScoreboardTags().contains(ARMOR_STAND_TAG)) {
-                UUID standId = stand.getUniqueId();
-                BukkitTask task = particleTasks.remove(standId);
-                if (task != null) {
-                    task.cancel();
+                    stand.remove();
+                    removed++;
                 }
-                TextHologram hologram = holograms.remove(standId);
-                if (hologram != null && plugin.getHologramManager() != null) {
-                    plugin.getHologramManager().remove(hologram);
-                }
-                glassBlocks.values().remove(standId);
-
-                // Remove from config
-                removeAuthorLocation();
-
-                stand.remove();
-                removed++;
             }
-        }
 
-        if (removed > 0) {
-            player.sendMessage(text(removed + " armor stand(s) supprimé(s).", NamedTextColor.GREEN));
-        } else {
-            player.sendMessage(text("Aucun armor stand d'auteur trouvé.", NamedTextColor.RED));
-        }
+            if (removed > 0) {
+                player.sendMessage(text(removed + " armor stand(s) supprimé(s).", NamedTextColor.GREEN));
+            } else {
+                player.sendMessage(text("Aucun armor stand d'auteur trouvé.", NamedTextColor.RED));
+            }
 
-        return Command.SINGLE_SUCCESS;
+            return Command.SINGLE_SUCCESS;
+        });
     }
 
     private float getYawFacingPlayer(Block block, Player player) {

@@ -73,6 +73,121 @@ resource:
     spawn-interval: 300000
     spread: 1.0
 
+# --- Merchants Configuration ---
+# Each merchant type has a list of trades. Cost is a list (first = primary, second = optional second cost).
+# Enchantments are keyed by enchantment name (lowercase).
+# Potion trades use `potion:` key instead of `result:`.
+
+merchants:
+  weaponsmith:
+    trades:
+      - result: IRON_SWORD
+        cost:
+          - material: IRON_INGOT
+            amount: 1
+        enchantments:
+          sharpness: 1
+      - result: IRON_SWORD
+        cost:
+          - material: IRON_INGOT
+            amount: 3
+        enchantments:
+          sharpness: 2
+      - result: IRON_SWORD
+        cost:
+          - material: IRON_INGOT
+            amount: 7
+        enchantments:
+          sharpness: 3
+      - result: DIAMOND_SWORD
+        cost:
+          - material: IRON_INGOT
+            amount: 5
+          - material: DIAMOND
+            amount: 1
+        enchantments:
+          sharpness: 2
+        durability: 85
+      - result: FLINT_AND_STEEL
+        cost:
+          - material: GOLD_INGOT
+            amount: 1
+      - result: TNT
+        cost:
+          - material: IRON_INGOT
+            amount: 5
+  builder:
+    trades:
+      - result: SANDSTONE
+        resultAmount: 4
+        cost:
+          - material: COPPER_INGOT
+            amount: 1
+      - result: END_STONE
+        resultAmount: 4
+        cost:
+          - material: IRON_INGOT
+            amount: 2
+      - result: IRON_PICKAXE
+        cost:
+          - material: IRON_INGOT
+            amount: 1
+        enchantments:
+          efficiency: 1
+      - result: IRON_PICKAXE
+        cost:
+          - material: COPPER_INGOT
+            amount: 5
+        enchantments:
+          efficiency: 2
+      - result: IRON_PICKAXE
+        cost:
+          - material: GOLD_INGOT
+            amount: 1
+        enchantments:
+          efficiency: 3
+  alchemist:
+    trades:
+      - result: GOLDEN_APPLE
+        cost:
+          - material: IRON_INGOT
+            amount: 1
+      - potion: HEALING
+        upgrade: true
+        cost:
+          - material: GOLD_INGOT
+            amount: 1
+  armorsmith:
+    trades:
+      - result: LEATHER_CHESTPLATE
+        cost:
+          - material: IRON_INGOT
+            amount: 2
+      - result: LEATHER_CHESTPLATE
+        cost:
+          - material: IRON_INGOT
+            amount: 5
+        enchantments:
+          protection: 1
+      - result: LEATHER_CHESTPLATE
+        cost:
+          - material: GOLD_INGOT
+            amount: 1
+        enchantments:
+          protection: 2
+      - result: LEATHER_CHESTPLATE
+        cost:
+          - material: GOLD_INGOT
+            amount: 5
+        enchantments:
+          protection: 3
+      - result: COMPASS
+        cost:
+          - material: DIAMOND
+            amount: 16
+  speed:
+    trades: []
+
 # --- Misc Configuration ---
 
 # World where the rush game takes place

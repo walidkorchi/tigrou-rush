@@ -13,10 +13,8 @@ import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.World;
-import org.bukkit.entity.Display.Billboard;
-import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.FileConfiguration;
-import org.bukkit.entity.Player;
+import org.bukkit.entity.Display.Billboard;
 import org.bukkit.entity.TextDisplay.TextAlignment;
 import io.github.rush.config.ConfigManager;
 import io.github.rush.statistics.PlayerLevelManager;
@@ -27,8 +25,7 @@ import com.maximde.hologramlib.hologram.TextHologram;
 
 import java.util.*;
 
-import static net.kyori.adventure.text.Component.text;
-import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.Component;
 
 @NullMarked
 public class LeaderboardCommand {
@@ -64,6 +61,7 @@ public class LeaderboardCommand {
 
     }
 
+    @Getter
     private final Map<Location, LeaderboardHologram> holograms = new HashMap<>();
 
     public LiteralArgumentBuilder<CommandSourceStack> createCommand() {
@@ -81,75 +79,60 @@ public class LeaderboardCommand {
     }
 
     private int spawnLeaderboard(CommandContext<CommandSourceStack> ctx, LeaderboardType type) {
-        CommandSender sender = ctx.getSource().getSender();
+        return CommandManager.requirePlayer(ctx, player -> {
+            if (Main.getInstance().getHologramManager() == null) {
+                player.sendMessage(Component.translatable("rush.hologram_not_initialized"));
+                return 0;
+            }
 
-        if (!(sender instanceof Player player)) {
-            sender.sendMessage(text("This command must be run by a player.", NamedTextColor.RED));
-            return 0;
-        }
+            Location loc = player.getLocation().clone().add(0, 2, 0);
 
-        if (Main.getInstance().getHologramManager() == null) {
-            player.sendMessage(text("HologramLib n'est pas initialisé.", NamedTextColor.RED));
-            return 0;
-        }
+            LeaderboardHologram existing = holograms.remove(loc);
+            if (existing != null) {
+                Main.getInstance().getHologramManager().remove(existing.getHologram());
+            }
 
-        Location loc = player.getLocation().clone().add(0, 2, 0);
+            LeaderboardHologram lbHologram = new LeaderboardHologram(type, loc);
+            lbHologram.spawn();
+            holograms.put(loc, lbHologram);
+            saveLeaderboards();
 
-        // Remove existing hologram at this location if any
-        LeaderboardHologram existing = holograms.remove(loc);
-        if (existing != null) {
-            Main.getInstance().getHologramManager().remove(existing.getHologram());
-        }
-
-        LeaderboardHologram lbHologram = new LeaderboardHologram(type, loc);
-        lbHologram.spawn();
-        holograms.put(loc, lbHologram);
-        saveLeaderboards();
-
-        player.sendMessage(text("Leaderboard " + type.getTitle() + " placé!", NamedTextColor.GREEN));
-        return Command.SINGLE_SUCCESS;
+            player.sendMessage(Component.translatable("rush.hologram_placed", Component.text(type.getTitle())));
+            return Command.SINGLE_SUCCESS;
+        });
     }
 
     private int removeNearest(CommandContext<CommandSourceStack> ctx) {
-        CommandSender sender = ctx.getSource().getSender();
+        return CommandManager.requirePlayer(ctx, player -> {
+            Location playerLoc = player.getLocation();
+            LeaderboardHologram nearest = null;
+            double nearestDist = Double.MAX_VALUE;
 
-        if (!(sender instanceof Player player)) {
-            sender.sendMessage(text("This command must be run by a player.", NamedTextColor.RED));
-            return 0;
-        }
-
-        Location playerLoc = player.getLocation();
-        LeaderboardHologram nearest = null;
-        double nearestDist = Double.MAX_VALUE;
-
-        for (Map.Entry<Location, LeaderboardHologram> entry : holograms.entrySet()) {
-            double dist = entry.getKey().distanceSquared(playerLoc);
-            if (dist < nearestDist && dist < 25) { // Within 5 blocks
-                nearestDist = dist;
-                nearest = entry.getValue();
+            for (Map.Entry<Location, LeaderboardHologram> entry : holograms.entrySet()) {
+                double dist = entry.getKey().distanceSquared(playerLoc);
+                if (dist < nearestDist && dist < 25) {
+                    nearestDist = dist;
+                    nearest = entry.getValue();
+                }
             }
-        }
 
-        if (nearest != null) {
-            Main.getInstance().getHologramManager().remove(nearest.getHologram());
-            holograms.values().remove(nearest);
-            saveLeaderboards();
-            player.sendMessage(text("Leaderboard supprimé.", NamedTextColor.GREEN));
-        } else {
-            player.sendMessage(text("Aucun leaderboard trouvé à proximité.", NamedTextColor.RED));
-        }
+            if (nearest != null) {
+                Main.getInstance().getHologramManager().remove(nearest.getHologram());
+                holograms.values().remove(nearest);
+                saveLeaderboards();
+                player.sendMessage(Component.translatable("rush.hologram_removed"));
+            } else {
+                player.sendMessage(Component.translatable("rush.hologram_not_found"));
+            }
 
-        return Command.SINGLE_SUCCESS;
+            return Command.SINGLE_SUCCESS;
+        });
     }
 
     public void updateAllHolograms() {
         for (LeaderboardHologram lbHologram : holograms.values()) {
             lbHologram.update();
         }
-    }
-
-    public Map<Location, LeaderboardHologram> getHolograms() {
-        return holograms;
     }
 
     private void saveLeaderboards() {
@@ -253,8 +236,11 @@ public class LeaderboardCommand {
     }
 
     public static class LeaderboardHologram {
+        @Getter
         private final LeaderboardType type;
+        @Getter
         private final Location location;
+        @Getter
         private TextHologram hologram;
 
         public LeaderboardHologram(LeaderboardType type, Location location) {
@@ -350,16 +336,5 @@ public class LeaderboardCommand {
             }
         }
 
-        public TextHologram getHologram() {
-            return hologram;
-        }
-
-        public Location getLocation() {
-            return location;
-        }
-
-        public LeaderboardType getType() {
-            return type;
-        }
     }
 }

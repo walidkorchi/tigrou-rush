@@ -49,7 +49,9 @@ public final class ReplayRecorder implements Listener {
     public ReplayRecorder(Game game, String worldName) {
         this.game = game;
         this.worldName = worldName;
+
         Bukkit.getPluginManager().registerEvents(this, Main.getInstance());
+
         movementTask = Bukkit.getScheduler().runTaskTimer(Main.getInstance(), this::sampleMovement, 0L, 2L);
     }
 
@@ -63,22 +65,25 @@ public final class ReplayRecorder implements Listener {
 
     private void sampleMovement() {
         long ts = elapsed();
+
         for (Entity entity : game.getPlayers()) {
             if (entity instanceof Player player) {
-                Location loc = player.getLocation();
-                PlayerInventory inv = player.getInventory();
-                String mainHand = inv.getItemInMainHand().getType().name();
-                String offHand = inv.getItemInOffHand().getType().name();
+                final Location loc = player.getLocation();
+                final PlayerInventory inv = player.getInventory();
+                final String mainHand = inv.getItemInMainHand().getType().name();
+                final String offHand = inv.getItemInOffHand().getType().name();
+
                 actionsFor(player.getUniqueId()).add(
                         new MoveAction(ts, player.getUniqueId(),
                                 loc.getX(), loc.getY(), loc.getZ(),
                                 loc.getYaw(), loc.getPitch(),
                                 mainHand, offHand, player.isSneaking()));
             } else if (entity instanceof Mannequin mannequin) {
-                Location loc = mannequin.getLocation();
+                final Location loc = mannequin.getLocation();
                 String mainHand = "AIR";
                 String offHand = "AIR";
-                EntityEquipment equip = mannequin.getEquipment();
+                final EntityEquipment equip = mannequin.getEquipment();
+
                 if (equip != null) {
                     ItemStack mh = equip.getItemInMainHand();
                     if (mh != null)
@@ -87,6 +92,7 @@ public final class ReplayRecorder implements Listener {
                     if (oh != null)
                         offHand = oh.getType().name();
                 }
+
                 actionsFor(mannequin.getUniqueId()).add(
                         new MoveAction(ts, mannequin.getUniqueId(),
                                 loc.getX(), loc.getY(), loc.getZ(),
@@ -100,7 +106,9 @@ public final class ReplayRecorder implements Listener {
     public void onBlockPlace(BlockPlaceEvent event) {
         if (!event.getPlayer().getWorld().getName().equals(worldName))
             return;
-        Block block = event.getBlock();
+
+        final Block block = event.getBlock();
+
         actionsFor(event.getPlayer().getUniqueId()).add(new BlockChangeAction(elapsed(),
                 block.getX(), block.getY(), block.getZ(), worldName,
                 block.getType().name(),
@@ -111,7 +119,9 @@ public final class ReplayRecorder implements Listener {
     public void onBlockBreak(BlockBreakEvent event) {
         if (!event.getPlayer().getWorld().getName().equals(worldName))
             return;
-        Block block = event.getBlock();
+
+        final Block block = event.getBlock();
+
         actionsFor(event.getPlayer().getUniqueId()).add(new BlockChangeAction(elapsed(),
                 block.getX(), block.getY(), block.getZ(), worldName,
                 "AIR",
@@ -122,9 +132,11 @@ public final class ReplayRecorder implements Listener {
     public void onChat(AsyncChatEvent event) {
         if (!event.getPlayer().getWorld().getName().equals(worldName))
             return;
-        String text = PlainTextComponentSerializer.plainText().serialize(event.message());
-        long ts = elapsed();
-        UUID uuid = event.getPlayer().getUniqueId();
+
+        final String text = PlainTextComponentSerializer.plainText().serialize(event.message());
+        final long ts = elapsed();
+        final UUID uuid = event.getPlayer().getUniqueId();
+
         Bukkit.getScheduler().runTask(Main.getInstance(), () -> {
             actionsFor(GLOBAL).add(new ChatAction(ts, uuid, text));
         });
@@ -134,7 +146,9 @@ public final class ReplayRecorder implements Listener {
     public void onArmSwing(PlayerArmSwingEvent event) {
         if (!event.getPlayer().getWorld().getName().equals(worldName))
             return;
-        UUID uuid = event.getPlayer().getUniqueId();
+
+        final UUID uuid = event.getPlayer().getUniqueId();
+
         actionsFor(uuid).add(new ArmSwingAction(elapsed(), uuid, event.getHand()));
     }
 
@@ -146,6 +160,7 @@ public final class ReplayRecorder implements Listener {
             return;
 
         UUID attackerUuid = null;
+
         if (event instanceof EntityDamageByEntityEvent byEntity) {
             if (byEntity.getDamager() instanceof Player attacker) {
                 attackerUuid = attacker.getUniqueId();
@@ -164,10 +179,12 @@ public final class ReplayRecorder implements Listener {
     public void onPlayerDropItem(PlayerDropItemEvent event) {
         if (!event.getPlayer().getWorld().getName().equals(worldName))
             return;
-        Player player = event.getPlayer();
-        Item item = event.getItemDrop();
-        Location loc = item.getLocation();
-        Vector vel = item.getVelocity();
+
+        final Player player = event.getPlayer();
+        final Item item = event.getItemDrop();
+        final Location loc = item.getLocation();
+        final Vector vel = item.getVelocity();
+
         actionsFor(player.getUniqueId()).add(new DropItemAction(
                 elapsed(), player.getUniqueId(),
                 item.getItemStack().getType().name(),
@@ -206,16 +223,20 @@ public final class ReplayRecorder implements Listener {
             List<String> participantNames, String mapTypeName,
             String islandTypeName, int maxTeams,
             Map<String, String> teamColorsByPlayerUuid) {
+
         HandlerList.unregisterAll(this);
+
         if (movementTask != null) {
             movementTask.cancel();
             movementTask = null;
         }
-        long durationMs = elapsed();
-        ReplayHeader header = new ReplayHeader(sessionId, hostName, startMs, durationMs,
+
+        final long durationMs = elapsed();
+        final ReplayHeader header = new ReplayHeader(sessionId, hostName, startMs, durationMs,
                 winnerTeamColorName, participantNames, mapTypeName,
                 islandTypeName, maxTeams, teamColorsByPlayerUuid);
-        ReplayFile file = new ReplayFile(header, new HashMap<>(actionMap));
+        final ReplayFile file = new ReplayFile(header, new HashMap<>(actionMap));
+
         Bukkit.getScheduler().runTaskAsynchronously(Main.getInstance(),
                 () -> Main.getInstance().getReplayStorage().save(file));
     }

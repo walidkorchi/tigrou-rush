@@ -26,6 +26,7 @@ public class PlayerLevel {
     public static final double[] PRESTIGE_NERFS = { 1.0, 0.8, 0.5 };
 
     private static String[][] rankMiniMessageTags = null;
+    @Getter
     private static boolean ranksLoaded = false;
 
     @Id
@@ -117,10 +118,6 @@ public class PlayerLevel {
         } catch (Exception | NoClassDefFoundError ignored) {
             // CraftEngine not yet ready; retry will be scheduled by Main
         }
-    }
-
-    public static boolean isRanksLoaded() {
-        return ranksLoaded;
     }
 
     /**

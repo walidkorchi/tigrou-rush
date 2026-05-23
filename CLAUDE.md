@@ -462,7 +462,6 @@ Hub inventory is restored automatically whenever a player is teleported out of a
 | `/leaderboard remove` | OP | Removes the nearest leaderboard hologram within 5 blocks. |
 | `/forcestart` | OP | Forces the legacy game to start immediately with a 5-second countdown broadcast. |
 | `/forcestop` | OP | Forces the legacy game to stop. |
-| `/resetislands` | OP | Clears and repastes all island schematics in the legacy game world. |
 
 ---
 

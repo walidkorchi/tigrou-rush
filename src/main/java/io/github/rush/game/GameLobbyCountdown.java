@@ -1,6 +1,7 @@
 package io.github.rush.game;
 
 import io.github.rush.Main;
+import lombok.Setter;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.Sound;
@@ -11,6 +12,7 @@ import org.bukkit.scheduler.BukkitTask;
 public class GameLobbyCountdown {
 
     private final Game game;
+    @Setter
     private int counter = 60;
     private BukkitTask task;
 
@@ -62,10 +64,6 @@ public class GameLobbyCountdown {
         }
 
         counter = 60;
-    }
-
-    public void setCounter(int counter) {
-        this.counter = counter;
     }
 
     public void broadcastCountdownMessage(int seconds) {

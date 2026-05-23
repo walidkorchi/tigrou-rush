@@ -1,5 +1,6 @@
 package io.github.rush.game;
 
+import lombok.Getter;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Color;
 import org.bukkit.DyeColor;
@@ -21,9 +22,13 @@ public enum TeamColor {
     LIGHT_PURPLE(Color.fromRGB(255, 85, 255), NamedTextColor.LIGHT_PURPLE, DyeColor.PINK, 14),
     WHITE(Color.WHITE, NamedTextColor.WHITE, DyeColor.WHITE, 15);
 
+    @Getter
     private NamedTextColor textColor;
+    @Getter
     private Color color;
+    @Getter
     private DyeColor dyeColor;
+    @Getter
     private int islandNumber;
 
     private TeamColor(Color color, NamedTextColor textColor, DyeColor dye, int islandNumber) {
@@ -31,22 +36,6 @@ public enum TeamColor {
         this.color = color;
         this.dyeColor = dye;
         this.islandNumber = islandNumber;
-    }
-
-    public NamedTextColor getTextColor() {
-        return this.textColor;
-    }
-
-    public Color getColor() {
-        return this.color;
-    }
-
-    public DyeColor getDyeColor() {
-        return this.dyeColor;
-    }
-
-    public int getIslandNumber() {
-        return this.islandNumber;
     }
 
     public static TeamColor[] firstN(int n) {

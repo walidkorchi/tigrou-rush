@@ -17,13 +17,14 @@ public final class HostConfigGUI {
     }
 
     public static void open(Player player, GameRoomConfig.Builder builder, GameManager manager) {
-        GUI gui = new GUI(Component.translatable("rush.config_gui_title"), 3);
+        final GUI gui = new GUI(Component.translatable("rush.config_gui_title"), 3);
 
         // Row 1: the 4 main settings
         gui.addItem(10, islandTypeItem(builder), p -> {
-            GameRoom.IslandType next = builder.islandType() == GameRoom.IslandType.FOUR_ISLANDS
+            final GameRoom.IslandType next = builder.islandType() == GameRoom.IslandType.FOUR_ISLANDS
                     ? GameRoom.IslandType.EIGHT_ISLANDS
                     : GameRoom.IslandType.FOUR_ISLANDS;
+
             builder.islandType(next);
             open(p, builder, manager);
         });
@@ -39,8 +40,9 @@ public final class HostConfigGUI {
                 });
 
         gui.addItem(14, teamSizeItem(builder), p -> {
-            GameRoom.TeamSize[] sizes = GameRoom.TeamSize.values();
-            GameRoom.TeamSize next = sizes[(builder.teamSize().ordinal() + 1) % sizes.length];
+            final GameRoom.TeamSize[] sizes = GameRoom.TeamSize.values();
+            final GameRoom.TeamSize next = sizes[(builder.teamSize().ordinal() + 1) % sizes.length];
+
             builder.teamSize(next);
             open(p, builder, manager);
         });
@@ -88,10 +90,10 @@ public final class HostConfigGUI {
     }
 
     private static ItemStack islandTypeItem(GameRoomConfig.Builder b) {
-        Material mat = b.islandType() == GameRoom.IslandType.FOUR_ISLANDS
+        final Material mat = b.islandType() == GameRoom.IslandType.FOUR_ISLANDS
                 ? Material.GRASS_BLOCK
                 : Material.STONE;
-        Component displayName = Component.translatable("rush.config_island_type_name",
+        final Component displayName = Component.translatable("rush.config_island_type_name",
                 Component.text(b.islandType().getDisplayName()));
         return labeled(mat, displayName, List.of(
                 Component.translatable("rush.config_island_type_click"),
@@ -100,7 +102,7 @@ public final class HostConfigGUI {
     }
 
     private static ItemStack maxTeamsItem(GameRoomConfig.Builder b) {
-        Component displayName = Component.translatable("rush.config_max_teams_name",
+        final Component displayName = Component.translatable("rush.config_max_teams_name",
                 Component.text(b.maxTeams()));
         return labeled(Material.COMPARATOR, displayName, List.of(
                 Component.translatable("rush.config_max_teams_left"),
@@ -138,8 +140,8 @@ public final class HostConfigGUI {
     }
 
     private static ItemStack flagItem(Component label, boolean enabled, Component description) {
-        Material mat = enabled ? Material.LIME_DYE : Material.GRAY_DYE;
-        Component state = Component.translatable(enabled ? "rush.config_flag_state_enabled" : "rush.config_flag_state_disabled");
+        final Material mat = enabled ? Material.LIME_DYE : Material.GRAY_DYE;
+        final Component state = Component.translatable(enabled ? "rush.config_flag_state_enabled" : "rush.config_flag_state_disabled");
         return labeled(mat, label, List.of(
                 description,
                 Component.empty(),
@@ -148,10 +150,10 @@ public final class HostConfigGUI {
     }
 
     private static ItemStack confirmItem(GameRoomConfig.Builder b) {
-        Component extraHearts = Component.translatable(b.extraHearts()
+        final Component extraHearts = Component.translatable(b.extraHearts()
                 ? "rush.config_confirm_lore_extra_hearts_yes"
                 : "rush.config_confirm_lore_extra_hearts_no");
-        Component overtimeStart = Component.translatable(b.overtimeStart()
+        final Component overtimeStart = Component.translatable(b.overtimeStart()
                 ? "rush.config_confirm_lore_overtime_start_yes"
                 : "rush.config_confirm_lore_overtime_start_no");
         return labeled(Material.NETHER_STAR,

@@ -4,16 +4,24 @@ import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
 import io.papermc.paper.plugin.lifecycle.event.registrar.RegistrarEvent;
 import io.github.rush.Main;
+import com.mojang.brigadier.Command;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+import com.mojang.brigadier.context.CommandContext;
+import net.kyori.adventure.text.Component;
+import lombok.Getter;
+import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Player;
 import org.jspecify.annotations.NullMarked;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 
 @NullMarked
 public class CommandManager {
 
     private final List<CommandRegistration> commands = new ArrayList<>();
+    @Getter
     private AuthorCommand authorCommand;
 
     @FunctionalInterface
@@ -21,18 +29,26 @@ public class CommandManager {
         LiteralArgumentBuilder<CommandSourceStack> create();
     }
 
+    public static int requirePlayer(CommandContext<CommandSourceStack> ctx, Function<Player, Integer> callback) {
+        CommandSender sender = ctx.getSource().getSender();
+        if (sender instanceof Player player) {
+            return callback.apply(player);
+        }
+        sender.sendMessage(Component.translatable("rush.command_player_only"));
+        return Command.SINGLE_SUCCESS;
+    }
+
     public void register(CommandRegistration registration) {
         commands.add(registration);
     }
 
+    @Getter
     private LeaderboardCommand leaderboardCommand;
     private HubCommand hubCommand;
 
     public void registerAll(Main plugin) {
-        register(new LevelDebugCommand(plugin)::createCommand);
-        register(new DebugZonesCommand(plugin)::createCommand);
+        register(new DebugCommand(plugin)::createCommand);
         register(new MannequinCommand()::createCommand);
-        register(new ResetIslandsCommand(plugin)::createCommand);
         register(new ForceStartCommand(plugin)::createCommand);
         register(new ForceStopCommand(plugin)::createCommand);
         authorCommand = new AuthorCommand(plugin);
@@ -42,14 +58,6 @@ public class CommandManager {
         register(new SettingsCommand()::createCommand);
         register(new SetLobbySpawnCommand(plugin)::createCommand);
         hubCommand = new HubCommand(plugin);
-    }
-
-    public LeaderboardCommand getLeaderboardCommand() {
-        return leaderboardCommand;
-    }
-
-    public AuthorCommand getAuthorCommand() {
-        return authorCommand;
     }
 
     public void onCommands(RegistrarEvent<Commands> event) {

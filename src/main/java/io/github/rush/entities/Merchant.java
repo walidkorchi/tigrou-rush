@@ -24,7 +24,8 @@ public class Merchant {
      * @return the MerchantType, or null if this villager is not a rush merchant
      */
     public static MerchantType getType(Villager villager) {
-        String name = villager.getPersistentDataContainer().get(MERCHANT_TYPE_KEY, PersistentDataType.STRING);
+        final String name = villager.getPersistentDataContainer().get(MERCHANT_TYPE_KEY, PersistentDataType.STRING);
+
         if (name == null)
             return null;
         try {
@@ -51,7 +52,7 @@ public class Merchant {
     public static void apply(Villager villager, MerchantType merchantType) {
         villager.setProfession(merchantType.getProfession());
 
-        List<MerchantRecipe> recipes = merchantType.getTrades().stream()
+        final List<MerchantRecipe> recipes = merchantType.getTrades().stream()
                 .map(Merchant::toMerchantRecipe)
                 .toList();
 
@@ -66,10 +67,12 @@ public class Merchant {
      * merchant type, ready to be opened via {@code player.openMerchant()}.
      */
     public static org.bukkit.inventory.Merchant createBukkitMerchant(MerchantType type) {
-        org.bukkit.inventory.Merchant merchant = Bukkit.createMerchant(Component.translatable(typeKey(type)));
+        final org.bukkit.inventory.Merchant merchant = Bukkit.createMerchant(Component.translatable(typeKey(type)));
+
         merchant.setRecipes(type.getTrades().stream()
                 .map(Merchant::toMerchantRecipe)
                 .toList());
+
         return merchant;
     }
 

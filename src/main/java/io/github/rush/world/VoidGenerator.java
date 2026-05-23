@@ -12,7 +12,7 @@ public class VoidGenerator extends ChunkGenerator {
 
     @Override
     public void generateSurface(WorldInfo worldInfo, Random random, int chunkX, int chunkZ, ChunkData chunkData) {
-        // we do nothing for empty chunks, isn't that great?
+        // we do nothing for empty chunks, isn't that great? UwU
     }
 
     @Override

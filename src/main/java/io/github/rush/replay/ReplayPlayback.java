@@ -27,6 +27,8 @@ import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.Vector;
 
+import lombok.Getter;
+import lombok.Setter;
 import com.destroystokyo.paper.profile.PlayerProfile;
 import io.papermc.paper.datacomponent.item.ResolvableProfile;
 
@@ -46,6 +48,7 @@ public final class ReplayPlayback {
     private static final double[] SPEED_STEPS = { 0.25, 0.5, 1.0, 2.0, 3.0, 4.0 };
 
     private final ReplayFile file;
+    @Getter
     private final World world;
     private final List<Player> viewers = new ArrayList<>();
     private final List<Mannequin> mannequins = new ArrayList<>();
@@ -56,8 +59,11 @@ public final class ReplayPlayback {
     private final Set<Entity> replayEntities = new HashSet<>();
     private final List<BukkitTask> pendingTasks = new ArrayList<>();
 
+    @Getter @Setter
     private long playheadMs = 0;
+    @Getter
     private boolean isPaused = true;
+    @Getter @Setter
     private double speedMultiplier = 1.0;
     private BukkitTask tickTask;
 
@@ -322,26 +328,6 @@ public final class ReplayPlayback {
         }
     }
 
-    public boolean isPaused() {
-        return isPaused;
-    }
-
-    public double getSpeedMultiplier() {
-        return speedMultiplier;
-    }
-
-    public void setSpeedMultiplier(double multiplier) {
-        this.speedMultiplier = multiplier;
-    }
-
-    public long getPlayheadMs() {
-        return playheadMs;
-    }
-
-    public void setPlayheadMs(long ms) {
-        this.playheadMs = ms;
-    }
-
     public long getDurationMs() {
         return file.header().durationMs();
     }
@@ -531,10 +517,6 @@ public final class ReplayPlayback {
 
     public String getSessionId() {
         return file.header().sessionId();
-    }
-
-    public World getWorld() {
-        return world;
     }
 
     public void cleanup() {

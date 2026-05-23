@@ -29,7 +29,9 @@ public final class ReplayStorage {
         try {
             Files.createDirectories(replaysDir);
             enforceCapBeforeSave();
-            Path target = replaysDir.resolve(file.header().sessionId() + ".json");
+
+            final Path target = replaysDir.resolve(file.header().sessionId() + ".json");
+
             try (Writer w = Files.newBufferedWriter(target)) {
                 GSON.toJson(file, w);
             }
@@ -52,8 +54,9 @@ public final class ReplayStorage {
     }
 
     public Optional<ReplayFile> load(String sessionId) {
-        Path target = replaysDir.resolve(sessionId + ".json");
+        final Path target = replaysDir.resolve(sessionId + ".json");
         if (!Files.exists(target)) return Optional.empty();
+
         try (Reader r = Files.newBufferedReader(target)) {
             return Optional.of(GSON.fromJson(r, ReplayFile.class));
         } catch (IOException | JsonParseException e) {
@@ -63,7 +66,7 @@ public final class ReplayStorage {
 
     private void enforceCapBeforeSave() throws IOException {
         try (Stream<Path> files = Files.list(replaysDir)) {
-            List<Path> sorted = files
+            final List<Path> sorted = files
                     .filter(p -> p.toString().endsWith(".json"))
                     .sorted(Comparator.comparingLong(this::lastModified))
                     .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new));
@@ -84,7 +87,7 @@ public final class ReplayStorage {
 
     private Optional<ReplayHeader> readHeader(Path p) {
         try (Reader r = Files.newBufferedReader(p)) {
-            ReplayFile file = GSON.fromJson(r, ReplayFile.class);
+            final ReplayFile file = GSON.fromJson(r, ReplayFile.class);
             return Optional.of(file.header());
         } catch (IOException | JsonParseException e) {
             return Optional.empty();

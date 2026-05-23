@@ -61,17 +61,11 @@ public class MannequinCommand {
                                 .executes(ctx -> runClear(ctx))));
     }
 
-    private int runSpawn(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
-        final CommandSender sender = ctx.getSource().getSender();
-
-        if (!(sender instanceof Player player)) {
-            sender.sendMessage(Component.translatable("rush.mannequin_player_only"));
-            return 0;
-        }
-
-        spawnMannequinAsync(player.getLocation(), sender, null);
-
-        return Command.SINGLE_SUCCESS;
+    private int runSpawn(CommandContext<CommandSourceStack> ctx) {
+        return CommandManager.requirePlayer(ctx, player -> {
+            spawnMannequinAsync(player.getLocation(), ctx.getSource().getSender(), null);
+            return Command.SINGLE_SUCCESS;
+        });
     }
 
     private int runSpawnAtPlayer(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {

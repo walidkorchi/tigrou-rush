@@ -18,7 +18,7 @@ public final class ReplayViewerMenuGUI {
     private ReplayViewerMenuGUI() {}
 
     public static void open(Player player, ReplayPlayback playback) {
-        GUI gui = new GUI(Component.translatable("gui.replay_viewer.menu_title"), 3);
+        final GUI gui = new GUI(Component.translatable("gui.replay_viewer.menu_title"), 3);
 
         gui.addItem(SLOT_LEAVE, ItemBuilder.of(Material.OAK_DOOR).name(Component.translatable("gui.replay_viewer.leave")).build(), p -> {
             p.closeInventory();
@@ -39,7 +39,7 @@ public final class ReplayViewerMenuGUI {
     }
 
     private static ItemStack buildNightVisionItem(Player player) {
-        boolean active = player.hasPotionEffect(PotionEffectType.NIGHT_VISION);
+        final boolean active = player.hasPotionEffect(PotionEffectType.NIGHT_VISION);
         return ItemBuilder.of(active ? Material.LIME_DYE : Material.GRAY_DYE)
                 .name(Component.translatable("gui.replay_viewer.night_vision"))
                 .build();

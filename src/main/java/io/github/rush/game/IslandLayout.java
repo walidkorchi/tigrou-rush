@@ -18,6 +18,7 @@ public final class IslandLayout {
             );
             case EIGHT_ISLANDS -> {
                 int diag = (int) Math.round(offset * Math.cos(Math.PI / 4));
+
                 yield List.of(
                         new IslandPosition(0, -offset, -90),     // N
                         new IslandPosition(diag, -diag, -135),   // NE

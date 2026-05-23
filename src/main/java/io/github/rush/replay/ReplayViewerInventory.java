@@ -9,12 +9,12 @@ import org.bukkit.inventory.ItemStack;
 public final class ReplayViewerInventory {
 
     public static final int SLOT_COMPASS = 0;
-    public static final int SLOT_SPEED_DOWN = 1;
-    public static final int SLOT_REWIND = 2;
-    public static final int SLOT_PAUSE_RESUME = 3;
-    public static final int SLOT_FORWARD = 4;
-    public static final int SLOT_SPEED_UP = 5;
-    public static final int SLOT_MENU = 6;
+    public static final int SLOT_SPEED_DOWN = 3;
+    public static final int SLOT_REWIND = 4;
+    public static final int SLOT_PAUSE_RESUME = 5;
+    public static final int SLOT_FORWARD = 6;
+    public static final int SLOT_SPEED_UP = 7;
+    public static final int SLOT_MENU = 8;
 
     private ReplayViewerInventory() {}
 

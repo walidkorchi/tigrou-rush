@@ -12,8 +12,6 @@ import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
-import org.bukkit.command.CommandSender;
-import org.bukkit.entity.Player;
 import org.jspecify.annotations.NullMarked;
 
 import net.kyori.adventure.text.Component;
@@ -32,47 +30,49 @@ public class HubCommand {
     }
 
     private int run(CommandContext<CommandSourceStack> ctx) {
-        CommandSender sender = ctx.getSource().getSender();
-        if (!(sender instanceof Player player)) {
-            sender.sendMessage(Component.translatable("rush.command_player_only"));
-            return Command.SINGLE_SUCCESS;
-        }
+        return CommandManager.requirePlayer(ctx, player -> {
+            if (plugin.getReplayManager() != null && plugin.getReplayManager().isWatching(player)) {
+                plugin.getReplayManager().leaveReplay(player);
+            }
 
-        if (plugin.getReplayManager() != null && plugin.getReplayManager().isWatching(player)) {
-            plugin.getReplayManager().leaveReplay(player);
-        }
+            final GameManager gameManager = plugin.getGameManager();
 
-        GameManager gameManager = plugin.getGameManager();
-        if (gameManager != null) {
-            GameRoom room = gameManager.getGameRoomOfPlayer(player);
-            if (room != null) {
-                room.removePlayer(player);
-                gameManager.removePlayerFromGameRoom(player);
-                if (room.getPlayerCount() == 0 && room.isWaiting()) {
-                    gameManager.removeGameRoom(room.getId());
+            if (gameManager != null) {
+                GameRoom room = gameManager.getGameRoomOfPlayer(player);
+                if (room != null) {
+                    room.removePlayer(player);
+                    gameManager.removePlayerFromGameRoom(player);
+                    if (room.getPlayerCount() == 0 && room.isWaiting()) {
+                        gameManager.removeGameRoom(room.getId());
+                    }
                 }
             }
-        }
 
-        Location lobby = plugin.getMainLobby();
-        if (lobby == null || lobby.getWorld() == null) {
-            player.sendMessage(Component.translatable("rush.no_lobby_spawn"));
+            final Location lobby = plugin.getMainLobby();
+
+            if (lobby == null || lobby.getWorld() == null) {
+                player.sendMessage(Component.translatable("rush.no_lobby_spawn"));
+                return Command.SINGLE_SUCCESS;
+            }
+
+            player.setGameMode(GameMode.SURVIVAL);
+
+            final AttributeInstance maxHealth = player.getAttribute(Attribute.MAX_HEALTH);
+
+            if (maxHealth != null) {
+                player.setHealth(maxHealth.getValue());
+            }
+
+            player.setFoodLevel(20);
+            player.setSaturation(20f);
+            player.setFallDistance(0);
+            player.teleport(lobby);
+
+            if (gameManager != null) {
+                gameManager.restoreHubInventory(player);
+            }
+
             return Command.SINGLE_SUCCESS;
-        }
-
-        player.setGameMode(GameMode.SURVIVAL);
-        AttributeInstance maxHealth = player.getAttribute(Attribute.MAX_HEALTH);
-        if (maxHealth != null) {
-            player.setHealth(maxHealth.getValue());
-        }
-        player.setFoodLevel(20);
-        player.setSaturation(20f);
-        player.setFallDistance(0);
-        player.teleport(lobby);
-        if (gameManager != null) {
-            gameManager.restoreHubInventory(player);
-        }
-
-        return Command.SINGLE_SUCCESS;
+        });
     }
 }

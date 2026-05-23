@@ -17,18 +17,17 @@ public final class HostPanelGUI {
     }
 
     public static void open(Player host, GameRoom room, GameManager manager) {
-        List<Player> players = room.getGame().getPlayers().stream()
+        final List<Player> players = room.getGame().getPlayers().stream()
                 .filter(e -> e instanceof Player)
                 .map(e -> (Player) e)
                 .toList();
 
-        // Rows: 1 for the force-start button + ceil(players / 9) for kick list, min 2
-        // rows
-        int rows = Math.max(2, 1 + (int) Math.ceil(players.size() / 9.0));
-        GUI gui = new GUI(Component.translatable("rush.host_panel_title"), rows);
+        // Rows: 1 for the force-start button + ceil(players / 9) for kick list, min 2 rows
+        final int rows = Math.max(2, 1 + (int) Math.ceil(players.size() / 9.0));
+        final GUI gui = new GUI(Component.translatable("rush.host_panel_title"), rows);
 
         // Delete room button (slot 0, top row left)
-        ItemStack deleteRoom = ItemBuilder.of(Material.BARRIER)
+        final ItemStack deleteRoom = ItemBuilder.of(Material.BARRIER)
                 .name(Component.translatable("rush.host_panel_delete"))
                 .lore(
                         Component.translatable("rush.host_panel_delete_lore1"),
@@ -46,7 +45,7 @@ public final class HostPanelGUI {
         });
 
         // Force-start button (slot 4, top row centre)
-        ItemStack forceStart = ItemBuilder.of(Material.LIME_DYE)
+        final ItemStack forceStart = ItemBuilder.of(Material.LIME_DYE)
                 .name(Component.translatable("rush.host_panel_force_start"))
                 .lore(
                         Component.translatable("rush.host_panel_force_start_lore1"),
@@ -64,14 +63,14 @@ public final class HostPanelGUI {
             if (target.equals(host))
                 continue;
 
-            ItemStack head = ItemBuilder.of(Material.PLAYER_HEAD)
+            final ItemStack head = ItemBuilder.of(Material.PLAYER_HEAD)
                     .name(Component.translatable("rush.host_panel_kick_name", Component.text(target.getName())))
                     .lore(
                             Component.translatable("rush.host_panel_kick_lore1", Component.text(target.getName())),
                             Component.translatable("rush.host_panel_kick_lore2"))
                     .build();
-
             final Player kicked = target;
+
             gui.addItem(slot, head, p -> {
                 p.closeInventory();
                 room.removePlayer(kicked);
@@ -81,6 +80,7 @@ public final class HostPanelGUI {
                 kicked.sendMessage(Component.translatable("rush.room_kicked"));
                 p.sendMessage(Component.translatable("rush.player_kicked", Component.text(kicked.getName())));
             });
+
             slot++;
         }
 

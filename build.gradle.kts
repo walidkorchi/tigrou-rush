@@ -48,6 +48,7 @@ dependencies {
     implementation("net.jthink:jaudiotagger:3.0.1")
     implementation("org.postgresql:postgresql:42.7.1")
     implementation("org.hibernate.orm:hibernate-core:6.4.1.Final")
+    implementation("org.hibernate.orm:hibernate-hikaricp:6.4.1.Final")
     compileOnly("org.projectlombok:lombok:1.18.46")
     annotationProcessor("org.projectlombok:lombok:1.18.46")
     compileOnly("com.github.HologramLib:HologramLib:1.8.3.2")
