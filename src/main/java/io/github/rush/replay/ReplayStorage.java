@@ -16,13 +16,14 @@ import java.util.stream.Stream;
 
 public final class ReplayStorage {
 
-    private static final int MAX_REPLAYS = 20;
     private static final Gson GSON = ReplayActionSerializer.createGson();
 
     private final Path replaysDir;
+    private final int maxReplays;
 
     public ReplayStorage(Path replaysDir) {
         this.replaysDir = replaysDir;
+        this.maxReplays = io.github.rush.Main.getInstance().getConfig().getInt("max-replays", 20);
     }
 
     public void save(ReplayFile file) {
@@ -71,7 +72,7 @@ public final class ReplayStorage {
                     .sorted(Comparator.comparingLong(this::lastModified))
                     .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new));
             int idx = 0;
-            while (sorted.size() - idx >= MAX_REPLAYS) {
+            while (sorted.size() - idx >= maxReplays) {
                 Files.deleteIfExists(sorted.get(idx++));
             }
         }

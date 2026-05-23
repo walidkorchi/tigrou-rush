@@ -8,7 +8,8 @@ import java.util.function.Predicate;
 
 public final class HostTransfer {
 
-    private HostTransfer() {}
+    private HostTransfer() {
+    }
 
     public static @Nullable UUID nextHost(List<UUID> joinOrder, UUID disconnected, Predicate<UUID> isOnline) {
         for (UUID candidate : joinOrder) {

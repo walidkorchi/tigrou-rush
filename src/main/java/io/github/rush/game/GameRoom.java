@@ -23,10 +23,12 @@ public class GameRoom {
     @Getter
     private final String id;
 
-    @Getter @Setter
+    @Getter
+    @Setter
     private String hostName;
 
-    @Getter @Setter
+    @Getter
+    @Setter
     private UUID hostUUID;
 
     @Getter
@@ -53,11 +55,11 @@ public class GameRoom {
     @Getter
     private final List<Island> islands;
 
-    @Getter @Setter
+    @Getter
+    @Setter
     private boolean islandsLoaded = false;
 
     private int islandY = 0;
-    private static final int DISTANCE_HEIGHT_LIMIT = 12;
 
     public enum IslandType {
         FOUR_ISLANDS(4, "4 Îles"),
@@ -103,7 +105,8 @@ public class GameRoom {
         this.islandType = config.islandType();
         this.teamSize = config.teamSize();
         this.lobbyLocation = lobbyLocation;
-        this.game = new Game(id, world.getName(), lobbyLocation, config.islandType().getCount(), config.maxTeams(), config.teamSize().getPlayersPerTeam());
+        this.game = new Game(id, world.getName(), lobbyLocation, config.islandType().getCount(), config.maxTeams(),
+                config.teamSize().getPlayersPerTeam());
         this.game.setGameRoom(this);
         this.game.setCoefficient(config.getCoefficient());
         this.islands = createIslands();
@@ -119,7 +122,7 @@ public class GameRoom {
 
     public int getIslandY() {
         if (islandY == 0) {
-            islandY = world.getMaxHeight() - DISTANCE_HEIGHT_LIMIT;
+            islandY = world.getMaxHeight() - Main.getDISTANCE_HEIGHT_LIMIT();
         }
 
         return islandY;

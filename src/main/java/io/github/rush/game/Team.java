@@ -48,7 +48,8 @@ public class Team {
     @Getter
     private final List<Location> enderChestLocations = new ArrayList<>();
 
-    @Getter @Setter
+    @Getter
+    @Setter
     private boolean bedDestroyed = false;
 
     @Getter
@@ -126,10 +127,9 @@ public class Team {
 
         enderChestLocations.clear();
 
-        final int[][] directions = { { 0, -1 }, { 1, 0 }, { 0, 1 }, { -1, 0 } };
-        final int[] dir = directions[islandIndex];
+        final int[] dir = IslandLayout.ISLAND_DIRECTIONS[islandIndex];
         final int perpX = dir[1];
-        final int perpZ = -dir[0];
+        // final int perpZ = -dir[0];
 
         final int speedOffset = 13;
         final int enderChestOffset = speedOffset - 1;
@@ -164,13 +164,14 @@ public class Team {
 
         int bedOffset = -6;
 
-        // Bed foot placed outward; bedFacing points from foot toward head (inward = toward center)
+        // Bed foot placed outward; bedFacing points from foot toward head (inward =
+        // toward center)
         BlockFace bedFacing = Team.facingTowardsCenter(islandIndex);
         switch (islandIndex) {
-            case 0 -> z += bedOffset;  // N: foot at z-6, head south
-            case 1 -> x -= bedOffset;  // E: foot at x+6, head west
-            case 2 -> z -= bedOffset;  // S: foot at z+6, head north
-            case 3 -> x += bedOffset;  // W: foot at x-6, head east
+            case 0 -> z += bedOffset; // N: foot at z-6, head south
+            case 1 -> x -= bedOffset; // E: foot at x+6, head west
+            case 2 -> z -= bedOffset; // S: foot at z+6, head north
+            case 3 -> x += bedOffset; // W: foot at x-6, head east
         }
 
         Block bedFoot = spawnLocation.getWorld().getBlockAt(x, y, z);

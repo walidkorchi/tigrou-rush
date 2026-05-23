@@ -47,16 +47,19 @@ public class ShopGUI {
                 }
             } catch (Exception ignored) {
             }
+
             SPEED_MERCHANT_BROWSER_TITLE = "<dark_gray>Boutique";
         }
     }
 
     private static GuiElement createFillerElement() {
-        ItemStack bukkitStack = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
+        final ItemStack bukkitStack = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
+
         bukkitStack.setData(DataComponentTypes.ITEM_NAME, Component.text(" "));
         bukkitStack.setData(DataComponentTypes.TOOLTIP_DISPLAY,
                 TooltipDisplay.tooltipDisplay().hideTooltip(true).build());
-        Item item = itemManager().wrap(bukkitStack);
+
+        final Item item = itemManager().wrap(bukkitStack);
         return GuiElement.constant(item, (element, click) -> click.cancel());
     }
 
@@ -77,14 +80,14 @@ public class ShopGUI {
     }
 
     public static void openMainMenu(Player bukkitPlayer) {
-        net.momirealms.craftengine.core.entity.player.Player craftPlayer = Main.getInstance()
+        final net.momirealms.craftengine.core.entity.player.Player craftPlayer = Main.getInstance()
                 .adaptCraftPlayer(bukkitPlayer);
 
         if (Constants.SPEED_MERCHANT_BROWSER_TITLE == null) {
             Constants.load();
         }
 
-        List<ItemWithAction> icons = new ArrayList<>();
+        final List<ItemWithAction> icons = new ArrayList<>();
 
         icons.add(createCategoryIcon(
                 Material.IRON_SWORD,
@@ -106,7 +109,8 @@ public class ShopGUI {
                 "<yellow>Blocs", List.of("<gray>Acheter des blocs"),
                 MerchantType.BUILDER));
 
-        TagResolver[] resolvers = PlayerOptionalContext.of(craftPlayer).tagResolvers();
+        final TagResolver[] resolvers = PlayerOptionalContext.of(craftPlayer).tagResolvers();
+
         buildPagedGui(icons, createMainLayout(), Constants.SPEED_MERCHANT_BROWSER_TITLE, resolvers, craftPlayer);
     }
 
@@ -114,6 +118,7 @@ public class ShopGUI {
             Material material, String name, List<String> lore,
             MerchantType merchantType) {
         Item item = itemManager().wrap(new ItemStack(material));
+
         if (item == null || item.isEmpty()) {
             item = itemManager().wrap(new ItemStack(Material.BARRIER));
         }
@@ -125,9 +130,14 @@ public class ShopGUI {
 
         return new ItemWithAction(item, (element, click) -> {
             click.cancel();
-            Player bukkitPlayer = (Player) click.clicker().platformPlayer();
-            org.bukkit.inventory.Merchant merchant = Merchant.createBukkitMerchant(merchantType);
-            Bukkit.getScheduler().runTask(Main.getInstance(), () -> bukkitPlayer.openMerchant(merchant, true));
+
+            final Player bukkitPlayer = (Player) click.clicker().platformPlayer();
+            final org.bukkit.inventory.Merchant merchant = Merchant.createBukkitMerchant(merchantType);
+
+            Bukkit.getScheduler().runTask(Main.getInstance(), () -> {
+                //noinspection deprecation — Merchant.getInventory() not available until Paper 1.21.5+
+                bukkitPlayer.openMerchant(merchant, true);
+            });
         });
     }
 
@@ -137,7 +147,7 @@ public class ShopGUI {
             String title,
             TagResolver[] resolvers,
             net.momirealms.craftengine.core.entity.player.Player craftPlayer) {
-        Gui gui = PagedGui.builder()
+        final Gui gui = PagedGui.builder()
                 .addIngredients(items)
                 .layout(layout)
                 .inventoryClickConsumer(c -> {

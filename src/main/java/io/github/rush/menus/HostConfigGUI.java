@@ -111,7 +111,7 @@ public final class HostConfigGUI {
     }
 
     private static ItemStack teamSizeItem(GameRoomConfig.Builder b) {
-        Component displayName = Component.translatable("rush.config_team_size_name",
+        final Component displayName = Component.translatable("rush.config_team_size_name",
                 Component.text(b.teamSize().getDisplayName()));
         return labeled(Material.IRON_HELMET, displayName, List.of(
                 Component.translatable("rush.config_team_size_click"),
@@ -120,7 +120,7 @@ public final class HostConfigGUI {
     }
 
     private static ItemStack mapTypeItem(GameRoomConfig.Builder b) {
-        Component displayName = Component.translatable("rush.config_map_type_name",
+        final Component displayName = Component.translatable("rush.config_map_type_name",
                 Component.text(b.mapType().name()));
         return labeled(Material.FILLED_MAP, displayName, List.of(
                 Component.translatable("rush.config_map_type_click"),
@@ -129,7 +129,7 @@ public final class HostConfigGUI {
     }
 
     private static ItemStack overtimeDurationItem(GameRoomConfig.Builder b) {
-        Component displayName = Component.translatable("rush.config_overtime_dur_name",
+        final Component displayName = Component.translatable("rush.config_overtime_dur_name",
                 Component.text(b.overtimeDuration()));
         return labeled(Material.CLOCK, displayName, List.of(
                 Component.translatable("rush.config_overtime_dur_left"),

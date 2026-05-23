@@ -10,7 +10,9 @@ import io.github.rush.statistics.PlayerStatistic;
 import lombok.Getter;
 import lombok.Setter;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.JoinConfiguration;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.title.Title;
 
 import org.bukkit.Bukkit;
@@ -41,6 +43,7 @@ import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 public class Game {
@@ -48,24 +51,25 @@ public class Game {
     @Setter
     @Getter
     private GameState state;
+
     @Getter
     private GameCycle cycle;
     private Location lobby;
-
     private final List<BukkitTask> runningTasks = new ArrayList<>();
     private final List<BukkitTask> spawnerTasks = new ArrayList<>();
     private final List<ResourceSpawner> resourceSpawners = new ArrayList<>();
-
     private BukkitTask overtimeMusicTask;
 
     @Getter
     private final Map<String, Team> teams = new HashMap<>();
+
     @Getter
     private final List<Entity> freePlayers = new ArrayList<>();
     private final Map<Player, PlayerStatistic> playerStats = new HashMap<>();
     private final Map<UUID, TeamColor> playerTeamColors = new HashMap<>();
     private final Set<Player> spectators = new HashSet<>();
     private final Set<Player> protectedPlayers = new HashSet<>();
+
     @Getter
     private final KillTracker killTracker = new KillTracker();
 
@@ -75,19 +79,16 @@ public class Game {
     @Getter
     private List<Team> islandAssignment;
     private List<Integer> islandSlotOrder;
-    // Adjacent pair first (S+E) so 2-team forbidden zone covers the SE corridor
-    // between them.
-    static final int[] PREFERRED_ISLAND_ORDER = { 2, 1, 0, 3 };
 
     public static List<Integer> islandSlotOrder(int islandCount) {
         List<Integer> order = new ArrayList<>();
-        for (int s : PREFERRED_ISLAND_ORDER) {
-            if (s < islandCount) order.add(s);
+        for (int s : IslandLayout.PREFERRED_ISLAND_ORDER) {
+            if (s < islandCount)
+                order.add(s);
         }
         return order;
     }
-    private static final int[][] ISLAND_DIRECTIONS = { { 0, -1 }, { 1, 0 }, { 0, 1 }, { -1, 0 } };
-    private static final int[] MERCHANT_SPREADS = { 5, 7 };
+
     private static final int[] SIGNS = { 1, -1 };
     // Visual centres computed once per game by scanning island blocks outward from
     // paste origin.
@@ -95,16 +96,19 @@ public class Game {
 
     @Getter
     private int timeLeft = 0;
+
     @Getter
     private final int maxPlayers;
     private final int islandCount;
+
     @Getter
     private final int minPlayers = 2;
+
     @Getter
     private final int minTeams = 2;
+
     @Getter
     private final String worldName;
-
     private GameLobbyCountdown lobbyCountdown;
     private final Map<Entity, Boolean> playersReady = new HashMap<>();
 
@@ -115,7 +119,6 @@ public class Game {
     @Setter
     @Getter
     private double coefficient = 1.0;
-
     private ReplayRecorder recorder = null;
 
     /**
@@ -128,8 +131,7 @@ public class Game {
         this.maxPlayers = 8;
         this.islandCount = 4;
 
-        String lobbyWorld = Main.getInstance().getConfig().getString("lobbyWorld");
-        World world = Bukkit.getWorld(lobbyWorld);
+        final World world = Bukkit.getWorld(Main.getInstance().getConfig().getString("lobbyWorld"));
 
         this.lobby = world != null ? world.getSpawnLocation() : null;
 
@@ -218,7 +220,7 @@ public class Game {
             if (existingPlayer instanceof Player && !existingPlayer.equals(player)) {
                 existingPlayer
                         .sendMessage(Component.translatable("rush.player_joined_team",
-                                        Component.text(player.getName()), Component.text(color.name()))
+                                Component.text(player.getName()), Component.text(color.name()))
                                 .color(color.getTextColor()));
             }
         }
@@ -265,6 +267,7 @@ public class Game {
 
     private void addSpectator(Player player, boolean isObserver) {
         spectators.add(player);
+
         if (!isObserver) {
             Team team = getPlayerTeam(player);
             if (team != null) {
@@ -273,13 +276,18 @@ public class Game {
             freePlayers.remove(player);
             playersReady.remove(player);
         }
+
         applySpectatorMode(player);
-        String compassName = isObserver ? "§cQuitter la partie" : "§cQuitter le spectator";
+
+        final String compassName = isObserver ? "§cQuitter la partie" : "§cQuitter le spectator";
+
         player.getInventory().setItem(0, ItemBuilder.of(Material.COMPASS).name(compassName).build());
         hideFromGameWorld(player);
+
         if (lobby != null) {
             player.teleport(lobby);
         }
+
         updatePlayerList();
     }
 
@@ -348,7 +356,7 @@ public class Game {
             }
         }
 
-        final java.util.concurrent.atomic.AtomicInteger elapsed = new java.util.concurrent.atomic.AtomicInteger(0);
+        final AtomicInteger elapsed = new AtomicInteger(0);
 
         BukkitTask task = Bukkit.getScheduler().runTaskTimer(Main.getInstance(), () -> {
             if (!protectedPlayers.contains(player)) {
@@ -524,7 +532,8 @@ public class Game {
     }
 
     private void playOvertimeMusic() {
-        if (overtimeMusicTask != null) return;
+        if (overtimeMusicTask != null)
+            return;
         String intro = "tland:music.global.overtime_intro_music";
         String loop = "tland:music.global.overtime_loop_music";
         for (Entity entity : getPlayers()) {
@@ -614,13 +623,13 @@ public class Game {
 
         for (int islandIndex = 0; islandIndex < islands.size(); islandIndex++) {
             Island island = islands.get(islandIndex);
-            int[] dir = ISLAND_DIRECTIONS[islandIndex];
+            int[] dir = IslandLayout.ISLAND_DIRECTIONS[islandIndex];
             int perpX = dir[1];
             int perpZ = -dir[0];
             int baseX = island.getX() + dir[0] * regularOffset;
             int baseZ = island.getZ() + dir[1] * regularOffset;
 
-            for (int spread : MERCHANT_SPREADS) {
+            for (int spread : IslandLayout.MERCHANT_SPREADS) {
                 for (int sign : SIGNS) {
                     int regX = baseX + perpX * spread * sign;
                     int regZ = baseZ + perpZ * spread * sign;
@@ -981,8 +990,9 @@ public class Game {
     }
 
     private void broadcastKillMessage(Entity victim, Team victimTeam, Player killer, List<Player> assists) {
-        net.kyori.adventure.text.format.TextColor victimColor = victimTeam != null
-                ? victimTeam.getColor().getTextColor() : NamedTextColor.GRAY;
+        TextColor victimColor = victimTeam != null
+                ? victimTeam.getColor().getTextColor()
+                : NamedTextColor.GRAY;
 
         if (killer == null) {
             broadcastMessage(Component.translatable("rush.kill_no_killer",
@@ -991,8 +1001,9 @@ public class Game {
         }
 
         Team killerTeam = getPlayerTeam(killer);
-        net.kyori.adventure.text.format.TextColor killerColor = killerTeam != null
-                ? killerTeam.getColor().getTextColor() : NamedTextColor.GRAY;
+        TextColor killerColor = killerTeam != null
+                ? killerTeam.getColor().getTextColor()
+                : NamedTextColor.GRAY;
 
         List<Component> killerNames = new ArrayList<>();
         killerNames.add(Component.text(killer.getName()).color(killerColor));
@@ -1000,7 +1011,7 @@ public class Game {
             killerNames.add(Component.text(assist.getName()).color(killerColor));
         }
 
-        Component killersDisplay = Component.join(Component.text(", ", NamedTextColor.GRAY), killerNames);
+        Component killersDisplay = Component.join(JoinConfiguration.separator(Component.text(", ", NamedTextColor.GRAY)), killerNames);
         broadcastMessage(Component.translatable("rush.kill_with_killer",
                 Component.text(victim.getName()).color(victimColor), killersDisplay));
     }
@@ -1168,7 +1179,8 @@ public class Game {
                         .map(Player::getName)
                         .collect(Collectors.toList());
                 Map<String, String> teamColorsByPlayerUuid = new HashMap<>();
-                // Include all players (including eliminated ones whose team was tracked persistently)
+                // Include all players (including eliminated ones whose team was tracked
+                // persistently)
                 for (Map.Entry<UUID, TeamColor> entry : playerTeamColors.entrySet()) {
                     teamColorsByPlayerUuid.put(entry.getKey().toString(), entry.getValue().name());
                 }
@@ -1427,14 +1439,6 @@ public class Game {
         }
     }
 
-    private void broadcastMessage(String message) {
-        for (Entity entity : getPlayers()) {
-            if (entity instanceof Player player) {
-                player.sendMessage(Component.text(message));
-            }
-        }
-    }
-
     private void updatePlayerList() {
         for (Entity entity : freePlayers) {
             if (entity instanceof Player player) {
@@ -1499,6 +1503,7 @@ public class Game {
             if (entity instanceof Player player) {
                 final PlayerStatistic stats = getPlayerStatistic(player);
                 final Team playerTeam = getPlayerTeam(player);
+
                 if (playerTeam != null && playerTeam.equals(winner)) {
                     stats.setWinStreak(stats.getWinStreak() + 1);
                 } else {

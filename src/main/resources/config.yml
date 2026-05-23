@@ -39,11 +39,14 @@ villagerSpreadDistance: 5,7
 
 # --- Game Configuration ---
 
+max-replays: 20                               # Max replay files retained (oldest deleted on save)
+distance-height-limit: 12                     # Max island paste height: worldMaxHeight - this value
 overtime-duration: 30                         # Minutes of play before overtime begins (beds destroyed, all restrictions lifted)
 bedProtectionRadius: 3                        # Radius around beds where block placement is prevented
 respawn-protection: 4                         # Respawn protection time in seconds (0 to disable)
 merchantProtectionRadius: 1                   # Radius around regular merchants where block placement is prevented
 lobbyWorld: world                             # World where players spawn when game stops
+
 
 # --- Resources Configuration ---
 

@@ -127,6 +127,7 @@ public class Main extends JavaPlugin {
 
     @Getter
     private static int ISLAND_Y = 0;
+    @Getter
     private static int DISTANCE_HEIGHT_LIMIT = 12;
 
     @Getter
@@ -156,6 +157,7 @@ public class Main extends JavaPlugin {
         // Initialize config manager first (other managers may depend on it)
         configManager = new ConfigManager(this);
         ResourceType.loadFromConfig(configManager.getConfig());
+        DISTANCE_HEIGHT_LIMIT = configManager.getConfig().getInt("distance-height-limit", 12);
 
         scoreboardManager = new ScoreboardManager(this);
         playerSettingsManager = new PlayerSettingsManager(this);
@@ -467,8 +469,8 @@ public class Main extends JavaPlugin {
             // TODO: change build height limit message
             ISLAND_Y = bukkitWorld.getMaxHeight() - DISTANCE_HEIGHT_LIMIT;
 
-            try (EditSession editSession = WorldEdit.getInstance().newEditSession(worldEditWorld)) {
-                final ClipboardHolder holder = new ClipboardHolder(clipboard);
+            try (EditSession editSession = WorldEdit.getInstance().newEditSession(worldEditWorld);
+                 ClipboardHolder holder = new ClipboardHolder(clipboard)) {
 
                 if (island.getRotation() != 0) {
                     AffineTransform transform = new AffineTransform().rotateY(island.getRotation());

@@ -44,7 +44,6 @@ import java.util.UUID;
 public final class ReplayPlayback {
 
     private static final UUID GLOBAL = new UUID(0L, 0L);
-    private static final int DISTANCE_HEIGHT_LIMIT = 12;
     private static final double[] SPEED_STEPS = { 0.25, 0.5, 1.0, 2.0, 3.0, 4.0 };
 
     private final ReplayFile file;
@@ -480,7 +479,7 @@ public final class ReplayPlayback {
         player.setAllowFlight(true);
         player.setFlying(true);
         player.setInvulnerable(true);
-        int islandY = world.getMaxHeight() - DISTANCE_HEIGHT_LIMIT;
+        int islandY = world.getMaxHeight() - Main.getDISTANCE_HEIGHT_LIMIT();
         player.teleport(new Location(world, 0.5, islandY + 10, 0.5, 0f, -30f));
         ReplayViewerInventory.give(player, isPaused, speedMultiplier);
         player.sendMessage(Component.translatable("rush.replay_watching_full",

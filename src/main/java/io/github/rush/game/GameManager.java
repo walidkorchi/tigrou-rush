@@ -29,6 +29,7 @@ import org.bukkit.World;
 import org.bukkit.WorldCreator;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.block.BlockFace;
+import org.bukkit.block.Block;
 import org.bukkit.block.data.type.Bed;
 import org.bukkit.block.data.type.EnderChest;
 import org.bukkit.entity.Entity;
@@ -94,7 +95,8 @@ public class GameManager {
     }
 
     private long getGameEndMusicDurationMs() {
-        if (gameEndMusicDurationMs != -1) return gameEndMusicDurationMs;
+        if (gameEndMusicDurationMs != -1)
+            return gameEndMusicDurationMs;
         File mergeZip = new File(plugin.getDataFolder().getParentFile(),
                 "CraftEngine/generated/sounds_merge.zip");
         long duration = readOggDurationFromZip(mergeZip, "music/global/gameendmusic.ogg");
@@ -109,14 +111,16 @@ public class GameManager {
     }
 
     private long readOggDurationFromZip(File zipFile, String entryPath) {
-        if (!zipFile.exists()) return -1;
+        if (!zipFile.exists())
+            return -1;
         File temp = null;
         try (ZipFile zip = new ZipFile(zipFile)) {
             ZipEntry entry = zip.getEntry(entryPath);
-            if (entry == null) return -1;
+            if (entry == null)
+                return -1;
             temp = File.createTempFile("rush_ogg_", ".ogg");
             try (InputStream in = zip.getInputStream(entry);
-                 java.io.FileOutputStream out = new java.io.FileOutputStream(temp)) {
+                    java.io.FileOutputStream out = new java.io.FileOutputStream(temp)) {
                 in.transferTo(out);
             }
             AudioHeader header = AudioFileIO.read(temp).getAudioHeader();
@@ -124,7 +128,8 @@ public class GameManager {
         } catch (Exception e) {
             return -1;
         } finally {
-            if (temp != null) temp.delete();
+            if (temp != null)
+                temp.delete();
         }
     }
 
@@ -245,7 +250,8 @@ public class GameManager {
     }
 
     private Clipboard readSchematic(String filename) {
-        File schematicFile = new File(plugin.getDataFolder().getParentFile(), "FastAsyncWorldEdit/schematics/" + filename);
+        File schematicFile = new File(plugin.getDataFolder().getParentFile(),
+                "FastAsyncWorldEdit/schematics/" + filename);
         if (!schematicFile.exists()) {
             plugin.getLogger().warning("Schematic not found: " + schematicFile.getPath());
             return null;
@@ -264,8 +270,8 @@ public class GameManager {
     }
 
     private void pasteClipboard(World world, Clipboard clipboard, BlockVector3 target, int rotation) {
-        try (EditSession editSession = WorldEdit.getInstance().newEditSession(BukkitAdapter.adapt(world))) {
-            ClipboardHolder holder = new ClipboardHolder(clipboard);
+        try (EditSession editSession = WorldEdit.getInstance().newEditSession(BukkitAdapter.adapt(world));
+             ClipboardHolder holder = new ClipboardHolder(clipboard)) {
             if (rotation != 0) {
                 AffineTransform transform = new AffineTransform().rotateY(rotation);
                 holder.setTransform(holder.getTransform().combine(transform));
@@ -782,7 +788,8 @@ public class GameManager {
         }
 
         String schematicName = plugin.getConfig().getString("schematicFilename");
-        File schematicFile = new File(plugin.getDataFolder().getParentFile(), "FastAsyncWorldEdit/schematics/" + schematicName);
+        File schematicFile = new File(plugin.getDataFolder().getParentFile(),
+                "FastAsyncWorldEdit/schematics/" + schematicName);
 
         if (!schematicFile.exists()) {
             plugin.getLogger().warning("Schematic not found: " + schematicFile.getPath());
@@ -799,7 +806,8 @@ public class GameManager {
         room.setIslandsLoaded(true);
     }
 
-    private void pasteIslandSchematic(World world, io.github.rush.objects.Island island, File schematicFile, int islandY) {
+    private void pasteIslandSchematic(World world, io.github.rush.objects.Island island, File schematicFile,
+            int islandY) {
         try {
             ClipboardFormat format = ClipboardFormats.findByFile(schematicFile);
             if (format == null) {
@@ -822,8 +830,8 @@ public class GameManager {
             }
 
             // Paste schematic
-            try (EditSession editSession = WorldEdit.getInstance().newEditSession(BukkitAdapter.adapt(world))) {
-                ClipboardHolder holder = new ClipboardHolder(clipboard);
+            try (EditSession editSession = WorldEdit.getInstance().newEditSession(BukkitAdapter.adapt(world));
+                 ClipboardHolder holder = new ClipboardHolder(clipboard)) {
 
                 if (island.getRotation() != 0) {
                     AffineTransform transform = new AffineTransform().rotateY(island.getRotation());
@@ -849,11 +857,11 @@ public class GameManager {
 
     private void spawnMerchantsForIsland(GameRoom room, io.github.rush.objects.Island island, int islandIndex) {
         // Direction vectors pointing outward from center (0,0): N→-z, E→+x, S→+z, W→-x
-        int[][] directions = { { 0, -1 }, { 1, 0 }, { 0, 1 }, { -1, 0 } };
+        int[][] directions = IslandLayout.ISLAND_DIRECTIONS;
         // Yaw values facing inward (toward center): N→South=0°, E→West=90°,
         // S→North=180°, W→East=-90°
         float[] yawValues = { 0f, 90f, 180f, -90f };
-        List<Integer> spread = List.of(5, 7);
+        List<Integer> spread = IslandLayout.MERCHANT_SPREADS;
 
         // speedOffset matches Team.placeEnderChests: ender chests are at outward 12
         // (speedOffset-1),
@@ -884,7 +892,8 @@ public class GameManager {
         }
     }
 
-    public static List<Location> placeIslandEnderChests(World world, int spawnX, int spawnZ, int y, int[] dir, int perpX, int enderChestOffset, BlockFace facing, int count) {
+    public static List<Location> placeIslandEnderChests(World world, int spawnX, int spawnZ, int y, int[] dir,
+            int perpX, int enderChestOffset, BlockFace facing, int count) {
         List<Location> locations = new ArrayList<>(count);
         int perpZ = -dir[0];
         for (int i = 0; i < count; i++) {
@@ -899,7 +908,8 @@ public class GameManager {
         return locations;
     }
 
-    public static int[][] speedMerchantPositions(io.github.rush.objects.Island island, int[] dir, int perpX, int perpZ, int speedOffset) {
+    public static int[][] speedMerchantPositions(io.github.rush.objects.Island island, int[] dir, int perpX, int perpZ,
+            int speedOffset) {
         int[][] positions = new int[2][2];
         for (int i = 0; i < 2; i++) {
             int sign = (i == 0) ? 1 : -1;
@@ -909,7 +919,8 @@ public class GameManager {
         return positions;
     }
 
-    public static int[] regularMerchantPos(int i, int islandX, int islandZ, int[] dir, int perpX, int perpZ, int offset, List<Integer> spread) {
+    public static int[] regularMerchantPos(int i, int islandX, int islandZ, int[] dir, int perpX, int perpZ, int offset,
+            List<Integer> spread) {
         int sign = (i < 2) ? 1 : -1;
         int idx = (i % 2 == 0) ? 0 : 1;
         return new int[] {
@@ -986,10 +997,12 @@ public class GameManager {
         if (file.header().islandTypeName() != null) {
             try {
                 islandType = GameRoom.IslandType.valueOf(file.header().islandTypeName());
-            } catch (IllegalArgumentException ignored) {}
+            } catch (IllegalArgumentException ignored) {
+            }
         }
         int maxTeams = file.header().maxTeams();
-        if (maxTeams < 2) maxTeams = 2;
+        if (maxTeams < 2)
+            maxTeams = 2;
 
         // Paste ALL islands from the layout regardless of how many teams played
         List<IslandLayout.IslandPosition> posList = IslandLayout.positionsFor(islandType, islandOffset);
@@ -1020,11 +1033,12 @@ public class GameManager {
     }
 
     private void populateReplayWorld(World world, ReplayFile file,
-                                     List<io.github.rush.objects.Island> islands) {
+            List<io.github.rush.objects.Island> islands) {
         int islandY = world.getMaxHeight() - 12;
 
         Map<String, String> teamColors = file.header().teamColorsByPlayerUuid();
-        if (teamColors == null || teamColors.isEmpty()) return;
+        if (teamColors == null || teamColors.isEmpty())
+            return;
 
         Set<String> uniqueColors = new HashSet<>(teamColors.values());
         List<String> orderedTeams = uniqueColors.stream()
@@ -1040,8 +1054,7 @@ public class GameManager {
             }
         }
 
-        // Outward direction vectors: N→-z, E→+x, S→+z, W→-x
-        int[][] directions = { { 0, -1 }, { 1, 0 }, { 0, 1 }, { -1, 0 } };
+        int[][] directions = IslandLayout.ISLAND_DIRECTIONS;
         float[] yawValues = { 0f, 90f, 180f, -90f };
         int speedOffset = plugin.getConfig().getInt("villagerSpeedOffset", 13);
         int regularOffset = plugin.getConfig().getInt("villagerRegularOffset", speedOffset - 1);
@@ -1073,7 +1086,7 @@ public class GameManager {
             footData.setFacing(bedFacing);
             world.getBlockAt(bedX, bedY, bedZ).setBlockData(footData);
 
-            org.bukkit.block.Block headBlock = world.getBlockAt(bedX, bedY, bedZ).getRelative(bedFacing);
+            Block headBlock = world.getBlockAt(bedX, bedY, bedZ).getRelative(bedFacing);
             Bed headData = (Bed) bedMat.createBlockData();
             headData.setPart(Bed.Part.HEAD);
             headData.setFacing(bedFacing);
@@ -1081,7 +1094,8 @@ public class GameManager {
 
             // Ender chests (2 per team island)
             int enderChestOffset = speedOffset - 1;
-            placeIslandEnderChests(world, spawnX, spawnZ, bedY, dir, perpX, enderChestOffset, Team.facingTowardsCenter(slot), 2);
+            placeIslandEnderChests(world, spawnX, spawnZ, bedY, dir, perpX, enderChestOffset,
+                    Team.facingTowardsCenter(slot), 2);
 
             // Speed merchants (2 per island)
             for (int[] pos : speedMerchantPositions(island, dir, perpX, perpZ, speedOffset)) {
@@ -1091,9 +1105,10 @@ public class GameManager {
 
             // Regular merchants (4 per island)
             MerchantType[] regularTypes = MerchantType.firstN(4);
-            List<Integer> spread = List.of(5, 7);
+            List<Integer> spread = IslandLayout.MERCHANT_SPREADS;
             for (int i = 0; i < 4; i++) {
-                int[] pos = regularMerchantPos(i, island.getX(), island.getZ(), dir, perpX, perpZ, regularOffset, spread);
+                int[] pos = regularMerchantPos(i, island.getX(), island.getZ(), dir, perpX, perpZ, regularOffset,
+                        spread);
                 Location loc = new Location(world, pos[0] + 0.5, islandY + 1, pos[1] + 0.5, facingYaw, 0);
                 spawnMerchant(world, loc, regularTypes[i]);
             }

@@ -2,7 +2,10 @@ package io.github.rush.entities;
 
 import io.papermc.paper.datacomponent.DataComponentTypes;
 import io.papermc.paper.datacomponent.item.PotionContents;
+import io.papermc.paper.registry.RegistryAccess;
+import io.papermc.paper.registry.RegistryKey;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.enchantments.Enchantment;
@@ -46,21 +49,25 @@ public enum MerchantType {
     public static void loadFromConfig(FileConfiguration config) {
         final ConfigurationSection merchants = config.getConfigurationSection("merchants");
 
-        if (merchants == null) return;
+        if (merchants == null)
+            return;
 
         for (MerchantType type : values()) {
             final ConfigurationSection typeSection = merchants.getConfigurationSection(type.name().toLowerCase());
 
-            if (typeSection == null) continue;
+            if (typeSection == null)
+                continue;
 
             final List<?> tradesList = typeSection.getList("trades");
 
-            if (tradesList == null || tradesList.isEmpty()) continue;
+            if (tradesList == null || tradesList.isEmpty())
+                continue;
 
             final List<Trade> parsed = new ArrayList<>();
 
             for (Object obj : tradesList) {
-                if (!(obj instanceof Map<?, ?> entry)) continue;
+                if (!(obj instanceof Map<?, ?> entry))
+                    continue;
 
                 final Trade trade = parseTrade(entry);
 
@@ -92,7 +99,8 @@ public enum MerchantType {
             result = Material.getMaterial((String) entry.get("result"));
         }
 
-        if (result == null) return null;
+        if (result == null)
+            return null;
 
         if (entry.containsKey("resultAmount")) {
             resultAmount = ((Number) entry.get("resultAmount")).intValue();
@@ -108,13 +116,15 @@ public enum MerchantType {
 
         final List<Map<String, Object>> costs = (List<Map<String, Object>>) entry.get("cost");
 
-        if (costs == null || costs.isEmpty()) return null;
+        if (costs == null || costs.isEmpty())
+            return null;
 
         final Map<String, Object> firstCost = costs.get(0);
         final Material currency = Material.getMaterial((String) firstCost.get("material"));
         final int costAmount = ((Number) firstCost.getOrDefault("amount", 1)).intValue();
 
-        if (currency == null) return null;
+        if (currency == null)
+            return null;
 
         Trade trade = new Trade(result, currency, costAmount, resultAmount, null,
                 parseEnchantments(enchantMap), durability);
@@ -133,12 +143,14 @@ public enum MerchantType {
     }
 
     private static Map<Enchantment, Integer> parseEnchantments(@Nullable Map<String, Object> raw) {
-        if (raw == null) return Collections.emptyMap();
+        if (raw == null)
+            return Collections.emptyMap();
 
         final Map<Enchantment, Integer> result = new java.util.HashMap<>();
 
         for (Map.Entry<String, Object> e : raw.entrySet()) {
-            final Enchantment ench = Enchantment.getByKey(org.bukkit.NamespacedKey.minecraft(e.getKey().toLowerCase()));
+            final Enchantment ench = RegistryAccess.registryAccess().getRegistry(RegistryKey.ENCHANTMENT).get(
+                    NamespacedKey.minecraft(e.getKey().toLowerCase()));
 
             if (ench != null) {
                 result.put(ench, ((Number) e.getValue()).intValue());

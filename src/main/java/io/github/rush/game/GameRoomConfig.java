@@ -23,7 +23,8 @@ public record GameRoomConfig(
         return new Builder();
     }
 
-    @Getter @Accessors(fluent = true)
+    @Getter
+    @Accessors(fluent = true)
     public static final class Builder {
         private GameRoom.IslandType islandType = GameRoom.IslandType.FOUR_ISLANDS;
         private int maxTeams = 2;
