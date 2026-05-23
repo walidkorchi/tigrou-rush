@@ -44,7 +44,6 @@ dependencies {
     compileOnly("net.momirealms:craft-engine-bukkit:26.5.1")
     compileOnly("net.momirealms:craft-engine-adventure:26.5.1")
     compileOnly(files("../server/plugins/FastAsyncWorldEdit-Paper-2.15.2-SNAPSHOT.jar"))
-    compileOnly(files("../server/plugins/GMusic-2.1.2.jar"))
     implementation("fr.mrmicky:fastboard:2.1.5")
     implementation("net.jthink:jaudiotagger:3.0.1")
     implementation("org.postgresql:postgresql:42.7.1")

@@ -35,15 +35,7 @@ public class PlayerSettingsGUI {
             boolean newState = !settingsManager.isMusicEnabled(p.getUniqueId());
             settingsManager.setMusicEnabled(p.getUniqueId(), newState);
 
-            if (newState) {
-                if (Main.getInstance().getMusicManager() != null) {
-                    Main.getInstance().getMusicManager().playForPlayer(p);
-                }
-            } else {
-                if (Main.getInstance().getMusicManager() != null) {
-                    Main.getInstance().getMusicManager().stopForPlayer(p);
-                }
-            }
+            // TODO: play/stop custom lobby music for player
 
             openPlayerSettings(p);
         });
@@ -62,7 +54,8 @@ public class PlayerSettingsGUI {
     }
 
     private static ItemStack createToggleItem(Material on, Material off, String labelKey, boolean enabled) {
-        Component status = Component.translatable(enabled ? "gui.player_settings.enabled" : "gui.player_settings.disabled");
+        Component status = Component
+                .translatable(enabled ? "gui.player_settings.enabled" : "gui.player_settings.disabled");
         return ItemBuilder.of(enabled ? on : off)
                 .name(Component.translatable(labelKey))
                 .lore(

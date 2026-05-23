@@ -11,10 +11,6 @@ dependencies:
       load: BEFORE
       required: true
       join-classpath: true
-    GMusic:
-      load: BEFORE
-      required: true
-      join-classpath: true
     packetevents:
       load: BEFORE
       required: true

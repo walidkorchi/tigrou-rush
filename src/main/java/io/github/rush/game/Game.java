@@ -21,6 +21,7 @@ import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
+import org.bukkit.SoundCategory;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.attribute.AttributeModifier;
@@ -528,13 +529,13 @@ public class Game {
         String loop = "tland:music.global.overtime_loop_music";
         for (Entity entity : getPlayers()) {
             if (entity instanceof Player player) {
-                player.playSound(player.getLocation(), intro, org.bukkit.SoundCategory.MUSIC, 1.0f, 1.0f);
+                player.playSound(player.getLocation(), intro, SoundCategory.MUSIC, 1.0f, 1.0f);
             }
         }
         overtimeMusicTask = Bukkit.getScheduler().runTaskTimer(Main.getInstance(), () -> {
             for (Entity entity : getPlayers()) {
                 if (entity instanceof Player player) {
-                    player.playSound(player.getLocation(), loop, org.bukkit.SoundCategory.MUSIC, 1.0f, 1.0f);
+                    player.playSound(player.getLocation(), loop, SoundCategory.MUSIC, 1.0f, 1.0f);
                 }
             }
         }, 160L, 800L);
@@ -1119,13 +1120,13 @@ public class Game {
             String endMusic = "tland:music.global.gameendmusic";
             for (Entity entity : getPlayers()) {
                 if (entity instanceof Player player) {
-                    player.playSound(player.getLocation(), winSound, org.bukkit.SoundCategory.MUSIC, 1.0f, 1.0f);
-                    player.playSound(player.getLocation(), endMusic, org.bukkit.SoundCategory.MUSIC, 1.0f, 1.0f);
+                    player.playSound(player.getLocation(), winSound, SoundCategory.MUSIC, 1.0f, 1.0f);
+                    player.playSound(player.getLocation(), endMusic, SoundCategory.MUSIC, 1.0f, 1.0f);
                 }
             }
             for (Player spectator : spectators) {
-                spectator.playSound(spectator.getLocation(), winSound, org.bukkit.SoundCategory.MUSIC, 1.0f, 1.0f);
-                spectator.playSound(spectator.getLocation(), endMusic, org.bukkit.SoundCategory.MUSIC, 1.0f, 1.0f);
+                spectator.playSound(spectator.getLocation(), winSound, SoundCategory.MUSIC, 1.0f, 1.0f);
+                spectator.playSound(spectator.getLocation(), endMusic, SoundCategory.MUSIC, 1.0f, 1.0f);
             }
         }
 

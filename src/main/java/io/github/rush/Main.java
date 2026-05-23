@@ -29,7 +29,6 @@ import io.github.rush.settings.PlayerSettingsManager;
 import io.github.rush.statistics.*;
 import io.github.rush.scoreboard.ScoreboardManager;
 import io.github.rush.utils.CustomSoundRegistrar;
-import io.github.rush.utils.MusicManager;
 import com.maximde.hologramlib.HologramLib;
 import com.maximde.hologramlib.hologram.HologramManager;
 import io.papermc.paper.datacomponent.DataComponentTypes;
@@ -87,9 +86,6 @@ public class Main extends JavaPlugin {
 
     @Getter
     private PlayerSettingsManager playerSettingsManager = null;
-
-    @Getter
-    private MusicManager musicManager = null;
 
     @Getter
     private HologramManager hologramManager = null;
@@ -166,7 +162,6 @@ public class Main extends JavaPlugin {
         playerLevelManager = new PlayerLevelManager(this);
         gameManager = new GameManager(this);
         gameManager.createGame("rush");
-        musicManager = new MusicManager(this);
         replayStorage = new ReplayStorage(getDataFolder().toPath().resolve("replays"));
         replayManager = new ReplayManager(this);
 

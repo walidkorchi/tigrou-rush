@@ -614,7 +614,6 @@ Key domain terms used throughout this document and the codebase.
 ### Required Server Plugins (load before TigrouRush)
 
 - FastAsyncWorldEdit
-- GMusic (background music)
 - PacketEvents
 - HologramLib
 - CraftEngine (0.0.67)

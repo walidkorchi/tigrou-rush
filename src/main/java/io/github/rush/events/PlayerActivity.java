@@ -122,10 +122,7 @@ public class PlayerActivity implements Listener {
             applyHubLobbyState(player);
         }
 
-        if (plugin.getMusicManager() != null
-                && plugin.getPlayerSettingsManager().isMusicEnabled(player.getUniqueId())) {
-            plugin.getMusicManager().playForPlayer(player);
-        }
+        // TODO: play lobby custom music
     }
 
     private void applyHubLobbyState(Player player) {
@@ -146,17 +143,12 @@ public class PlayerActivity implements Listener {
 
         event.quitMessage(Component.translatable("rush.chat_quit", Component.text(player.getName())));
 
-        // Leave any active replay
         if (plugin.getReplayManager() != null && plugin.getReplayManager().isWatching(player)) {
             plugin.getReplayManager().leaveReplay(player);
         }
 
-        // Stop music if playing
-        if (plugin.getMusicManager() != null) {
-            plugin.getMusicManager().stopForPlayer(player);
-        }
+        // TODO: stop music for player if needed
 
-        // Remove from scoreboard
         if (plugin.getScoreboardManager() != null) {
             plugin.getScoreboardManager().removeScoreboard(player);
         }
@@ -854,8 +846,8 @@ public class PlayerActivity implements Listener {
         Player player = event.getPlayer();
 
         // World-scope: only same-world players receive the message
-        event.viewers().removeIf(audience ->
-                audience instanceof Player viewer && !viewer.getWorld().equals(player.getWorld()));
+        event.viewers().removeIf(
+                audience -> audience instanceof Player viewer && !viewer.getWorld().equals(player.getWorld()));
 
         PlayerLevelManager levelManager = Main.getInstance().getPlayerLevelManager();
         PlayerLevel playerLevel = levelManager.loadPlayerLevel(player.getUniqueId());

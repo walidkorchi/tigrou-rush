@@ -6,7 +6,6 @@ import io.github.rush.entities.MerchantType;
 import net.momirealms.craftengine.core.item.Item;
 import net.momirealms.craftengine.core.item.ItemManager;
 import net.momirealms.craftengine.core.plugin.context.PlayerOptionalContext;
-import net.momirealms.craftengine.core.util.Key;
 import net.momirealms.craftengine.core.plugin.gui.Gui;
 import net.momirealms.craftengine.core.plugin.gui.GuiElement;
 import net.momirealms.craftengine.core.plugin.gui.GuiLayout;
@@ -15,6 +14,9 @@ import net.momirealms.craftengine.core.plugin.gui.ItemWithAction;
 import net.momirealms.craftengine.core.plugin.gui.PagedGui;
 import net.momirealms.craftengine.core.util.AdventureHelper;
 import net.momirealms.craftengine.libraries.adventure.text.minimessage.tag.resolver.TagResolver;
+import net.kyori.adventure.text.Component;
+import io.papermc.paper.datacomponent.DataComponentTypes;
+import io.papermc.paper.datacomponent.item.TooltipDisplay;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -22,13 +24,8 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
 import java.io.File;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.SequencedSet;
 import java.util.stream.Collectors;
 
 public class ShopGUI {
@@ -55,36 +52,12 @@ public class ShopGUI {
     }
 
     private static GuiElement createFillerElement() {
-        Item item = itemManager().createCustomWrappedItem(Key.of("tland:empty_slot"), null);
-        if (item == null || item.isEmpty()) {
-            item = itemManager().wrap(new ItemStack(Material.GRAY_STAINED_GLASS_PANE));
-            item.itemNameComponent(AdventureHelper.miniMessage().deserialize(" "));
-        } else {
-            hideTooltip(item);
-        }
+        ItemStack bukkitStack = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
+        bukkitStack.setData(DataComponentTypes.ITEM_NAME, Component.text(" "));
+        bukkitStack.setData(DataComponentTypes.TOOLTIP_DISPLAY,
+                TooltipDisplay.tooltipDisplay().hideTooltip(true).build());
+        Item item = itemManager().wrap(bukkitStack);
         return GuiElement.constant(item, (element, click) -> click.cancel());
-    }
-
-    private static void hideTooltip(Item item) {
-        try {
-            Object mcItem = item.minecraftItem();
-            if (mcItem == null)
-                return;
-
-            Class<?> dataComponents = Class.forName("net.minecraft.core.component.DataComponents");
-            Field tooltipDisplayField = dataComponents.getDeclaredField("TOOLTIP_DISPLAY");
-            Object tooltipDisplayType = tooltipDisplayField.get(null);
-
-            Class<?> tooltipDisplayClass = Class.forName("net.minecraft.world.item.component.TooltipDisplay");
-            Constructor<?> ctor = tooltipDisplayClass.getConstructor(boolean.class, SequencedSet.class);
-            Object hideInstance = ctor.newInstance(true, new LinkedHashSet<>());
-
-            Class<?> itemStackClass = Class.forName("net.minecraft.world.item.ItemStack");
-            Method setMethod = itemStackClass.getMethod("set",
-                    Class.forName("net.minecraft.core.component.DataComponentType"), Object.class);
-            setMethod.invoke(mcItem, tooltipDisplayType, hideInstance);
-        } catch (Exception ignored) {
-        }
     }
 
     private static GuiLayout createMainLayout() {
