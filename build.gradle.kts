@@ -46,6 +46,7 @@ dependencies {
     compileOnly(files("../server/plugins/FastAsyncWorldEdit-Paper-2.15.2-SNAPSHOT.jar"))
     compileOnly(files("../server/plugins/GMusic-2.1.2.jar"))
     implementation("fr.mrmicky:fastboard:2.1.5")
+    implementation("net.jthink:jaudiotagger:3.0.1")
     implementation("org.postgresql:postgresql:42.7.1")
     implementation("org.hibernate.orm:hibernate-core:6.4.1.Final")
     compileOnly("org.projectlombok:lombok:1.18.46")

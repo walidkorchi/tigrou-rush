@@ -91,8 +91,7 @@ public class GameManager {
         if (gameEndMusicDurationMs != -1) return gameEndMusicDurationMs;
         File mergeZip = new File(plugin.getDataFolder().getParentFile(),
                 "CraftEngine/generated/sounds_merge.zip");
-        long duration = io.github.rush.utils.OggDurationReader.getDurationMs(
-                mergeZip, "music/global/gameendmusic.ogg");
+        long duration = readOggDurationFromZip(mergeZip, "music/global/gameendmusic.ogg");
         if (duration <= 0) {
             plugin.getLogger().warning("Could not read gameendmusic.ogg duration, using 27s default");
             duration = 27_000L;
@@ -101,6 +100,26 @@ public class GameManager {
         }
         gameEndMusicDurationMs = duration;
         return duration;
+    }
+
+    private long readOggDurationFromZip(File zipFile, String entryPath) {
+        if (!zipFile.exists()) return -1;
+        File temp = null;
+        try (ZipFile zip = new ZipFile(zipFile)) {
+            ZipEntry entry = zip.getEntry(entryPath);
+            if (entry == null) return -1;
+            temp = File.createTempFile("rush_ogg_", ".ogg");
+            try (InputStream in = zip.getInputStream(entry);
+                 java.io.FileOutputStream out = new java.io.FileOutputStream(temp)) {
+                in.transferTo(out);
+            }
+            AudioHeader header = AudioFileIO.read(temp).getAudioHeader();
+            return (long) (header.getPreciseTrackLength() * 1000);
+        } catch (Exception e) {
+            return -1;
+        } finally {
+            if (temp != null) temp.delete();
+        }
     }
 
     /**
