@@ -1,10 +1,5 @@
-# World where the rush game takes place
-gameWorld: world
+# --- Plugin Configuration ---
 
-# World where players spawn when game stops
-lobbyWorld: world
-
-# Database configuration (PostgreSQL)
 database:
   host: localhost
   port: 5432
@@ -12,56 +7,46 @@ database:
   username: rush
   password: rush
 
-# Radius around beds where block placement is prevented
-bedProtectionRadius: 3
 
-# Radius around regular merchants where block placement is prevented
-merchantProtectionRadius: 1
+# --- Ranks Configuration ---
 
-# Rank system configuration
 rank:
   first-rank-xp: 10000
   rank-multiplier: 1.25
   prestige-nerfs:
-    - 1.0   # Bronze
-    - 0.8   # Silver
-    - 0.5   # Gold
-
-# minecraft defaults it to 4s
-explodeTicks: 80
-
-# Radius affected by the explosion. Minecraft default is 4.0
-radius: 4.0
-
-# Reduce the fall damage by dividing the damages (useful for TNT Fly). Set to 1.0 to not reduce it
-fallDamage: 5.0
-
-# Reduce the TNT damage by dividing the damages (useful for TNT Fly). Set to 1.0 to not reduce it
-TNTDamage: 5.0
-
-# Schematic filename for the rush island
-schematicFilename: rush_island.schem
-
-# Distance from center point to islands
-islandOffset: 30
-
-# Respawn protection time in seconds (0 to disable)
-respawn-protection: 4
-
-# Blocks below islandY at which a falling player is rescued and teleported back to their bed
-void-threshold: 20
-
-# Minutes of play before overtime begins (beds destroyed, all restrictions lifted). Default: 30
-overtime-duration: 30
+    - 1.0                                     # Bronze prestige
+    - 0.8                                     # Silver prestige
+    - 0.5                                     # Gold prestige
 
 
+# --- TNT Configuration ---
 
-# Villager spawn offsets (distance from island center)
-villagerSpeedOffset: 13
+TNTDamage: 5.0                                # Reduce the TNT damage by dividing the damages (useful for TNT Fly)
+radius: 4.0                                   # Radius affected by the explosion. Minecraft defaults is to 4.0
+explodeTicks: 80                              # Minecraft defaults it to 4s
+fallDamage: 5.0                               # Reduce the fall damage by dividing the damages (useful for TNT Fly)
+
+
+# --- Islands/Map Configuration ---
+
+schematicFilename: rush_island.schem          # Schematic filename for the rush island
+islandOffset: 30                              # Distance from center point to islands
+void-threshold: 20                            # Blocks below islandY at which a falling player is rescued and teleported back to their bed
+villagerSpeedOffset: 13                       # Villager spawn offsets (distance from island center)
 villagerRegularOffset: 12
 villagerSpreadDistance: 5,7
 
-# Resources config
+
+# --- Game Configuration ---
+
+overtime-duration: 30                         # Minutes of play before overtime begins (beds destroyed, all restrictions lifted)
+bedProtectionRadius: 3                        # Radius around beds where block placement is prevented
+respawn-protection: 4                         # Respawn protection time in seconds (0 to disable)
+merchantProtectionRadius: 1                   # Radius around regular merchants where block placement is prevented
+lobbyWorld: world                             # World where players spawn when game stops
+
+# --- Resources Configuration ---
+
 resource:
   copper:
     item:
@@ -87,3 +72,8 @@ resource:
         amount: 1
     spawn-interval: 300000
     spread: 1.0
+
+# --- Misc Configuration ---
+
+# World where the rush game takes place
+gameWorld: world

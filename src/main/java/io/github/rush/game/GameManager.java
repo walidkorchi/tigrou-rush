@@ -5,6 +5,8 @@ import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.WorldEditException;
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
+import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormat;
+import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormats;
 
 import com.sk89q.worldedit.function.operation.Operation;
 import com.sk89q.worldedit.function.operation.Operations;
@@ -44,8 +46,12 @@ import io.github.rush.replay.ReplayHeader;
 import io.github.rush.replay.ReplayPlayback;
 
 import java.io.File;
-
 import java.io.IOException;
+import java.io.InputStream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
+import org.jaudiotagger.audio.AudioFileIO;
+import org.jaudiotagger.audio.AudioHeader;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -245,7 +251,12 @@ public class GameManager {
             return null;
         }
         try {
-            return com.fastasyncworldedit.core.FaweAPI.load(schematicFile);
+            ClipboardFormat format = ClipboardFormats.findByFile(schematicFile);
+            if (format == null) {
+                plugin.getLogger().severe("Unsupported schematic format: " + schematicFile.getPath());
+                return null;
+            }
+            return format.load(schematicFile);
         } catch (IOException e) {
             plugin.getLogger().severe("Error reading schematic " + filename + ": " + e.getMessage());
             return null;
@@ -295,17 +306,18 @@ public class GameManager {
                 .generator(new VoidGenerator())
                 .environment(World.Environment.NORMAL);
         final World gameWorld = Bukkit.createWorld(worldCreator);
-        final ArrayList<GameRule> gameRules = new ArrayList<>(List.of(
+        @SuppressWarnings("removal")
+        final List<GameRule<Boolean>> gameRules = List.of(
                 GameRule.DO_DAYLIGHT_CYCLE,
                 GameRule.DO_WEATHER_CYCLE,
-                GameRule.DO_INSOMNIA));
+                GameRule.DO_INSOMNIA);
 
         if (gameWorld != null) {
             // Set spawn on main thread after world is created
             Bukkit.getScheduler().runTask(plugin, () -> {
                 gameWorld.setSpawnLocation(0, 64, 0);
                 gameWorld.setAutoSave(false);
-                for (GameRule gameRule : gameRules) {
+                for (GameRule<Boolean> gameRule : gameRules) {
                     gameWorld.setGameRule(gameRule, false);
                 }
             });
@@ -789,7 +801,12 @@ public class GameManager {
 
     private void pasteIslandSchematic(World world, io.github.rush.objects.Island island, File schematicFile, int islandY) {
         try {
-            Clipboard clipboard = com.fastasyncworldedit.core.FaweAPI.load(schematicFile);
+            ClipboardFormat format = ClipboardFormats.findByFile(schematicFile);
+            if (format == null) {
+                plugin.getLogger().severe("Unsupported schematic format: " + schematicFile.getPath());
+                return;
+            }
+            Clipboard clipboard = format.load(schematicFile);
             BlockVector3 dimensions = clipboard.getDimensions();
 
             // Load chunks

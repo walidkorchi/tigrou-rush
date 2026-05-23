@@ -5,6 +5,8 @@ import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.WorldEditException;
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
+import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormat;
+import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormats;
 
 import com.sk89q.worldedit.function.operation.Operation;
 import com.sk89q.worldedit.function.operation.Operations;
@@ -439,7 +441,12 @@ public class Main extends JavaPlugin {
         }
 
         try {
-            final Clipboard clipboard = com.fastasyncworldedit.core.FaweAPI.load(schematicFile);
+            final ClipboardFormat format = ClipboardFormats.findByFile(schematicFile);
+            if (format == null) {
+                getLogger().severe("Unsupported schematic format: " + schematicFile.getPath());
+                return;
+            }
+            final Clipboard clipboard = format.load(schematicFile);
             final BlockVector3 dimensions = clipboard.getDimensions();
 
             World bukkitWorld = Bukkit.getWorld(getGameWorld());
