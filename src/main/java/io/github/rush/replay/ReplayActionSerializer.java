@@ -48,6 +48,11 @@ public final class ReplayActionSerializer {
                 case "RespawnAction"     -> INNER.fromJson(json, RespawnAction.class);
                 case "PhaseAction"       -> INNER.fromJson(json, PhaseAction.class);
                 case "BedDestroyAction"  -> INNER.fromJson(json, BedDestroyAction.class);
+                case "ChatAction"        -> INNER.fromJson(json, ChatAction.class);
+                case "ArmSwingAction"    -> INNER.fromJson(json, ArmSwingAction.class);
+                case "DamageAction"      -> INNER.fromJson(json, DamageAction.class);
+                case "DropItemAction"    -> INNER.fromJson(json, DropItemAction.class);
+                case "TntIgniteAction"   -> INNER.fromJson(json, TntIgniteAction.class);
                 default -> throw new JsonParseException("Unknown ReplayAction type: " + type);
             };
         }

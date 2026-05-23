@@ -19,6 +19,8 @@ import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.TextDisplay.TextAlignment;
 import io.github.rush.config.ConfigManager;
+import io.github.rush.statistics.PlayerLevelManager;
+import io.github.rush.statistics.PlayerStatisticManager;
 import org.jspecify.annotations.NullMarked;
 
 import com.maximde.hologramlib.hologram.TextHologram;
@@ -305,14 +307,12 @@ public class LeaderboardCommand {
                 };
 
                 if (type == LeaderboardType.LEVEL) {
-                    int lvl = entry.getValue();
-                    String icon = io.github.rush.statistics.PlayerLevel.getTierIcon(lvl);
-                    String tierColor = io.github.rush.statistics.PlayerLevel.tierColorMiniMessage(lvl);
-                    String tierClose = tierColor.replace("<", "</");
+                    int rankIndex = entry.getValue();
+                    String rankTag = io.github.rush.statistics.PlayerLevel.getRankTag(rankIndex);
                     sb.append(medal)
                             .append("<white>").append(entry.getKey()).append("</white>")
                             .append(" <dark_gray>-</dark_gray> ")
-                            .append(tierColor).append(icon).append(" Niveau ").append(lvl).append(tierClose)
+                            .append(rankTag)
                             .append("\n");
                 } else {
                     sb.append("<").append(color).append(">")
@@ -334,15 +334,15 @@ public class LeaderboardCommand {
         }
 
         private List<Map.Entry<String, Integer>> fetchTop10() {
-            var statManager = Main.getInstance().getPlayerStatisticManager();
-            var levelManager = Main.getInstance().getPlayerLevelManager();
+            PlayerStatisticManager statManager = Main.getInstance().getPlayerStatisticManager();
+            PlayerLevelManager levelManager = Main.getInstance().getPlayerLevelManager();
 
             try {
                 return switch (type) {
                     case KILLS -> statManager.getTop10ByKills();
                     case WINS -> statManager.getTop10ByWins();
                     case WINSTREAK -> statManager.getTop10ByWinStreak();
-                    case LEVEL -> levelManager.getTop10ByLevel();
+                    case LEVEL -> levelManager.getTop10ByXP();
                 };
             } catch (Exception e) {
                 Main.getInstance().getLogger().warning("Leaderboard query failed: " + e.getMessage());

@@ -1,6 +1,7 @@
 package io.github.rush.replay;
 
 import io.github.rush.utils.ItemBuilder;
+import net.kyori.adventure.text.Component;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -34,47 +35,49 @@ public final class ReplayViewerInventory {
 
     public static ItemStack buildPauseResume(boolean isPaused) {
         return ItemBuilder.of(isPaused ? Material.GRAY_DYE : Material.LIME_DYE)
-                .name(isPaused ? "§7▶ Reprendre" : "§a⏸ Pause")
+                .name(Component.translatable(isPaused ? "gui.replay_viewer.resume" : "gui.replay_viewer.pause"))
                 .build();
     }
 
     private static ItemStack buildCompass() {
         return ItemBuilder.of(Material.COMPASS)
-                .name("§6Téléportation")
-                .lore("§7Clic droit pour choisir un joueur")
+                .name(Component.translatable("gui.replay_viewer.compass"))
+                .lore(Component.translatable("gui.replay_viewer.compass_lore"))
                 .build();
     }
 
     public static ItemStack buildSpeedDown(double currentSpeed) {
         return ItemBuilder.of(Material.PLAYER_HEAD)
-                .name("§c§l−  Ralentir  §e" + formatSpeed(currentSpeed))
-                .lore("§71.0× → 0.5× → 0.25×")
+                .name(Component.translatable("gui.replay_viewer.speed_down",
+                        Component.text(formatSpeed(currentSpeed))))
+                .lore(Component.translatable("gui.replay_viewer.speed_down_lore"))
                 .build();
     }
 
     private static ItemStack buildRewind() {
         return ItemBuilder.of(Material.PLAYER_HEAD)
-                .name("§e§l«« −5 secondes")
+                .name(Component.translatable("gui.replay_viewer.rewind"))
                 .build();
     }
 
     private static ItemStack buildForward() {
         return ItemBuilder.of(Material.PLAYER_HEAD)
-                .name("§e§l+5 secondes »»")
+                .name(Component.translatable("gui.replay_viewer.forward"))
                 .build();
     }
 
     public static ItemStack buildSpeedUp(double currentSpeed) {
         return ItemBuilder.of(Material.PLAYER_HEAD)
-                .name("§a§l+  Accélérer  §e" + formatSpeed(currentSpeed))
-                .lore("§71.0× → 2.0× → 3.0× → 4.0×")
+                .name(Component.translatable("gui.replay_viewer.speed_up",
+                        Component.text(formatSpeed(currentSpeed))))
+                .lore(Component.translatable("gui.replay_viewer.speed_up_lore"))
                 .build();
     }
 
     private static ItemStack buildMenu() {
         return ItemBuilder.of(Material.NETHER_STAR)
-                .name("§b§lReplay Viewer")
-                .lore("§7Ouvre le menu du replay")
+                .name(Component.translatable("gui.replay_viewer.menu"))
+                .lore(Component.translatable("gui.replay_viewer.menu_lore"))
                 .build();
     }
 

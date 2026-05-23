@@ -5,9 +5,7 @@ import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.WorldEditException;
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
-import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormat;
-import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormats;
-import com.sk89q.worldedit.extent.clipboard.io.ClipboardReader;
+
 import com.sk89q.worldedit.function.operation.Operation;
 import com.sk89q.worldedit.function.operation.Operations;
 import com.sk89q.worldedit.math.BlockVector3;
@@ -28,6 +26,9 @@ import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.WorldCreator;
 import org.bukkit.attribute.Attribute;
+import org.bukkit.block.BlockFace;
+import org.bukkit.block.data.type.Bed;
+import org.bukkit.block.data.type.EnderChest;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.ItemFrame;
 import org.bukkit.GameMode;
@@ -37,12 +38,13 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
+import io.github.rush.entities.MerchantType;
 import io.github.rush.replay.ReplayFile;
 import io.github.rush.replay.ReplayHeader;
 import io.github.rush.replay.ReplayPlayback;
 
 import java.io.File;
-import java.io.FileInputStream;
+
 import java.io.IOException;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -79,8 +81,26 @@ public class GameManager {
     public record ReconnectData(String roomId, String teamColorName, boolean wasSpectator) {
     }
 
+    private long gameEndMusicDurationMs = -1;
+
     public GameManager(Main plugin) {
         this.plugin = plugin;
+    }
+
+    private long getGameEndMusicDurationMs() {
+        if (gameEndMusicDurationMs != -1) return gameEndMusicDurationMs;
+        File mergeZip = new File(plugin.getDataFolder().getParentFile(),
+                "CraftEngine/generated/sounds_merge.zip");
+        long duration = io.github.rush.utils.OggDurationReader.getDurationMs(
+                mergeZip, "music/global/gameendmusic.ogg");
+        if (duration <= 0) {
+            plugin.getLogger().warning("Could not read gameendmusic.ogg duration, using 27s default");
+            duration = 27_000L;
+        } else {
+            plugin.getLogger().info("Detected gameendmusic.ogg duration: " + (duration / 1000) + "s");
+        }
+        gameEndMusicDurationMs = duration;
+        return duration;
     }
 
     /**
@@ -107,7 +127,7 @@ public class GameManager {
                 World gameWorld = createVoidWorld(worldName);
                 if (gameWorld == null) {
                     barTask[0].cancel();
-                    host.sendMessage(Component.text("§cErreur lors de la création du monde!"));
+                    host.sendMessage(Component.translatable("rush.room_create_failed"));
                     return;
                 }
 
@@ -182,7 +202,7 @@ public class GameManager {
                 barTask[0].cancel();
                 plugin.getLogger().severe("Error creating game world: " + e.getMessage());
                 e.printStackTrace();
-                host.sendMessage(Component.text("§cErreur lors de la création de la partie!"));
+                host.sendMessage(Component.translatable("rush.room_create_failed"));
             }
         });
     }
@@ -200,19 +220,13 @@ public class GameManager {
     }
 
     private Clipboard readSchematic(String filename) {
-        File schematicFile = new File(plugin.getDataFolder().getParentFile(), "WorldEdit/schematics/" + filename);
+        File schematicFile = new File(plugin.getDataFolder().getParentFile(), "FastAsyncWorldEdit/schematics/" + filename);
         if (!schematicFile.exists()) {
             plugin.getLogger().warning("Schematic not found: " + schematicFile.getPath());
             return null;
         }
-        ClipboardFormat format = ClipboardFormats.findByFile(schematicFile);
-        if (format == null) {
-            plugin.getLogger().warning("Unknown schematic format: " + filename);
-            return null;
-        }
-        try (FileInputStream fis = new FileInputStream(schematicFile);
-                ClipboardReader reader = format.getReader(fis)) {
-            return reader.read();
+        try {
+            return com.fastasyncworldedit.core.FaweAPI.load(schematicFile);
         } catch (IOException e) {
             plugin.getLogger().severe("Error reading schematic " + filename + ": " + e.getMessage());
             return null;
@@ -237,7 +251,7 @@ public class GameManager {
     public ItemStack createHostPanelItem() {
         ItemStack item = new ItemStack(Material.NETHER_STAR);
         ItemMeta meta = item.getItemMeta();
-        meta.displayName(Component.text("§6§lPanneau de l'Hôte"));
+        meta.displayName(Component.translatable("rush.host_panel_name"));
         item.setItemMeta(meta);
         return item;
     }
@@ -292,12 +306,12 @@ public class GameManager {
         }
 
         if (!room.isWaiting()) {
-            player.sendMessage(Component.text("§cCette partie n'est plus disponible."));
+            player.sendMessage(Component.translatable("rush.room_not_available"));
             return;
         }
 
         if (room.isFull()) {
-            player.sendMessage(Component.text("§cCette partie est pleine!"));
+            player.sendMessage(Component.translatable("rush.room_full"));
             return;
         }
 
@@ -307,7 +321,7 @@ public class GameManager {
         player.getInventory().clear();
         player.getInventory().setItem(0, TeamSelectionGUI.createBannerItem());
 
-        player.sendMessage(Component.text("§aVous avez rejoint la partie de §f" + room.getHostName()));
+        player.sendMessage(Component.translatable("rush.room_joined", Component.text(room.getHostName())));
     }
 
     public void addPlayerToGameRoom(Player player, GameRoom room) {
@@ -433,7 +447,7 @@ public class GameManager {
 
         final int totalItems = rooms.size() + replays.size();
         final int rows = Math.min(6, Math.max(3, (totalItems / 9) + 2));
-        final GUI gui = new GUI("§8Liste des parties", rows);
+        final GUI gui = new GUI(Component.translatable("rush.room_list_title"), rows);
 
         int slot = 0;
         for (GameRoom room : rooms) {
@@ -469,34 +483,35 @@ public class GameManager {
 
         if (room.isRunning()) {
             material = Material.GREEN_WOOL;
-            status = "§aEn cours";
-            actionLine = "§aClic pour regarder en spectateur";
+            status = "rush.room_status_running";
+            actionLine = "rush.room_action_spectate";
         } else if (room.isFull()) {
             material = Material.RED_WOOL;
-            status = "§eEn attente";
-            actionLine = "§cPartie pleine";
+            status = "rush.room_status_waiting";
+            actionLine = "rush.room_action_full";
         } else {
             material = Material.YELLOW_WOOL;
-            status = "§eEn attente";
-            actionLine = "§aClic pour rejoindre";
+            status = "rush.room_status_waiting";
+            actionLine = "rush.room_action_join";
         }
 
         final ItemStack item = new ItemStack(material);
         final ItemMeta meta = item.getItemMeta();
-        meta.displayName(Component.text(room.getDisplayName()));
+        meta.displayName(room.getDisplayName());
         item.setItemMeta(meta);
 
         final List<Component> lore = new ArrayList<>(List.of(
-                Component.text("§7Hôte: §f" + room.getHostName()),
-                Component.text("§7Status: " + status),
-                Component.text("§7Carte: §f" + room.getConfig().mapType().displayName()),
-                Component.text("§7Joueurs: §f" + room.getPlayerCount() + "/" + room.getMaxPlayers()),
+                Component.translatable("rush.room_lore_host", Component.text(room.getHostName())),
+                Component.translatable("rush.room_lore_status", Component.translatable(status)),
+                Component.translatable("rush.room_lore_map", Component.text(room.getConfig().mapType().displayName())),
+                Component.translatable("rush.room_lore_players",
+                        Component.text(room.getPlayerCount()), Component.text(room.getMaxPlayers())),
                 Component.empty(),
-                Component.text(actionLine)));
+                Component.translatable(actionLine)));
 
         if (isAdmin) {
             lore.add(Component.empty());
-            lore.add(Component.text("§c§lClic droit §7pour supprimer cette partie"));
+            lore.add(Component.translatable("rush.room_admin_delete_hint"));
         }
 
         item.setData(DataComponentTypes.LORE, ItemLore.lore(lore));
@@ -507,7 +522,7 @@ public class GameManager {
     private ItemStack createReplayItem(ReplayHeader header) {
         final ItemStack item = new ItemStack(Material.ORANGE_WOOL);
         final ItemMeta meta = item.getItemMeta();
-        meta.displayName(Component.text("§6§lArchive §7— §f" + header.hostName()));
+        meta.displayName(Component.translatable("rush.replay_item_name", Component.text(header.hostName())));
         item.setItemMeta(meta);
 
         LocalDateTime dt = LocalDateTime.ofInstant(
@@ -522,45 +537,45 @@ public class GameManager {
         String winner = header.winnerTeamColorName() != null ? header.winnerTeamColorName() : "Aucun";
 
         item.setData(DataComponentTypes.LORE, ItemLore.lore(List.of(
-                Component.text("§7Hôte: §f" + header.hostName()),
-                Component.text("§7Date: §f" + date),
-                Component.text("§7Durée: §f" + duration),
-                Component.text("§7Vainqueur: §f" + winner),
-                Component.text("§7Joueurs: §f" + header.participantNames().size()),
+                Component.translatable("rush.replay_item_host", Component.text(header.hostName())),
+                Component.translatable("rush.replay_item_date", Component.text(date)),
+                Component.translatable("rush.replay_item_duration", Component.text(duration)),
+                Component.translatable("rush.replay_item_winner", Component.text(winner)),
+                Component.translatable("rush.replay_item_players", Component.text(header.participantNames().size())),
                 Component.empty(),
-                Component.text("§eClic pour regarder"))));
+                Component.translatable("rush.replay_item_click"))));
 
         return item;
     }
 
     public void openDeleteConfirmation(Player admin, GameRoom room) {
-        final GUI gui = new GUI("§8Supprimer la partie?", 3);
+        final GUI gui = new GUI(Component.translatable("rush.delete_confirm_title"), 3);
 
         gui.addItem(13, createGameRoomItem(room, false));
 
         final ItemStack confirmItem = new ItemStack(Material.BARRIER);
         final ItemMeta confirmMeta = confirmItem.getItemMeta();
-        confirmMeta.displayName(Component.text("§c§l⚠ CONFIRMER LA SUPPRESSION"));
+        confirmMeta.displayName(Component.translatable("rush.delete_confirm_name"));
         confirmItem.setItemMeta(confirmMeta);
         confirmItem.setData(DataComponentTypes.LORE, ItemLore.lore(List.of(
-                Component.text("§7Tous les joueurs seront expulsés."),
-                Component.text("§7La partie sera définitivement supprimée."))));
+                Component.translatable("rush.delete_confirm_lore1"),
+                Component.translatable("rush.delete_confirm_lore2"))));
         gui.addItem(11, confirmItem, p -> {
             p.closeInventory();
             if (getGameRoom(room.getId()) == null) {
-                p.sendMessage(Component.text("§cCette partie n'existe plus."));
+                p.sendMessage(Component.translatable("rush.room_not_found"));
                 return;
             }
             for (Player roomPlayer : new ArrayList<>(room.getWorld().getPlayers())) {
-                roomPlayer.sendMessage(Component.text("§cCette partie a été supprimée par un administrateur."));
+                roomPlayer.sendMessage(Component.translatable("rush.room_admin_deleted"));
             }
             removeGameRoom(room.getId());
-            p.sendMessage(Component.text("§aLa partie §f" + room.getHostName() + "§a a été supprimée."));
+            p.sendMessage(Component.translatable("rush.room_deleted", Component.text(room.getHostName())));
         });
 
         final ItemStack cancelItem = new ItemStack(Material.LIME_CONCRETE);
         final ItemMeta cancelMeta = cancelItem.getItemMeta();
-        cancelMeta.displayName(Component.text("§a§lANNULER"));
+        cancelMeta.displayName(Component.translatable("rush.delete_cancel"));
         cancelItem.setItemMeta(cancelMeta);
         gui.addItem(15, cancelItem, p -> {
             p.closeInventory();
@@ -576,7 +591,7 @@ public class GameManager {
         player.getInventory().setItem(7, createGameHostItem());
         final ItemStack settings = new ItemStack(Material.REPEATER);
         final ItemMeta settingsMeta = settings.getItemMeta();
-        settingsMeta.displayName(Component.text("§f§lParamètres"));
+        settingsMeta.displayName(Component.translatable("rush.settings_name"));
         settings.setItemMeta(settingsMeta);
         player.getInventory().setItem(8, settings);
     }
@@ -631,7 +646,7 @@ public class GameManager {
                 }
 
                 game.addProtection(player);
-                player.sendMessage(Component.text("§aVous avez été reconnecté à votre équipe."));
+                player.sendMessage(Component.translatable("rush.reconnect_success"));
             } else {
                 // Bed was destroyed while offline — eliminated as spectator
                 game.addSpectator(player);
@@ -648,11 +663,11 @@ public class GameManager {
     public ItemStack createCompassItem() {
         final ItemStack compass = new ItemStack(Material.COMPASS);
         final ItemMeta meta = compass.getItemMeta();
-        meta.displayName(Component.text("Navigateur"));
+        meta.displayName(Component.translatable("rush.compass_name"));
         compass.setItemMeta(meta);
         compass.setData(DataComponentTypes.LORE, ItemLore.lore(List.of(
-                Component.text("§7Clic droit pour voir les parties"),
-                Component.text("§7disponibles, en cours et archivées."))));
+                Component.translatable("rush.compass_lore1"),
+                Component.translatable("rush.compass_lore2"))));
         return compass;
     }
 
@@ -663,11 +678,11 @@ public class GameManager {
     public ItemStack createGameHostItem() {
         final ItemStack item = new ItemStack(Material.BEACON);
         final ItemMeta meta = item.getItemMeta();
-        meta.displayName(Component.text("§6§lCréer une partie"));
+        meta.displayName(Component.translatable("rush.create_game_name"));
         item.setItemMeta(meta);
         item.setData(DataComponentTypes.LORE, ItemLore.lore(List.of(
-                Component.text("§7Clic droit pour configurer"),
-                Component.text("§7et créer votre partie."))));
+                Component.translatable("rush.create_game_lore1"),
+                Component.translatable("rush.create_game_lore2"))));
         return item;
     }
 
@@ -736,22 +751,16 @@ public class GameManager {
         }
 
         String schematicName = plugin.getConfig().getString("schematicFilename");
-        File schematicFile = new File(plugin.getDataFolder().getParentFile(), "WorldEdit/schematics/" + schematicName);
+        File schematicFile = new File(plugin.getDataFolder().getParentFile(), "FastAsyncWorldEdit/schematics/" + schematicName);
 
         if (!schematicFile.exists()) {
             plugin.getLogger().warning("Schematic not found: " + schematicFile.getPath());
             return;
         }
 
-        ClipboardFormat format = ClipboardFormats.findByFile(schematicFile);
-        if (format == null) {
-            plugin.getLogger().warning("Unknown schematic format for: " + schematicName);
-            return;
-        }
-
         int islandIndex = 0;
         for (io.github.rush.objects.Island island : room.getIslands()) {
-            pasteIslandSchematic(room.getWorld(), island, schematicFile, format, room.getIslandY());
+            pasteIslandSchematic(room.getWorld(), island, schematicFile, room.getIslandY());
             spawnMerchantsForIsland(room, island, islandIndex);
             islandIndex++;
         }
@@ -759,12 +768,9 @@ public class GameManager {
         room.setIslandsLoaded(true);
     }
 
-    private void pasteIslandSchematic(World world, io.github.rush.objects.Island island, File schematicFile,
-            ClipboardFormat format, int islandY) {
-        try (FileInputStream fis = new FileInputStream(schematicFile);
-                ClipboardReader reader = format.getReader(fis)) {
-
-            Clipboard clipboard = reader.read();
+    private void pasteIslandSchematic(World world, io.github.rush.objects.Island island, File schematicFile, int islandY) {
+        try {
+            Clipboard clipboard = com.fastasyncworldedit.core.FaweAPI.load(schematicFile);
             BlockVector3 dimensions = clipboard.getDimensions();
 
             // Load chunks
@@ -800,7 +806,7 @@ public class GameManager {
             plugin.getLogger()
                     .info("Pasted island schematic at (" + island.getX() + ", " + islandY + ", " + island.getZ() + ")");
 
-        } catch (IOException | WorldEditException e) {
+        } catch (IOException e) {
             plugin.getLogger().severe("Failed to paste island schematic: " + e.getMessage());
         }
     }
@@ -826,13 +832,8 @@ public class GameManager {
         float facingYaw = yawValues[islandIndex];
 
         // Spawn speed villagers (2) — one directly behind each ender chest
-        // (perpendicular ±1)
-        for (int i = 0; i < 2; i++) {
-            int sign = (i == 0) ? 1 : -1;
-            int speedX = island.getX() + (dir[0] * speedOffset) + (perpX * sign);
-            int speedZ = island.getZ() + (dir[1] * speedOffset) + (perpZ * sign);
-
-            Location speedLoc = new Location(room.getWorld(), speedX + 0.5, room.getIslandY() + 0.5, speedZ + 0.5,
+        for (int[] pos : speedMerchantPositions(island, dir, perpX, perpZ, speedOffset)) {
+            Location speedLoc = new Location(room.getWorld(), pos[0] + 0.5, room.getIslandY() + 0.5, pos[1] + 0.5,
                     facingYaw, 0);
             spawnMerchant(room.getWorld(), speedLoc, io.github.rush.entities.MerchantType.SPEED);
         }
@@ -840,15 +841,45 @@ public class GameManager {
         // Spawn regular villagers (4)
         io.github.rush.entities.MerchantType[] regularTypes = io.github.rush.entities.MerchantType.firstN(4);
         for (int i = 0; i < 4; i++) {
-            int sign = (i < 2) ? 1 : -1;
-            int spreadIdx = (i % 2 == 0) ? 0 : 1;
-            int regX = island.getX() + (dir[0] * regularOffset) + (perpX * spread.get(spreadIdx) * sign);
-            int regZ = island.getZ() + (dir[1] * regularOffset) + (perpZ * spread.get(spreadIdx) * sign);
-
-            Location villagerLoc = new Location(room.getWorld(), regX + 0.5, room.getIslandY() + 1, regZ + 0.5,
+            int[] pos = regularMerchantPos(i, island.getX(), island.getZ(), dir, perpX, perpZ, regularOffset, spread);
+            Location villagerLoc = new Location(room.getWorld(), pos[0] + 0.5, room.getIslandY() + 1, pos[1] + 0.5,
                     facingYaw, 0);
             spawnMerchant(room.getWorld(), villagerLoc, regularTypes[i]);
         }
+    }
+
+    public static List<Location> placeIslandEnderChests(World world, int spawnX, int spawnZ, int y, int[] dir, int perpX, int enderChestOffset, BlockFace facing, int count) {
+        List<Location> locations = new ArrayList<>(count);
+        int perpZ = -dir[0];
+        for (int i = 0; i < count; i++) {
+            int sign = (i % 2 == 0) ? 1 : -1;
+            int cx = spawnX + dir[0] * enderChestOffset + perpX * sign;
+            int cz = spawnZ + dir[1] * enderChestOffset + perpZ * sign;
+            EnderChest chestData = (EnderChest) Material.ENDER_CHEST.createBlockData();
+            chestData.setFacing(facing);
+            world.getBlockAt(cx, y, cz).setBlockData(chestData);
+            locations.add(new Location(world, cx, y, cz));
+        }
+        return locations;
+    }
+
+    public static int[][] speedMerchantPositions(io.github.rush.objects.Island island, int[] dir, int perpX, int perpZ, int speedOffset) {
+        int[][] positions = new int[2][2];
+        for (int i = 0; i < 2; i++) {
+            int sign = (i == 0) ? 1 : -1;
+            positions[i][0] = island.getX() + dir[0] * speedOffset + perpX * sign;
+            positions[i][1] = island.getZ() + dir[1] * speedOffset + perpZ * sign;
+        }
+        return positions;
+    }
+
+    public static int[] regularMerchantPos(int i, int islandX, int islandZ, int[] dir, int perpX, int perpZ, int offset, List<Integer> spread) {
+        int sign = (i < 2) ? 1 : -1;
+        int idx = (i % 2 == 0) ? 0 : 1;
+        return new int[] {
+                islandX + dir[0] * offset + perpX * spread.get(idx) * sign,
+                islandZ + dir[1] * offset + perpZ * spread.get(idx) * sign
+        };
     }
 
     private void spawnMerchant(World world, Location location, io.github.rush.entities.MerchantType type) {
@@ -915,11 +946,21 @@ public class GameManager {
         final int islandY = world.getMaxHeight() - 12;
         final int islandOffset = plugin.getConfig().getInt("islandOffset", 40);
 
-        final List<io.github.rush.objects.Island> islands = List.of(
-                new io.github.rush.objects.Island(-islandOffset, 0, -90),
-                new io.github.rush.objects.Island(islandOffset, 0, 90),
-                new io.github.rush.objects.Island(0, -islandOffset, 180),
-                new io.github.rush.objects.Island(0, islandOffset, 0));
+        GameRoom.IslandType islandType = GameRoom.IslandType.FOUR_ISLANDS;
+        if (file.header().islandTypeName() != null) {
+            try {
+                islandType = GameRoom.IslandType.valueOf(file.header().islandTypeName());
+            } catch (IllegalArgumentException ignored) {}
+        }
+        int maxTeams = file.header().maxTeams();
+        if (maxTeams < 2) maxTeams = 2;
+
+        // Paste ALL islands from the layout regardless of how many teams played
+        List<IslandLayout.IslandPosition> posList = IslandLayout.positionsFor(islandType, islandOffset);
+        final List<io.github.rush.objects.Island> islands = new ArrayList<>();
+        for (IslandLayout.IslandPosition p : posList) {
+            islands.add(new io.github.rush.objects.Island(p.x(), p.z(), p.rotation()));
+        }
 
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             Clipboard islandClip = readSchematic(resolvedMapType.schematicName());
@@ -936,9 +977,91 @@ public class GameManager {
                             + " loaded without islands — schematic '"
                             + resolvedMapType.schematicName() + "' not found.");
                 }
+                populateReplayWorld(finalWorld, file, islands);
                 onReady.accept(new ReplayPlayback(file, finalWorld));
             });
         });
+    }
+
+    private void populateReplayWorld(World world, ReplayFile file,
+                                     List<io.github.rush.objects.Island> islands) {
+        int islandY = world.getMaxHeight() - 12;
+
+        Map<String, String> teamColors = file.header().teamColorsByPlayerUuid();
+        if (teamColors == null || teamColors.isEmpty()) return;
+
+        Set<String> uniqueColors = new HashSet<>(teamColors.values());
+        List<String> orderedTeams = uniqueColors.stream()
+                .sorted(Comparator.comparingInt(c -> TeamColor.valueOf(c).ordinal()))
+                .toList();
+
+        Map<Integer, String> islandToTeam = new HashMap<>();
+        int teamIdx = 0;
+        for (int slot : Game.islandSlotOrder(islands.size())) {
+            if (slot < islands.size() && teamIdx < orderedTeams.size()) {
+                islandToTeam.put(slot, orderedTeams.get(teamIdx));
+                teamIdx++;
+            }
+        }
+
+        // Outward direction vectors: N→-z, E→+x, S→+z, W→-x
+        int[][] directions = { { 0, -1 }, { 1, 0 }, { 0, 1 }, { -1, 0 } };
+        float[] yawValues = { 0f, 90f, 180f, -90f };
+        int speedOffset = plugin.getConfig().getInt("villagerSpeedOffset", 13);
+        int regularOffset = plugin.getConfig().getInt("villagerRegularOffset", speedOffset - 1);
+
+        for (Map.Entry<Integer, String> entry : islandToTeam.entrySet()) {
+            int slot = entry.getKey();
+            TeamColor color = TeamColor.valueOf(entry.getValue());
+            io.github.rush.objects.Island island = islands.get(slot);
+
+            int[] dir = directions[slot];
+            int perpX = dir[1];
+            int perpZ = -dir[0];
+            float facingYaw = yawValues[slot];
+            int spawnX = island.getX();
+            int spawnZ = island.getZ();
+            int spawnY = islandY + 2;
+
+            // Bed placement (same math as Team.placeBed)
+            int bedX = spawnX + dir[0] * 6;
+            int bedZ = spawnZ + dir[1] * 6;
+            int bedY = spawnY - 2;
+
+            BlockFace bedFacing = Team.facingTowardsCenter(slot);
+
+            Material bedMat = Team.bedMaterialFor(color);
+
+            Bed footData = (Bed) bedMat.createBlockData();
+            footData.setPart(Bed.Part.FOOT);
+            footData.setFacing(bedFacing);
+            world.getBlockAt(bedX, bedY, bedZ).setBlockData(footData);
+
+            org.bukkit.block.Block headBlock = world.getBlockAt(bedX, bedY, bedZ).getRelative(bedFacing);
+            Bed headData = (Bed) bedMat.createBlockData();
+            headData.setPart(Bed.Part.HEAD);
+            headData.setFacing(bedFacing);
+            headBlock.setBlockData(headData);
+
+            // Ender chests (2 per team island)
+            int enderChestOffset = speedOffset - 1;
+            placeIslandEnderChests(world, spawnX, spawnZ, bedY, dir, perpX, enderChestOffset, Team.facingTowardsCenter(slot), 2);
+
+            // Speed merchants (2 per island)
+            for (int[] pos : speedMerchantPositions(island, dir, perpX, perpZ, speedOffset)) {
+                Location loc = new Location(world, pos[0] + 0.5, islandY + 0.5, pos[1] + 0.5, facingYaw, 0);
+                spawnMerchant(world, loc, MerchantType.SPEED);
+            }
+
+            // Regular merchants (4 per island)
+            MerchantType[] regularTypes = MerchantType.firstN(4);
+            List<Integer> spread = List.of(5, 7);
+            for (int i = 0; i < 4; i++) {
+                int[] pos = regularMerchantPos(i, island.getX(), island.getZ(), dir, perpX, perpZ, regularOffset, spread);
+                Location loc = new Location(world, pos[0] + 0.5, islandY + 1, pos[1] + 0.5, facingYaw, 0);
+                spawnMerchant(world, loc, regularTypes[i]);
+            }
+        }
     }
 
     /**
@@ -970,23 +1093,29 @@ public class GameManager {
         plugin.getLogger().info("Game ended in room: " + room.getId());
 
         final Location mainLobby = plugin.getMainLobby();
+        long musicDurationMs = getGameEndMusicDurationMs();
+        long teleportDelay = ((musicDurationMs / 1000) + 3L) * 20L;
 
-        for (Entity entity : room.getGame().getPlayers()) {
-            if (entity instanceof Player player) {
-                player.teleport(mainLobby);
-                player.getInventory().clear();
-                player.setGameMode(GameMode.ADVENTURE);
+        // Teleport players to lobby after game-end music finishes + 3 seconds
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            for (Entity entity : room.getGame().getPlayers()) {
+                if (entity instanceof Player player) {
+                    player.teleport(mainLobby);
+                    player.setGameMode(GameMode.ADVENTURE);
+                    restoreHubInventory(player);
+                }
             }
-        }
 
-        for (Player spectator : room.getGame().getSpectators()) {
-            spectator.setGameMode(GameMode.ADVENTURE);
-            spectator.teleport(mainLobby);
-            spectator.getInventory().clear();
-            spectator.sendMessage(Component.text("§7La partie est terminée. Vous avez été renvoyé au lobby."));
-        }
+            for (Player spectator : room.getGame().getSpectators()) {
+                spectator.setGameMode(GameMode.ADVENTURE);
+                spectator.teleport(mainLobby);
+                restoreHubInventory(spectator);
+                spectator.sendMessage(Component.translatable("rush.game_ended"));
+            }
+        }, teleportDelay);
 
-        Bukkit.getScheduler().runTaskLater(plugin, () -> removeGameRoom(room.getId()), 100L);
+        // Schedule world cleanup 5 seconds after teleport
+        Bukkit.getScheduler().runTaskLater(plugin, () -> removeGameRoom(room.getId()), teleportDelay + 100L);
     }
 
 }

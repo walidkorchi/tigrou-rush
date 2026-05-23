@@ -2,6 +2,7 @@ package io.github.rush.replay;
 
 import io.github.rush.Main;
 import io.github.rush.game.TeamColor;
+import io.github.rush.objects.TNT;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.title.Title;
 import org.bukkit.Bukkit;
@@ -9,14 +10,25 @@ import org.bukkit.Color;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.Sound;
+import org.bukkit.SoundCategory;
 import org.bukkit.World;
+import org.bukkit.block.Block;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
+import org.bukkit.entity.Item;
 import org.bukkit.entity.Mannequin;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.TNTPrimed;
+import org.bukkit.inventory.EntityEquipment;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.LeatherArmorMeta;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitTask;
+import org.bukkit.util.Vector;
+
+import com.destroystokyo.paper.profile.PlayerProfile;
+import io.papermc.paper.datacomponent.item.ResolvableProfile;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -41,6 +53,8 @@ public final class ReplayPlayback {
     private final Map<UUID, Integer> frameIndices = new HashMap<>();
     private final Set<UUID> deadPlayers = new HashSet<>();
     private final Map<UUID, UUID> followerTargets = new HashMap<>();
+    private final Set<Entity> replayEntities = new HashSet<>();
+    private final List<BukkitTask> pendingTasks = new ArrayList<>();
 
     private long playheadMs = 0;
     private boolean isPaused = true;
@@ -53,10 +67,6 @@ public final class ReplayPlayback {
         spawnMannequins();
         tickTask = Bukkit.getScheduler().runTaskTimer(Main.getInstance(), this::tick, 1L, 1L);
     }
-
-    // -------------------------------------------------------------------------
-    // Mannequin setup
-    // -------------------------------------------------------------------------
 
     private void spawnMannequins() {
         Map<String, String> teamColors = file.header().teamColorsByPlayerUuid();
@@ -83,9 +93,18 @@ public final class ReplayPlayback {
             mannequin.setGravity(false);
             mannequin.setSilent(true);
             mannequin.setInvulnerable(true);
+            mannequin.setCollidable(false);
 
             Color color = resolveColor(teamColors != null ? teamColors.get(uuid.toString()) : null);
             applyArmor(mannequin, color);
+
+            PlayerProfile profile = Bukkit.createProfile(uuid);
+            profile.update().thenAccept(updated -> {
+                if (updated != null && updated.getTextures() != null
+                        && updated.getTextures().getSkin() != null) {
+                    mannequin.setProfile(ResolvableProfile.resolvableProfile(updated));
+                }
+            });
 
             mannequins.add(mannequin);
             mannequinByPlayer.put(uuid, mannequin);
@@ -103,7 +122,7 @@ public final class ReplayPlayback {
     }
 
     private void applyArmor(Mannequin mannequin, Color color) {
-        var equip = mannequin.getEquipment();
+        EntityEquipment equip = mannequin.getEquipment();
         equip.setHelmet(coloredLeather(Material.LEATHER_HELMET, color));
         equip.setLeggings(coloredLeather(Material.LEATHER_LEGGINGS, color));
         equip.setBoots(coloredLeather(Material.LEATHER_BOOTS, color));
@@ -117,9 +136,17 @@ public final class ReplayPlayback {
         return item;
     }
 
-    // -------------------------------------------------------------------------
-    // Tick loop
-    // -------------------------------------------------------------------------
+    private void applyEquipment(Mannequin mannequin, String mainHand, String offHand) {
+        EntityEquipment equip = mannequin.getEquipment();
+        if (mainHand != null) {
+            Material mat = Material.getMaterial(mainHand);
+            equip.setItemInMainHand(mat != null && mat != Material.AIR ? new ItemStack(mat) : null);
+        }
+        if (offHand != null) {
+            Material mat = Material.getMaterial(offHand);
+            equip.setItemInOffHand(mat != null && mat != Material.AIR ? new ItemStack(mat) : null);
+        }
+    }
 
     private void tick() {
         if (isPaused)
@@ -140,18 +167,6 @@ public final class ReplayPlayback {
             frameIndices.put(uuid, idx);
         }
 
-        for (Player viewer : viewers) {
-            UUID targetUuid = followerTargets.get(viewer.getUniqueId());
-            if (targetUuid == null)
-                continue;
-            Mannequin mannequin = mannequinByPlayer.get(targetUuid);
-            if (mannequin == null)
-                continue;
-            Location mLoc = mannequin.getLocation();
-            if (mLoc.getY() > world.getMinHeight() + 1) {
-                viewer.teleport(mLoc);
-            }
-        }
     }
 
     private void dispatchAction(UUID uuid, ReplayAction action) {
@@ -160,13 +175,18 @@ public final class ReplayPlayback {
                 return;
             Mannequin mannequin = mannequinByPlayer.get(uuid);
             if (mannequin != null) {
+                double yOffset = move.sneaking() ? -0.3 : 0.0;
                 mannequin.teleport(new Location(world,
-                        move.x(), move.y(), move.z(),
+                        move.x(), move.y() + yOffset, move.z(),
                         move.yaw(), move.pitch()));
+                applyEquipment(mannequin, move.mainHand(), move.offHand());
+                mannequin.setSneaking(move.sneaking());
             }
         } else if (action instanceof BlockChangeAction block) {
-            world.getBlockAt(block.x(), block.y(), block.z())
-                    .setType(Material.valueOf(block.newMaterial()), false);
+            Block b = world.getBlockAt(block.x(), block.y(), block.z());
+            b.setType(Material.valueOf(block.newMaterial()), false);
+            world.playSound(b.getLocation(), b.getBlockData().getSoundGroup().getPlaceSound(),
+                    SoundCategory.BLOCKS, 1.0f, 1.0f);
         } else if (action instanceof DeathAction) {
             deadPlayers.add(uuid);
             Mannequin mannequin = mannequinByPlayer.get(uuid);
@@ -178,15 +198,44 @@ public final class ReplayPlayback {
             deadPlayers.remove(uuid);
             Mannequin mannequin = mannequinByPlayer.get(uuid);
             if (mannequin != null) {
+                mannequin.setSneaking(false);
                 mannequin.teleport(new Location(world, respawn.x(), respawn.y(), respawn.z()));
             }
         } else if (action instanceof PhaseAction phase) {
             if ("OVERTIME".equals(phase.phaseName())) {
                 for (Player viewer : viewers) {
                     viewer.showTitle(Title.title(
-                            Component.text("§c§lOVERTIME!"),
-                            Component.text("§7Les restrictions de placement sont levées!")));
+                            Component.translatable("rush.overtime_title"),
+                            Component.translatable("rush.overtime_subtitle")));
                 }
+            }
+        } else if (action instanceof ChatAction chat) {
+            String senderName = chat.uuid() != null
+                    ? (Bukkit.getOfflinePlayer(chat.uuid()).getName())
+                    : "Inconnu";
+            if (senderName == null)
+                senderName = "Inconnu";
+            for (Player viewer : viewers) {
+                viewer.sendMessage(Component.translatable("rush.replay_chat_message",
+                        Component.text(senderName), Component.text(chat.message())));
+            }
+        } else if (action instanceof ArmSwingAction swing) {
+            Mannequin mannequin = mannequinByPlayer.get(uuid);
+            if (mannequin != null) {
+                mannequin.swingHand(swing.hand());
+                world.playSound(mannequin.getLocation(), Sound.ENTITY_PLAYER_ATTACK_SWEEP,
+                        SoundCategory.PLAYERS, 1.0f, 0.9f + (float) Math.random() * 0.2f);
+            }
+        } else if (action instanceof DamageAction damage) {
+            Mannequin mannequin = mannequinByPlayer.get(damage.victimUuid());
+            if (mannequin != null && !deadPlayers.contains(damage.victimUuid())) {
+                mannequin.setInvulnerable(false);
+                mannequin.damage(0.001);
+                mannequin.setInvulnerable(true);
+                Sound sound = "FALL".equals(damage.cause())
+                        ? Sound.ENTITY_PLAYER_SMALL_FALL
+                        : Sound.ENTITY_PLAYER_HURT;
+                world.playSound(mannequin.getLocation(), sound, SoundCategory.PLAYERS, 1.0f, 1.0f);
             }
         } else if (action instanceof BedDestroyAction bed) {
             String destroyerName = "Inconnu";
@@ -200,16 +249,69 @@ public final class ReplayPlayback {
                         destroyerName = cached;
                 }
             }
-            String msg = "§c" + destroyerName + " §7a détruit le lit de l'équipe §c" + bed.teamColorName();
             for (Player viewer : viewers) {
-                viewer.sendMessage(Component.text(msg));
+                viewer.sendMessage(Component.translatable("rush.replay_bed_destroyed",
+                        Component.text(destroyerName), Component.text(bed.teamColorName())));
             }
+        } else if (action instanceof DropItemAction drop) {
+            Location dropLoc = new Location(world, drop.x(), drop.y(), drop.z(), drop.yaw(), 0);
+            Material mat = Material.getMaterial(drop.material());
+            if (mat != null && mat != Material.AIR) {
+                ItemStack stack = new ItemStack(mat, drop.amount());
+                Item item = world.dropItem(dropLoc, stack);
+                item.setVelocity(new Vector(drop.velX(), drop.velY(), drop.velZ()));
+                item.setPickupDelay(Integer.MAX_VALUE);
+                item.setUnlimitedLifetime(true);
+                replayEntities.add(item);
+            }
+        } else if (action instanceof TntIgniteAction tnt) {
+            Location tntLoc = new Location(world, tnt.x(), tnt.y(), tnt.z());
+            Block block = tntLoc.getBlock();
+            if (block.getType() == Material.TNT) {
+                block.setType(Material.AIR);
+            }
+            TNTPrimed primed = world.spawn(tntLoc, TNTPrimed.class);
+            primed.setFuseTicks(tnt.fuseTicks());
+            primed.setIsIncendiary(false);
+            primed.setVelocity(new Vector(0, 0.25, 0));
+            replayEntities.add(primed);
+
+            scheduleBedDestruction(tntLoc, tnt.fuseTicks());
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Playback controls
-    // -------------------------------------------------------------------------
+    private void scheduleBedDestruction(Location tntLoc, int fuseTicks) {
+        BukkitTask task = Bukkit.getScheduler().runTaskLater(Main.getInstance(), () -> {
+            if (!tntLoc.isChunkLoaded())
+                return;
+            int radius = Main.getInstance().getConfig().getInt("radius", 4);
+            int bx = tntLoc.getBlockX(), by = tntLoc.getBlockY(), bz = tntLoc.getBlockZ();
+            for (int dx = -radius; dx <= radius; dx++) {
+                for (int dy = -radius; dy <= radius; dy++) {
+                    for (int dz = -radius; dz <= radius; dz++) {
+                        Block b = world.getBlockAt(bx + dx, by + dy, bz + dz);
+                        if (b.getType().name().endsWith("_BED")) {
+                            TNT.removeBedBlocks(b);
+                            world.playSound(b.getLocation(), Sound.BLOCK_WOOL_BREAK,
+                                    SoundCategory.BLOCKS, 1.0f, 1.0f);
+                        }
+                    }
+                }
+            }
+        }, fuseTicks);
+        pendingTasks.add(task);
+    }
+
+    private void clearReplayEntities() {
+        for (BukkitTask task : pendingTasks) {
+            task.cancel();
+        }
+        pendingTasks.clear();
+        for (Entity entity : replayEntities) {
+            entity.remove();
+        }
+        replayEntities.clear();
+    }
 
     public void togglePause() {
         isPaused = !isPaused;
@@ -304,6 +406,7 @@ public final class ReplayPlayback {
                 frameIndices.put(uuid, idx);
             }
         } else {
+            clearReplayEntities();
             List<ReplayAction> allBlockActions = new ArrayList<>();
             for (List<ReplayAction> actions : file.actions().values()) {
                 for (ReplayAction a : actions) {
@@ -341,6 +444,8 @@ public final class ReplayPlayback {
             boolean alive = true;
             double lastX = Double.NaN, lastY = Double.NaN, lastZ = Double.NaN;
             float lastYaw = 0, lastPitch = 0;
+            String lastMainHand = null, lastOffHand = null;
+            boolean lastSneaking = false;
 
             for (int i = 0; i < idx; i++) {
                 ReplayAction a = actions.get(i);
@@ -350,6 +455,11 @@ public final class ReplayPlayback {
                     lastZ = m.z();
                     lastYaw = m.yaw();
                     lastPitch = m.pitch();
+                    if (m.mainHand() != null)
+                        lastMainHand = m.mainHand();
+                    if (m.offHand() != null)
+                        lastOffHand = m.offHand();
+                    lastSneaking = m.sneaking();
                     alive = true;
                 } else if (a instanceof DeathAction) {
                     alive = false;
@@ -359,13 +469,17 @@ public final class ReplayPlayback {
                     lastZ = r.z();
                     lastYaw = 0;
                     lastPitch = 0;
+                    lastSneaking = false;
                     alive = true;
                 }
             }
 
             if (!Double.isNaN(lastX)) {
                 if (alive) {
-                    mannequin.teleport(new Location(world, lastX, lastY, lastZ, lastYaw, lastPitch));
+                    double yOff = lastSneaking ? -0.3 : 0.0;
+                    mannequin.teleport(new Location(world, lastX, lastY + yOff, lastZ, lastYaw, lastPitch));
+                    applyEquipment(mannequin, lastMainHand, lastOffHand);
+                    mannequin.setSneaking(lastSneaking);
                 } else {
                     deadPlayers.add(uuid);
                     mannequin.teleport(new Location(world, lastX, world.getMinHeight(), lastZ));
@@ -374,18 +488,23 @@ public final class ReplayPlayback {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Viewer management
-    // -------------------------------------------------------------------------
-
     public void addViewer(Player player) {
         viewers.add(player);
+        player.setGameMode(GameMode.ADVENTURE);
+        player.setAllowFlight(true);
+        player.setFlying(true);
+        player.setInvulnerable(true);
         int islandY = world.getMaxHeight() - DISTANCE_HEIGHT_LIMIT;
-        player.setGameMode(GameMode.SPECTATOR);
         player.teleport(new Location(world, 0.5, islandY + 10, 0.5, 0f, -30f));
         ReplayViewerInventory.give(player, isPaused, speedMultiplier);
-        player.sendMessage(Component.text("§7Replay de §f" + file.header().hostName()
-                + "§7. Clic droit sur §e▶ Reprendre §7pour lancer la lecture."));
+        player.sendMessage(Component.translatable("rush.replay_watching_full",
+                Component.text(file.header().hostName())));
+        Bukkit.getScheduler().runTask(Main.getInstance(), () -> {
+            if (player.isOnline()) {
+                player.setAllowFlight(true);
+                player.setFlying(true);
+            }
+        });
     }
 
     public boolean removeViewer(Player player) {
@@ -410,10 +529,6 @@ public final class ReplayPlayback {
         return viewers.isEmpty();
     }
 
-    // -------------------------------------------------------------------------
-    // Accessors
-    // -------------------------------------------------------------------------
-
     public String getSessionId() {
         return file.header().sessionId();
     }
@@ -422,11 +537,8 @@ public final class ReplayPlayback {
         return world;
     }
 
-    // -------------------------------------------------------------------------
-    // Cleanup
-    // -------------------------------------------------------------------------
-
     public void cleanup() {
+        clearReplayEntities();
         if (tickTask != null) {
             tickTask.cancel();
             tickTask = null;

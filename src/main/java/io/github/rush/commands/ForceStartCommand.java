@@ -17,6 +17,7 @@ import org.jspecify.annotations.NullMarked;
 
 import net.kyori.adventure.text.format.NamedTextColor;
 
+import net.kyori.adventure.text.Component;
 import static net.kyori.adventure.text.Component.text;
 
 @NullMarked
@@ -50,7 +51,7 @@ public class ForceStartCommand {
                 room.getGame().start();
                 for (Player online : plugin.getServer().getOnlinePlayers()) {
                     if (online.getWorld().equals(room.getWorld())) {
-                        online.sendMessage(text("§c⚠ Un administrateur a forcé le démarrage de la partie!"));
+                        online.sendMessage(Component.translatable("rush.force_start_broadcast"));
                     }
                 }
                 sender.sendMessage(text("Game force started.", NamedTextColor.GREEN));
@@ -70,7 +71,7 @@ public class ForceStartCommand {
 
         for (Player online : plugin.getServer().getOnlinePlayers()) {
             if (online.getWorld().getName().equals(plugin.getGameWorld())) {
-                online.sendMessage(text("§c⚠ Un administrateur a forcé le démarrage de la partie!"));
+                online.sendMessage(Component.translatable("rush.force_start_broadcast"));
             }
         }
 

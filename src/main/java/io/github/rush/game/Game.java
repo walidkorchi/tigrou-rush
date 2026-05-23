@@ -10,7 +10,6 @@ import io.github.rush.statistics.PlayerStatistic;
 import lombok.Getter;
 import lombok.Setter;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.title.Title;
 
@@ -56,11 +55,14 @@ public class Game {
     private final List<BukkitTask> spawnerTasks = new ArrayList<>();
     private final List<ResourceSpawner> resourceSpawners = new ArrayList<>();
 
+    private BukkitTask overtimeMusicTask;
+
     @Getter
     private final Map<String, Team> teams = new HashMap<>();
     @Getter
     private final List<Entity> freePlayers = new ArrayList<>();
     private final Map<Player, PlayerStatistic> playerStats = new HashMap<>();
+    private final Map<UUID, TeamColor> playerTeamColors = new HashMap<>();
     private final Set<Player> spectators = new HashSet<>();
     private final Set<Player> protectedPlayers = new HashSet<>();
     @Getter
@@ -74,7 +76,15 @@ public class Game {
     private List<Integer> islandSlotOrder;
     // Adjacent pair first (S+E) so 2-team forbidden zone covers the SE corridor
     // between them.
-    private static final int[] PREFERRED_ISLAND_ORDER = { 2, 1, 0, 3 };
+    static final int[] PREFERRED_ISLAND_ORDER = { 2, 1, 0, 3 };
+
+    public static List<Integer> islandSlotOrder(int islandCount) {
+        List<Integer> order = new ArrayList<>();
+        for (int s : PREFERRED_ISLAND_ORDER) {
+            if (s < islandCount) order.add(s);
+        }
+        return order;
+    }
     private static final int[][] ISLAND_DIRECTIONS = { { 0, -1 }, { 1, 0 }, { 0, 1 }, { -1, 0 } };
     private static final int[] MERCHANT_SPREADS = { 5, 7 };
     private static final int[] SIGNS = { 1, -1 };
@@ -100,6 +110,10 @@ public class Game {
     @Setter
     @Getter
     private GameRoom gameRoom = null;
+
+    @Setter
+    @Getter
+    private double coefficient = 1.0;
 
     private ReplayRecorder recorder = null;
 
@@ -197,11 +211,13 @@ public class Game {
         }
 
         playersReady.put(player, false);
+        playerTeamColors.put(player.getUniqueId(), color);
 
         for (Entity existingPlayer : team.getPlayers()) {
             if (existingPlayer instanceof Player && !existingPlayer.equals(player)) {
                 existingPlayer
-                        .sendMessage(Component.text("§a➜ " + player.getName() + " a rejoint l'équipe " + color.name())
+                        .sendMessage(Component.translatable("rush.player_joined_team",
+                                        Component.text(player.getName()), Component.text(color.name()))
                                 .color(color.getTextColor()));
             }
         }
@@ -237,23 +253,32 @@ public class Game {
     }
 
     public void addSpectator(Player player) {
+        addSpectator(player, false);
+        player.sendMessage(Component.translatable("rush.spectatorModeEnteredAfterBedDestroyed"));
+    }
+
+    public void addObserver(Player player) {
+        addSpectator(player, true);
+        player.sendMessage(Component.translatable("rush.spectator_viewing"));
+    }
+
+    private void addSpectator(Player player, boolean isObserver) {
         spectators.add(player);
-        Team team = getPlayerTeam(player);
-        if (team != null) {
-            team.removePlayer(player);
+        if (!isObserver) {
+            Team team = getPlayerTeam(player);
+            if (team != null) {
+                team.removePlayer(player);
+            }
+            freePlayers.remove(player);
+            playersReady.remove(player);
         }
-        freePlayers.remove(player);
-        playersReady.remove(player);
-
         applySpectatorMode(player);
-        player.getInventory().setItem(0, ItemBuilder.of(Material.COMPASS).name("§cQuitter le spectator").build());
+        String compassName = isObserver ? "§cQuitter la partie" : "§cQuitter le spectator";
+        player.getInventory().setItem(0, ItemBuilder.of(Material.COMPASS).name(compassName).build());
         hideFromGameWorld(player);
-
         if (lobby != null) {
             player.teleport(lobby);
         }
-
-        player.sendMessage(Component.translatable("rush.spectatorModeEnteredAfterBedDestroyed"));
         updatePlayerList();
     }
 
@@ -270,32 +295,13 @@ public class Game {
         player.setGameMode(GameMode.ADVENTURE);
         player.setAllowFlight(false);
         player.setFlying(false);
-
         showToGameWorld(player);
-
         player.getInventory().clear();
-
         Location lobbyLoc = Main.getInstance().getMainLobby();
         if (lobbyLoc != null) {
             player.teleport(lobbyLoc);
         }
-
         player.sendMessage(Component.translatable("rush.spectatorModeQuit"));
-    }
-
-    public void addObserver(Player player) {
-        spectators.add(player);
-
-        applySpectatorMode(player);
-        player.getInventory().setItem(0, ItemBuilder.of(Material.COMPASS).name("§cQuitter la partie").build());
-        hideFromGameWorld(player);
-
-        if (lobby != null) {
-            player.teleport(lobby);
-        }
-
-        player.sendMessage(Component.text("§7Vous regardez cette partie en spectateur."));
-        updatePlayerList();
     }
 
     public boolean isProtected(Player player) {
@@ -349,7 +355,7 @@ public class Game {
             }
             int remaining = protectionTime - elapsed.getAndIncrement();
             if (remaining > 0) {
-                player.sendActionBar(Component.text("§aProtection: " + remaining + "s"));
+                player.sendActionBar(Component.translatable("rush.protection_countdown", Component.text(remaining)));
             }
         }, 0, 20L);
 
@@ -358,7 +364,7 @@ public class Game {
         Bukkit.getScheduler().runTaskLater(Main.getInstance(), () -> {
             removeProtection(player);
             player.sendActionBar(Component.text(""));
-            player.sendMessage(Component.text("§aProtection terminée! Vous pouvez bouger."));
+            player.sendMessage(Component.translatable("rush.protection_ended"));
         }, protectionTime * 20L);
     }
 
@@ -431,7 +437,7 @@ public class Game {
             } else if (lobbyCountdown != null) {
                 lobbyCountdown.cancel();
                 lobbyCountdown = null;
-                broadcastMessage("§cPas assez de joueurs prêts pour démarrer!");
+                broadcastMessage(Component.translatable("rush.not_enough_ready"));
             }
 
             updateActionBar();
@@ -512,7 +518,26 @@ public class Game {
             if (isGameRoomMode() && recorder != null) {
                 recorder.recordPhaseChange("OVERTIME");
             }
+            playOvertimeMusic();
         }
+    }
+
+    private void playOvertimeMusic() {
+        if (overtimeMusicTask != null) return;
+        String intro = "tland:music.global.overtime_intro_music";
+        String loop = "tland:music.global.overtime_loop_music";
+        for (Entity entity : getPlayers()) {
+            if (entity instanceof Player player) {
+                player.playSound(player.getLocation(), intro, org.bukkit.SoundCategory.MUSIC, 1.0f, 1.0f);
+            }
+        }
+        overtimeMusicTask = Bukkit.getScheduler().runTaskTimer(Main.getInstance(), () -> {
+            for (Entity entity : getPlayers()) {
+                if (entity instanceof Player player) {
+                    player.playSound(player.getLocation(), loop, org.bukkit.SoundCategory.MUSIC, 1.0f, 1.0f);
+                }
+            }
+        }, 160L, 800L);
     }
 
     public boolean isBlockInForbiddenZone(Location location) {
@@ -708,19 +733,11 @@ public class Game {
     }
 
     private void computeIslandAssignment() {
-        // Stable team ordering by color enum ordinal (RED < BLUE < GREEN < YELLOW)
         List<Team> orderedTeams = teams.values().stream()
                 .sorted(Comparator.comparingInt(t -> t.getColor().ordinal()))
                 .collect(Collectors.toList());
 
-        // Build slot order filtered to valid island indices for this island count.
-        // PREFERRED_ISLAND_ORDER spreads teams: opposite pairs first (West/East, then
-        // North/South).
-        islandSlotOrder = new ArrayList<>();
-        for (int s : PREFERRED_ISLAND_ORDER) {
-            if (s < islandCount)
-                islandSlotOrder.add(s);
-        }
+        islandSlotOrder = islandSlotOrder(islandCount);
 
         islandAssignment = new ArrayList<>(Collections.nCopies(islandCount, null));
 
@@ -741,6 +758,7 @@ public class Game {
             if (isGameRoomMode() && gameRoom.getConfig().overtimeStart()) {
                 gameTime = getOvertimeSeconds();
                 broadcastMessage(Component.translatable("rush.overtime"));
+                playOvertimeMusic();
             }
 
             // Only set global game started flag for legacy mode
@@ -883,7 +901,7 @@ public class Game {
 
         ItemStack pickaxe = new ItemStack(Material.WOODEN_PICKAXE);
         ItemMeta pickMeta = pickaxe.getItemMeta();
-        pickMeta.displayName(Component.text("Pickaxe"));
+        pickMeta.displayName(Component.translatable("rush.item_pickaxe"));
         pickMeta.addEnchant(Enchantment.EFFICIENCY, 1, true);
         pickaxe.setItemMeta(pickMeta);
 
@@ -919,38 +937,27 @@ public class Game {
             killer = result.killer();
             assists = result.assists();
 
-            PlayerStatistic playerStat = playerStats.get(entity);
-            if (playerStat != null) {
-                playerStat.setCurrentDeaths(playerStat.getCurrentDeaths() + 1);
-            }
+            PlayerStatistic playerStat = getPlayerStatistic(player);
+            playerStat.setCurrentDeaths(playerStat.getCurrentDeaths() + 1);
         }
 
         if (killer != null) {
-            PlayerStatistic killerStat = playerStats.get(killer);
-            if (killerStat != null) {
-                killerStat.setCurrentKills(killerStat.getCurrentKills() + 1);
-                killerStat.setCurrentScore(killerStat.getCurrentScore() + 10);
-            }
+            PlayerStatistic killerStat = getPlayerStatistic(killer);
+            killerStat.setCurrentKills(killerStat.getCurrentKills() + 1);
+            killerStat.setCurrentScore(killerStat.getCurrentScore() + 10);
 
             for (Player assist : assists) {
-                PlayerStatistic assistStat = playerStats.get(assist);
-                if (assistStat != null) {
-                    assistStat.setCurrentAssists(assistStat.getCurrentAssists() + 1);
-                    assistStat.setCurrentScore(assistStat.getCurrentScore() + 5);
-                }
+                PlayerStatistic assistStat = getPlayerStatistic(assist);
+                assistStat.setCurrentAssists(assistStat.getCurrentAssists() + 1);
+                assistStat.setCurrentScore(assistStat.getCurrentScore() + 5);
             }
         }
 
         PlayerLevelManager levelManager = Main.getInstance().getPlayerLevelManager();
-        if (levelManager != null) {
-            if (entity instanceof Player deadPlayer) {
-                levelManager.addXP(deadPlayer.getUniqueId(), -10);
-            }
-            if (killer != null) {
-                levelManager.addXP(killer.getUniqueId(), 15);
-                for (Player assist : assists) {
-                    levelManager.addXP(assist.getUniqueId(), 5);
-                }
+        if (levelManager != null && killer != null) {
+            levelManager.addXP(killer.getUniqueId(), Math.round(15 * coefficient));
+            for (Player assist : assists) {
+                levelManager.addXP(assist.getUniqueId(), Math.round(8 * coefficient));
             }
         }
 
@@ -973,24 +980,28 @@ public class Game {
     }
 
     private void broadcastKillMessage(Entity victim, Team victimTeam, Player killer, List<Player> assists) {
-        String victimColor = victimTeam != null ? victimTeam.getColor().getSectionColor() : "§7";
+        net.kyori.adventure.text.format.TextColor victimColor = victimTeam != null
+                ? victimTeam.getColor().getTextColor() : NamedTextColor.GRAY;
 
         if (killer == null) {
-            broadcastMessage("⚔ " + victimColor + victim.getName() + "§7 est mort");
+            broadcastMessage(Component.translatable("rush.kill_no_killer",
+                    Component.text(victim.getName()).color(victimColor)));
             return;
         }
 
         Team killerTeam = getPlayerTeam(killer);
-        String killerColor = killerTeam != null ? killerTeam.getColor().getSectionColor() : "§7";
+        net.kyori.adventure.text.format.TextColor killerColor = killerTeam != null
+                ? killerTeam.getColor().getTextColor() : NamedTextColor.GRAY;
 
-        List<String> killerNames = new ArrayList<>();
-        killerNames.add(killer.getName());
+        List<Component> killerNames = new ArrayList<>();
+        killerNames.add(Component.text(killer.getName()).color(killerColor));
         for (Player assist : assists) {
-            killerNames.add(assist.getName());
+            killerNames.add(Component.text(assist.getName()).color(killerColor));
         }
 
-        String killersDisplay = killerColor + String.join("§7, " + killerColor, killerNames);
-        broadcastMessage("⚔ " + victimColor + victim.getName() + "§7 a été tué par " + killersDisplay);
+        Component killersDisplay = Component.join(Component.text(", ", NamedTextColor.GRAY), killerNames);
+        broadcastMessage(Component.translatable("rush.kill_with_killer",
+                Component.text(victim.getName()).color(victimColor), killersDisplay));
     }
 
     public void onBedDestroyed(Team team, Player destroyer) {
@@ -1004,13 +1015,23 @@ public class Game {
         Team destroyerTeam = destroyer != null ? getPlayerTeam(destroyer) : null;
         String destroyerTeamName = destroyerTeam != null ? destroyerTeam.getColor().name() : "";
 
-        broadcastMessage("§c" + destroyerName + " §7(" + destroyerTeamName + ") a détruit le lit de l'équipe §c"
-                + team.getColor().name() + "§7!");
+        broadcastMessage(Component.translatable("rush.bed_destroyed_broadcast",
+                Component.text(destroyerName), Component.text(destroyerTeamName),
+                Component.text(team.getColor().name())));
 
         for (Entity entity : getPlayers()) {
             if (entity instanceof Player player) {
                 player.playSound(player.getLocation(), Sound.ENTITY_ENDER_DRAGON_GROWL, 1.0f, 1.0f);
             }
+        }
+
+        if (destroyer != null) {
+            PlayerLevelManager bedLevelManager = Main.getInstance().getPlayerLevelManager();
+            if (bedLevelManager != null) {
+                bedLevelManager.addXP(destroyer.getUniqueId(), Math.round(30 * coefficient));
+            }
+            PlayerStatistic destroyerStat = getPlayerStatistic(destroyer);
+            destroyerStat.setCurrentDestroyedBeds(destroyerStat.getCurrentDestroyedBeds() + 1);
         }
 
         if (destroyerTeam != null) {
@@ -1027,7 +1048,8 @@ public class Game {
                                             AttributeModifier.Operation.ADD_NUMBER, EquipmentSlotGroup.ANY));
                         }
                         player.sendMessage(
-                                Component.text("§a+" + destroyerTeam.getBedsDestroyed() * 2 + " Cœurs permanents!"));
+                                Component.translatable("rush.extra_hearts",
+                                        Component.text(destroyerTeam.getBedsDestroyed() * 2)));
                     }
                 }
             }
@@ -1085,6 +1107,28 @@ public class Game {
             updateWinStreaks(winner);
         }
 
+        // Cancel overtime music
+        if (overtimeMusicTask != null) {
+            overtimeMusicTask.cancel();
+            overtimeMusicTask = null;
+        }
+
+        // Play game-end sounds
+        if (isGameRoomMode()) {
+            String winSound = "tland:games.global.win_celebrate";
+            String endMusic = "tland:music.global.gameendmusic";
+            for (Entity entity : getPlayers()) {
+                if (entity instanceof Player player) {
+                    player.playSound(player.getLocation(), winSound, org.bukkit.SoundCategory.MUSIC, 1.0f, 1.0f);
+                    player.playSound(player.getLocation(), endMusic, org.bukkit.SoundCategory.MUSIC, 1.0f, 1.0f);
+                }
+            }
+            for (Player spectator : spectators) {
+                spectator.playSound(spectator.getLocation(), winSound, org.bukkit.SoundCategory.MUSIC, 1.0f, 1.0f);
+                spectator.playSound(spectator.getLocation(), endMusic, org.bukkit.SoundCategory.MUSIC, 1.0f, 1.0f);
+            }
+        }
+
         // Clear all players' ender chests
         clearAllEnderChests();
 
@@ -1094,7 +1138,9 @@ public class Game {
         if (endLevelManager != null) {
             for (Player player : playerStats.keySet()) {
                 boolean won = winner != null && winner.equals(getPlayerTeam(player));
-                endLevelManager.addXP(player.getUniqueId(), won ? 100 : 20);
+                if (won) {
+                    endLevelManager.addXP(player.getUniqueId(), Math.round(200 * coefficient));
+                }
             }
         }
 
@@ -1121,16 +1167,24 @@ public class Game {
                         .map(Player::getName)
                         .collect(Collectors.toList());
                 Map<String, String> teamColorsByPlayerUuid = new HashMap<>();
+                // Include all players (including eliminated ones whose team was tracked persistently)
+                for (Map.Entry<UUID, TeamColor> entry : playerTeamColors.entrySet()) {
+                    teamColorsByPlayerUuid.put(entry.getKey().toString(), entry.getValue().name());
+                }
+                // Also include mannequins still on teams
                 for (Team team : teams.values()) {
                     for (Entity entity : team.getPlayers()) {
-                        if (entity instanceof Player tp) {
-                            teamColorsByPlayerUuid.put(tp.getUniqueId().toString(), team.getColor().name());
+                        if (entity instanceof Mannequin) {
+                            teamColorsByPlayerUuid.put(entity.getUniqueId().toString(), team.getColor().name());
                         }
                     }
                 }
                 recorder.stop(gameRoom.getId(), winner != null ? winner.getColor().name() : null,
                         gameRoom.getHostName(), participantNames,
-                        gameRoom.getConfig().mapType().name(), teamColorsByPlayerUuid);
+                        gameRoom.getConfig().mapType().name(),
+                        gameRoom.getConfig().islandType().name(),
+                        gameRoom.getConfig().maxTeams(),
+                        teamColorsByPlayerUuid);
                 recorder = null;
             }
             Main.getInstance().getGameManager().onGameRoomEnded(gameRoom);
@@ -1140,28 +1194,34 @@ public class Game {
     }
 
     private void sendGameSummary() {
-        Component header = Component.text("§6§l――――――――――――――――――")
+        Component header = Component.translatable("rush.game_end_summary")
                 .append(Component.newline())
-                .append(Component.text("§6§lRÉSUMÉ DE LA PARTIE"))
+                .append(Component.translatable("rush.game_summary_header"))
                 .append(Component.newline())
-                .append(Component.text("§6§l――――――――――――――――――"));
+                .append(Component.translatable("rush.game_end_summary"));
 
-        Component duration = Component.text("§eDurée: §f" + getFormattedTime());
+        Component duration = Component.translatable("rush.game_duration", Component.text(getFormattedTime()));
 
         broadcastMessage(header);
         broadcastMessage(duration);
-        broadcastMessage(Component.text("§7"));
+        broadcastMessage(Component.empty());
 
-        playerStats.forEach((player, stats) -> {
-            Component playerSummary = Component.text(player.getName() + ": ")
-                    .color(NamedTextColor.GRAY)
-                    .append(Component.text("§a" + stats.getCurrentKills() + " kills §7| "))
-                    .append(Component.text("§c" + stats.getCurrentDeaths() + " morts §7| "))
-                    .append(Component.text("§e" + stats.getCurrentAssists() + " assists"));
-            broadcastMessage(playerSummary);
-        });
+        for (Entity entity : getPlayers()) {
+            if (entity instanceof Player player) {
+                PlayerStatistic stats = getPlayerStatistic(player);
+                Component playerSummary = Component.text(player.getName())
+                        .color(NamedTextColor.GRAY)
+                        .append(Component.text(": ", NamedTextColor.GRAY))
+                        .append(Component.translatable("rush.game_summary_kills",
+                                Component.text(stats.getCurrentKills()),
+                                Component.text(stats.getCurrentDeaths()),
+                                Component.text(stats.getCurrentAssists()),
+                                Component.text(stats.getCurrentDestroyedBeds())));
+                broadcastMessage(playerSummary);
+            }
+        }
 
-        broadcastMessage(Component.text("§6§l――――――――――――――――――"));
+        broadcastMessage(Component.translatable("rush.game_end_summary"));
     }
 
     private void broadcastMessage(Component message) {
@@ -1356,12 +1416,8 @@ public class Game {
 
         long readyCount = getPlayersReadyCount();
         NamedTextColor color = readyCount >= maxPlayers ? NamedTextColor.GREEN : NamedTextColor.RED;
-        TextComponent.Builder builder = Component.text()
-                .content("Joueurs prêts (")
-                .color(NamedTextColor.WHITE);
-        builder.append(Component.text(readyCount + "/" + maxPlayers).color(color));
-        builder.append(Component.text(")").color(NamedTextColor.WHITE));
-        Component message = builder.build();
+        Component message = Component.translatable("rush.ready_players",
+                Component.text(readyCount + "/" + maxPlayers).color(color));
 
         for (Player player : Main.getInstance().getServer().getOnlinePlayers()) {
             if (player.getWorld().getName().equals(gameWorld)) {
@@ -1440,14 +1496,12 @@ public class Game {
     private void updateWinStreaks(Team winner) {
         for (Entity entity : getPlayers()) {
             if (entity instanceof Player player) {
-                final PlayerStatistic stats = playerStats.get(player);
-                if (stats != null) {
-                    final Team playerTeam = getPlayerTeam(player);
-                    if (playerTeam != null && playerTeam.equals(winner)) {
-                        stats.setWinStreak(stats.getWinStreak() + 1);
-                    } else {
-                        stats.setWinStreak(0); // streak is lost
-                    }
+                final PlayerStatistic stats = getPlayerStatistic(player);
+                final Team playerTeam = getPlayerTeam(player);
+                if (playerTeam != null && playerTeam.equals(winner)) {
+                    stats.setWinStreak(stats.getWinStreak() + 1);
+                } else {
+                    stats.setWinStreak(0); // streak is lost
                 }
             }
         }
@@ -1473,6 +1527,11 @@ public class Game {
      * Called during plugin shutdown or when a game room is removed.
      */
     public void stop() {
+        if (overtimeMusicTask != null) {
+            overtimeMusicTask.cancel();
+            overtimeMusicTask = null;
+        }
+
         for (BukkitTask task : runningTasks) {
             task.cancel();
         }
@@ -1494,5 +1553,4 @@ public class Game {
 
         state = GameState.STOPPED;
     }
-
 }

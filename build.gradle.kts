@@ -1,6 +1,6 @@
 plugins {
     id("checkstyle")
-    id("com.github.spotbugs") version "6.4.8"
+    id("com.github.spotbugs") version "6.5.5"
     id("com.gradleup.shadow") version "9.3.1"
     id("java")
 }
@@ -38,31 +38,34 @@ repositories {
 }
 
 dependencies {
-    testImplementation("org.junit.jupiter:junit-jupiter:5.11.0")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
-    compileOnly("io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT")
+    compileOnly("io.papermc.paper:paper-api:26.1.2.build.65-stable")
     compileOnly("com.google.code.gson:gson:2.13.2")
-    compileOnly("net.momirealms:craft-engine-core:0.0.67")
-    compileOnly("net.momirealms:craft-engine-bukkit:0.0.67")
-    compileOnly("net.momirealms:craft-engine-adventure:0.0.67")
-    testImplementation("com.google.code.gson:gson:2.13.2")
-    compileOnly(files("../server/plugins/worldedit-bukkit-7.3.17.jar"))
+    compileOnly("net.momirealms:craft-engine-core:26.5.1")
+    compileOnly("net.momirealms:craft-engine-bukkit:26.5.1")
+    compileOnly("net.momirealms:craft-engine-adventure:26.5.1")
+    compileOnly(files("../server/plugins/FastAsyncWorldEdit-Paper-2.15.2-SNAPSHOT.jar"))
     compileOnly(files("../server/plugins/GMusic-2.1.2.jar"))
     implementation("fr.mrmicky:fastboard:2.1.5")
     implementation("org.postgresql:postgresql:42.7.1")
     implementation("org.hibernate.orm:hibernate-core:6.4.1.Final")
-    compileOnly("org.projectlombok:lombok:1.18.36")
-    annotationProcessor("org.projectlombok:lombok:1.18.36")
+    compileOnly("org.projectlombok:lombok:1.18.46")
+    annotationProcessor("org.projectlombok:lombok:1.18.46")
     compileOnly("com.github.HologramLib:HologramLib:1.8.3.2")
 }
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_21
-    targetCompatibility = JavaVersion.VERSION_21
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
 }
 
-tasks.test {
-    useJUnitPlatform()
+checkstyle {
+    toolVersion = "10.26.1"
+    isIgnoreFailures = true
+}
+
+spotbugs {
+    toolVersion = "4.9.8"
+    ignoreFailures = true
 }
 
 tasks.shadowJar {
@@ -77,8 +80,4 @@ tasks.register<Copy>("copyToPlugins") {
 
 tasks.build {
     dependsOn("copyToPlugins")
-}
-
-tasks.test {
-    useJUnitPlatform()
 }

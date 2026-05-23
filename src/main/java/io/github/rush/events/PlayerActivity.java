@@ -23,6 +23,7 @@ import io.github.rush.statistics.PlayerLevelManager;
 import io.papermc.paper.event.player.AsyncChatEvent;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -45,6 +46,7 @@ import org.bukkit.event.entity.FoodLevelChangeEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.inventory.InventoryInteractEvent;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.player.PlayerDropItemEvent;
@@ -102,7 +104,7 @@ public class PlayerActivity implements Listener {
     public void onPlayerJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
 
-        event.joinMessage(Component.text("§a[+] §f" + player.getName()));
+        event.joinMessage(Component.translatable("rush.chat_join", Component.text(player.getName())));
 
         // Check if the player was in a running game room before disconnecting
         GameManager.ReconnectData reconnectData = plugin.getGameManager().consumeReconnectData(player.getUniqueId());
@@ -142,7 +144,7 @@ public class PlayerActivity implements Listener {
     public void onPlayerQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
 
-        event.quitMessage(Component.text("§c[-] §f" + player.getName()));
+        event.quitMessage(Component.translatable("rush.chat_quit", Component.text(player.getName())));
 
         // Leave any active replay
         if (plugin.getReplayManager() != null && plugin.getReplayManager().isWatching(player)) {
@@ -187,7 +189,7 @@ public class PlayerActivity implements Listener {
                             r.setHostUUID(nextHostUUID);
                             r.setHostName(nextHost.getName());
                             nextHost.getInventory().setItem(8, plugin.getGameManager().createHostPanelItem());
-                            nextHost.sendMessage(Component.text("§6Vous êtes maintenant l'hôte de la partie."));
+                            nextHost.sendMessage(Component.translatable("rush.room_host_transfer"));
                         } else {
                             plugin.getGameManager().removeGameRoom(r.getId());
                         }
@@ -235,6 +237,8 @@ public class PlayerActivity implements Listener {
 
     @EventHandler
     public void onBlockBreak(BlockBreakEvent event) {
+        if (event.isCancelled())
+            return;
         Player player = event.getPlayer();
         Block block = event.getBlock();
         Material blockType = block.getType();
@@ -317,6 +321,11 @@ public class PlayerActivity implements Listener {
     public void onPlayerDropItem(PlayerDropItemEvent event) {
         final Player player = event.getPlayer();
 
+        if (plugin.getReplayManager() != null && plugin.getReplayManager().isWatching(player)) {
+            event.setCancelled(true);
+            return;
+        }
+
         if (isPlayerInQueue(player)) {
             event.setCancelled(true);
             return;
@@ -372,10 +381,9 @@ public class PlayerActivity implements Listener {
         double voidThreshold = islandY - Main.getInstance().getVoidThreshold();
         if (player.getLocation().getY() < voidThreshold) {
             player.setFallDistance(0);
-            player.setHealth(player.getAttribute(Attribute.MAX_HEALTH).getValue());
-            player.setFoodLevel(20);
-            player.setSaturation(20f);
-            handleEntityDeath(game, player, null);
+            player.setHealth(0);
+            // PlayerDeathEvent fires: onPlayerDie cancels the death screen,
+            // restores health/food, and calls handleEntityDeath.
         }
     }
 
@@ -633,6 +641,11 @@ public class PlayerActivity implements Listener {
             return;
         }
 
+        if (plugin.getReplayManager() != null && plugin.getReplayManager().isWatching(player)) {
+            event.setCancelled(true);
+            return;
+        }
+
         if (isPlayerInQueue(player)) {
             event.setCancelled(true);
             return;
@@ -677,6 +690,10 @@ public class PlayerActivity implements Listener {
     @EventHandler
     public void onInvInteract(InventoryInteractEvent event) {
         if ((event.getWhoClicked() instanceof Player player)) {
+            if (plugin.getReplayManager() != null && plugin.getReplayManager().isWatching(player)) {
+                event.setCancelled(true);
+                return;
+            }
             if (isPlayerInQueue(player)) {
                 event.setCancelled(true);
             }
@@ -684,8 +701,22 @@ public class PlayerActivity implements Listener {
     }
 
     @EventHandler
+    public void onInventoryDrag(InventoryDragEvent event) {
+        if (event.getWhoClicked() instanceof Player player) {
+            if (plugin.getReplayManager() != null && plugin.getReplayManager().isWatching(player)) {
+                event.setCancelled(true);
+            }
+        }
+    }
+
+    @EventHandler
     public void onPlayerSwapHandItems(PlayerSwapHandItemsEvent event) {
-        if (isPlayerInQueue(event.getPlayer())) {
+        Player player = event.getPlayer();
+        if (plugin.getReplayManager() != null && plugin.getReplayManager().isWatching(player)) {
+            event.setCancelled(true);
+            return;
+        }
+        if (isPlayerInQueue(player)) {
             event.setCancelled(true);
         }
     }
@@ -821,10 +852,18 @@ public class PlayerActivity implements Listener {
     @EventHandler
     public void onAsyncPlayerChat(AsyncChatEvent event) {
         Player player = event.getPlayer();
+
+        // World-scope: only same-world players receive the message
+        event.viewers().removeIf(audience ->
+                audience instanceof Player viewer && !viewer.getWorld().equals(player.getWorld()));
+
         PlayerLevelManager levelManager = Main.getInstance().getPlayerLevelManager();
         PlayerLevel playerLevel = levelManager.loadPlayerLevel(player.getUniqueId());
 
-        String formattedLevel = playerLevel.getFormattedLevel();
+        Component rankComponent = MiniMessage.miniMessage().deserialize(playerLevel.getFormattedRank());
+        Component rankBadge = Component.text("[", NamedTextColor.GRAY)
+                .append(rankComponent)
+                .append(Component.text("]", NamedTextColor.GRAY));
 
         String message = PlainTextComponentSerializer.plainText().serialize(event.message());
         boolean isGlobal = message.startsWith("@");
@@ -832,13 +871,18 @@ public class PlayerActivity implements Listener {
             message = message.substring(1).trim();
         }
 
+        Component tail = Component.text(" > ", NamedTextColor.WHITE)
+                .append(Component.text(message, NamedTextColor.WHITE));
+
         Component formatComponent;
 
         if (isPlayerInQueue(player)) {
-            formatComponent = Component.text("§7[" + formattedLevel + "§7] [§9Lobby§7] §f")
+            formatComponent = rankBadge
+                    .append(Component.text(" [", NamedTextColor.GRAY))
+                    .append(Component.text("Lobby", NamedTextColor.BLUE))
+                    .append(Component.text("] ", NamedTextColor.GRAY))
                     .append(player.displayName())
-                    .append(Component.text(" §f> "))
-                    .append(Component.text(message));
+                    .append(tail);
         } else {
             Game game = Main.getInstance().getGameManager().getGameForPlayer(player);
             Team team = (game != null && game.getState() == GameState.RUNNING)
@@ -847,13 +891,13 @@ public class PlayerActivity implements Listener {
 
             if (team != null) {
                 TeamColor color = team.getColor();
-                String teamColorCode = color.getTextColor().toString();
 
-                formatComponent = Component
-                        .text("§7[" + formattedLevel + "§7] [" + teamColorCode + color.name() + "§7] §f")
+                formatComponent = rankBadge
+                        .append(Component.text(" [", NamedTextColor.GRAY))
+                        .append(Component.text(color.name(), color.getTextColor()))
+                        .append(Component.text("] ", NamedTextColor.GRAY))
                         .append(player.displayName())
-                        .append(Component.text(" §f> "))
-                        .append(Component.text(message));
+                        .append(tail);
 
                 if (!isGlobal) {
                     event.setCancelled(true);
@@ -866,10 +910,10 @@ public class PlayerActivity implements Listener {
                     return;
                 }
             } else {
-                formatComponent = Component.text("§7[" + formattedLevel + "§7] §f")
+                formatComponent = rankBadge
+                        .append(Component.text(" ", NamedTextColor.WHITE))
                         .append(player.displayName())
-                        .append(Component.text(" §f> "))
-                        .append(Component.text(message));
+                        .append(tail);
             }
         }
 

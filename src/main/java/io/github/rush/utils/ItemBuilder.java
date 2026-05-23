@@ -30,6 +30,11 @@ public final class ItemBuilder {
         return this;
     }
 
+    public ItemBuilder name(Component name) {
+        meta.displayName(name);
+        return this;
+    }
+
     public ItemBuilder lore(String... lines) {
         this.loreLines = Arrays.stream(lines).<Component>map(Component::text).toList();
         return this;
@@ -37,6 +42,11 @@ public final class ItemBuilder {
 
     public ItemBuilder lore(List<String> lines) {
         this.loreLines = lines.stream().<Component>map(Component::text).toList();
+        return this;
+    }
+
+    public ItemBuilder lore(Component... lines) {
+        this.loreLines = List.of(lines);
         return this;
     }
 

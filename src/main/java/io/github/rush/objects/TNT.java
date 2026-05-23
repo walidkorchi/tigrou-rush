@@ -65,6 +65,8 @@ public class TNT implements Listener {
 
     @EventHandler
     public void onEntityDamage(EntityDamageEvent event) {
+        if (event.isCancelled())
+            return;
         if (event.getEntityType() == EntityType.PLAYER) {
             if (event.getCause() == DamageCause.FALL) {
                 event.setDamage(event.getDamage() / plugin.getConfig().getDouble("fallDamage"));
@@ -76,6 +78,8 @@ public class TNT implements Listener {
 
     @EventHandler
     public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
+        if (event.isCancelled())
+            return;
         if (event.getEntityType() == EntityType.PLAYER && isTNT(event.getDamager())) {
             if (isPlayerIRG((Player) event.getEntity())) {
                 event.setDamage(event.getDamage() / plugin.getConfig().getDouble("TNTDamage"));
@@ -180,6 +184,12 @@ public class TNT implements Listener {
         }
 
         // Remove both halves of the bed (foot and head) to prevent item drops
+        removeBedBlocks(bedBlock);
+
+        game.onBedDestroyed(team, tntSource);
+    }
+
+    public static void removeBedBlocks(Block bedBlock) {
         org.bukkit.block.data.type.Bed bedData = (org.bukkit.block.data.type.Bed) bedBlock.getBlockData();
         Block otherHalf;
         if (bedData.getPart() == org.bukkit.block.data.type.Bed.Part.FOOT) {
@@ -187,13 +197,10 @@ public class TNT implements Listener {
         } else {
             otherHalf = bedBlock.getRelative(bedData.getFacing().getOppositeFace());
         }
-
         bedBlock.setType(Material.AIR, false);
         if (otherHalf.getType().name().endsWith("_BED")) {
             otherHalf.setType(Material.AIR, false);
         }
-
-        game.onBedDestroyed(team, tntSource);
     }
 
     private TeamColor getTeamColorFromBed(Bed bed) {

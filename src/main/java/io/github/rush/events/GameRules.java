@@ -173,6 +173,8 @@ public class GameRules implements Listener {
 
     @EventHandler
     public void onVillagerDamage(EntityDamageByEntityEvent event) {
+        if (event.isCancelled())
+            return;
         if (!(event.getEntity() instanceof Villager villager))
             return;
 

@@ -33,14 +33,14 @@ public final class ReplayManager {
         if (pendingViewers.containsKey(sessionId)) {
             pendingViewers.get(sessionId).add(player);
             viewerToSession.put(player, sessionId);
-            player.sendMessage(Component.text("§7Chargement en cours..."));
+            player.sendMessage(Component.translatable("rush.replay_loading"));
             return;
         }
 
         // Start world creation
         pendingViewers.put(sessionId, new ArrayList<>(List.of(player)));
         viewerToSession.put(player, sessionId);
-        player.sendMessage(Component.text("§7Chargement en cours..."));
+        player.sendMessage(Component.translatable("rush.replay_loading"));
 
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             Optional<ReplayFile> opt = plugin.getReplayStorage().load(sessionId);
@@ -64,7 +64,7 @@ public final class ReplayManager {
                             if (pending != null) {
                                 for (Player p : pending) {
                                     viewerToSession.remove(p);
-                                    p.sendMessage(Component.text("§cReplay introuvable."));
+                                    p.sendMessage(Component.translatable("rush.replay_not_found"));
                                 }
                             }
                         }

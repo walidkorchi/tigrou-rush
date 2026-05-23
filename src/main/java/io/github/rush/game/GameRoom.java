@@ -12,6 +12,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import net.kyori.adventure.text.Component;
+
 /**
  * Bridge between GameManager and Game instance.
  * Players join a room, select teams, and the game starts within that room.
@@ -103,6 +105,7 @@ public class GameRoom {
         this.lobbyLocation = lobbyLocation;
         this.game = new Game(id, world.getName(), lobbyLocation, config.islandType().getCount(), config.maxTeams(), config.teamSize().getPlayersPerTeam());
         this.game.setGameRoom(this);
+        this.game.setCoefficient(config.getCoefficient());
         this.islands = createIslands();
     }
 
@@ -126,8 +129,11 @@ public class GameRoom {
         this.islandsLoaded = loaded;
     }
 
-    public String getDisplayName() {
-        return "§7[" + islandType.getDisplayName() + "§7] §f" + teamSize.getDisplayName() + " §7- §e" + hostName;
+    public Component getDisplayName() {
+        return Component.translatable("rush.room_display_name",
+                Component.text(islandType.getDisplayName()),
+                Component.text(teamSize.getDisplayName()),
+                Component.text(hostName));
     }
 
     public int getPlayerCount() {

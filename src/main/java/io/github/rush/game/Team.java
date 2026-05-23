@@ -5,7 +5,6 @@ import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.type.Bed;
-import org.bukkit.block.data.type.EnderChest;
 import org.bukkit.entity.Entity;
 
 import lombok.Getter;
@@ -15,6 +14,16 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Team {
+
+    public static BlockFace facingTowardsCenter(int islandIndex) {
+        return switch (islandIndex) {
+            case 0 -> BlockFace.SOUTH;
+            case 1 -> BlockFace.WEST;
+            case 2 -> BlockFace.NORTH;
+            case 3 -> BlockFace.EAST;
+            default -> BlockFace.NORTH;
+        };
+    }
 
     @Getter
     // TODO: unused for now, but we can use it to identify the team in the future
@@ -115,45 +124,24 @@ public class Team {
             return;
         }
 
-        int count = getResourceSpawnerCount();
         enderChestLocations.clear();
 
-        // Outward direction vectors: N→-z, E→+x, S→+z, W→-x
         final int[][] directions = { { 0, -1 }, { 1, 0 }, { 0, 1 }, { -1, 0 } };
         final int[] dir = directions[islandIndex];
         final int perpX = dir[1];
         final int perpZ = -dir[0];
 
-        // Ender chest faces inward (toward center)
-        final BlockFace facingTowardsCenter = switch (islandIndex) {
-            case 0 -> BlockFace.SOUTH;
-            case 1 -> BlockFace.WEST;
-            case 2 -> BlockFace.NORTH;
-            case 3 -> BlockFace.EAST;
-            default -> BlockFace.NORTH;
-        };
-
         final int speedOffset = 13;
         final int enderChestOffset = speedOffset - 1;
 
-        final int[] spread = { 1, -1 };
-
-        for (int i = 0; i < count; i++) {
-            final int spreadIdx = i % 2;
-            final int sign = spread[spreadIdx];
-
-            int x = spawnLocation.getBlockX() + (dir[0] * enderChestOffset) + (perpX * sign);
-            int z = spawnLocation.getBlockZ() + (dir[1] * enderChestOffset) + (perpZ * sign);
-            int y = spawnLocation.getBlockY() - 2;
-
-            Block block = spawnLocation.getWorld().getBlockAt(x, y, z);
-
-            EnderChest enderChestData = (EnderChest) Material.ENDER_CHEST.createBlockData();
-            enderChestData.setFacing(facingTowardsCenter);
-            block.setBlockData(enderChestData);
-
-            enderChestLocations.add(block.getLocation());
-        }
+        enderChestLocations.addAll(GameManager.placeIslandEnderChests(
+                spawnLocation.getWorld(),
+                spawnLocation.getBlockX(),
+                spawnLocation.getBlockZ(),
+                spawnLocation.getBlockY() - 2,
+                dir, perpX, enderChestOffset,
+                Team.facingTowardsCenter(islandIndex),
+                getResourceSpawnerCount()));
     }
 
     public int getResourceSpawnerCount() {
@@ -165,7 +153,7 @@ public class Team {
             return;
         }
 
-        Material bedMaterial = getBedMaterial();
+        Material bedMaterial = Team.bedMaterialFor(color);
         if (bedMaterial == null) {
             return;
         }
@@ -177,13 +165,12 @@ public class Team {
         int bedOffset = -6;
 
         // Bed foot placed outward; bedFacing points from foot toward head (inward = toward center)
-        BlockFace bedFacing;
+        BlockFace bedFacing = Team.facingTowardsCenter(islandIndex);
         switch (islandIndex) {
-            case 0 -> { z += bedOffset; bedFacing = BlockFace.SOUTH; }  // N: foot at z-6, head south
-            case 1 -> { x -= bedOffset; bedFacing = BlockFace.WEST; }   // E: foot at x+6, head west
-            case 2 -> { z -= bedOffset; bedFacing = BlockFace.NORTH; }  // S: foot at z+6, head north
-            case 3 -> { x += bedOffset; bedFacing = BlockFace.EAST; }   // W: foot at x-6, head east
-            default -> { return; }
+            case 0 -> z += bedOffset;  // N: foot at z-6, head south
+            case 1 -> x -= bedOffset;  // E: foot at x+6, head west
+            case 2 -> z -= bedOffset;  // S: foot at z+6, head north
+            case 3 -> x += bedOffset;  // W: foot at x-6, head east
         }
 
         Block bedFoot = spawnLocation.getWorld().getBlockAt(x, y, z);
@@ -203,13 +190,23 @@ public class Team {
         bedLocation = bedFoot.getLocation();
     }
 
-    private Material getBedMaterial() {
+    public static Material bedMaterialFor(TeamColor color) {
         return switch (color) {
             case RED -> Material.RED_BED;
             case BLUE -> Material.BLUE_BED;
             case GREEN -> Material.GREEN_BED;
             case YELLOW -> Material.YELLOW_BED;
-            default -> Material.RED_BED;
+            case AQUA -> Material.CYAN_BED;
+            case BLACK -> Material.BLACK_BED;
+            case GOLD -> Material.ORANGE_BED;
+            case DARK_BLUE -> Material.BLUE_BED;
+            case DARK_GREEN -> Material.GREEN_BED;
+            case DARK_RED -> Material.RED_BED;
+            case DARK_PURPLE -> Material.PURPLE_BED;
+            case GRAY -> Material.LIGHT_GRAY_BED;
+            case DARK_GRAY -> Material.GRAY_BED;
+            case LIGHT_PURPLE -> Material.PINK_BED;
+            case WHITE -> Material.WHITE_BED;
         };
     }
 

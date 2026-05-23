@@ -16,18 +16,16 @@ database:
 bedProtectionRadius: 3
 
 # Radius around regular merchants where block placement is prevented
-merchantProtectionRadius: 3
+merchantProtectionRadius: 1
 
-# Maximum player level (default: 150)
-maxLevel: 150
-
-# XP calculation multipliers for player levels
-xpMultipliers:
-  wins: 100
-  losses: 20
-  kills: 15
-  assists: 5
-  deaths: -10
+# Rank system configuration
+rank:
+  first-rank-xp: 10000
+  rank-multiplier: 1.25
+  prestige-nerfs:
+    - 1.0   # Bronze
+    - 0.8   # Silver
+    - 0.5   # Gold
 
 # minecraft defaults it to 4s
 explodeTicks: 80
@@ -45,7 +43,7 @@ TNTDamage: 5.0
 schematicFilename: rush_island.schem
 
 # Distance from center point to islands
-islandOffset: 40
+islandOffset: 30
 
 # Respawn protection time in seconds (0 to disable)
 respawn-protection: 4
@@ -55,6 +53,8 @@ void-threshold: 20
 
 # Minutes of play before overtime begins (beds destroyed, all restrictions lifted). Default: 30
 overtime-duration: 30
+
+
 
 # Villager spawn offsets (distance from island center)
 villagerSpeedOffset: 13

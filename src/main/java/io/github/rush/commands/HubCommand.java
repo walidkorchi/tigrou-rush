@@ -16,7 +16,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.jspecify.annotations.NullMarked;
 
-import static net.kyori.adventure.text.Component.text;
+import net.kyori.adventure.text.Component;
 
 @NullMarked
 public class HubCommand {
@@ -34,7 +34,7 @@ public class HubCommand {
     private int run(CommandContext<CommandSourceStack> ctx) {
         CommandSender sender = ctx.getSource().getSender();
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(text("§cCette commande doit être exécutée par un joueur."));
+            sender.sendMessage(Component.translatable("rush.command_player_only"));
             return Command.SINGLE_SUCCESS;
         }
 
@@ -56,7 +56,7 @@ public class HubCommand {
 
         Location lobby = plugin.getMainLobby();
         if (lobby == null || lobby.getWorld() == null) {
-            player.sendMessage(text("§cAucun spawn du hub n'est configuré. Contactez un administrateur."));
+            player.sendMessage(Component.translatable("rush.no_lobby_spawn"));
             return Command.SINGLE_SUCCESS;
         }
 

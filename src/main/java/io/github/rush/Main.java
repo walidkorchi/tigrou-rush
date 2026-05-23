@@ -5,14 +5,13 @@ import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.WorldEditException;
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
-import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormat;
-import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormats;
-import com.sk89q.worldedit.extent.clipboard.io.ClipboardReader;
+
 import com.sk89q.worldedit.function.operation.Operation;
 import com.sk89q.worldedit.function.operation.Operations;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.math.transform.AffineTransform;
 import com.sk89q.worldedit.regions.CuboidRegion;
+import com.sk89q.worldedit.regions.Region;
 import com.sk89q.worldedit.session.ClipboardHolder;
 import com.sk89q.worldedit.world.block.BlockTypes;
 
@@ -27,6 +26,7 @@ import io.github.rush.replay.ReplayStorage;
 import io.github.rush.settings.PlayerSettingsManager;
 import io.github.rush.statistics.*;
 import io.github.rush.scoreboard.ScoreboardManager;
+import io.github.rush.utils.CustomSoundRegistrar;
 import io.github.rush.utils.MusicManager;
 import com.maximde.hologramlib.HologramLib;
 import com.maximde.hologramlib.hologram.HologramManager;
@@ -38,6 +38,7 @@ import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.translation.GlobalTranslator;
 import net.kyori.adventure.translation.TranslationStore;
+import net.momirealms.craftengine.bukkit.plugin.BukkitCraftEngine;
 import org.bukkit.entity.Player;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
@@ -57,9 +58,9 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.potion.PotionType;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.text.MessageFormat;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.ArrayList;
@@ -102,6 +103,22 @@ public class Main extends JavaPlugin {
 
     @Getter
     private ReplayManager replayManager = null;
+
+    @Getter
+    private net.momirealms.craftengine.core.item.ItemManager craftEngineItemManager;
+    private BukkitCraftEngine craftEngine;
+    private File craftEngineDataFolder;
+
+    public String getCraftEngineDataFolder() {
+        if (craftEngineDataFolder == null) {
+            return getDataFolder().getParent() + "/CraftEngine";
+        }
+        return craftEngineDataFolder.getAbsolutePath();
+    }
+
+    public net.momirealms.craftengine.core.entity.player.Player adaptCraftPlayer(org.bukkit.entity.Player player) {
+        return net.momirealms.craftengine.bukkit.api.BukkitAdaptor.adapt(player);
+    }
 
     @Getter
     @Setter
@@ -151,6 +168,18 @@ public class Main extends JavaPlugin {
         replayStorage = new ReplayStorage(getDataFolder().toPath().resolve("replays"));
         replayManager = new ReplayManager(this);
 
+        Plugin craftEnginePlugin = Bukkit.getPluginManager().getPlugin("CraftEngine");
+        if (craftEnginePlugin != null) {
+            craftEngineDataFolder = craftEnginePlugin.getDataFolder();
+            try {
+                BukkitCraftEngine ce = BukkitCraftEngine.instance();
+                craftEngine = ce;
+                craftEngineItemManager = ce.itemManager();
+                CustomSoundRegistrar.register(this);
+            } catch (Exception ignored) {
+            }
+        }
+
         HologramLib.getManager().ifPresentOrElse(
                 manager -> hologramManager = manager,
                 () -> getLogger().severe("Failed to initialize HologramLib manager."));
@@ -158,7 +187,6 @@ public class Main extends JavaPlugin {
         Bukkit.getPluginManager().registerEvents(new GameRules(this), this);
         Bukkit.getPluginManager().registerEvents(new PlayerActivity(this), this);
         Bukkit.getPluginManager().registerEvents(new TNT(this), this);
-        Bukkit.getPluginManager().registerEvents(new WorldChat(), this);
 
         commandManager = new CommandManager();
         commandManager.registerAll(this);
@@ -174,7 +202,8 @@ public class Main extends JavaPlugin {
             commandManager.getLeaderboardCommand().restoreLeaderboards();
         }
 
-        final TranslationStore.StringBased<MessageFormat> i18n = TranslationStore.messageFormat(Key.key("rush", "main"));
+        final TranslationStore.StringBased<MessageFormat> i18n = TranslationStore
+                .messageFormat(Key.key("rush", "main"));
 
         try {
             final ResourceBundle bundle = ResourceBundle.getBundle("io.github.rush.i18n.Bundle", Locale.FRANCE);
@@ -196,6 +225,11 @@ public class Main extends JavaPlugin {
             }
         }, 0L, 100L);
 
+        PlayerLevel.loadRankImages();
+        if (!PlayerLevel.isRanksLoaded()) {
+            Bukkit.getScheduler().runTaskLater(this, PlayerLevel::loadRankImages, 1L);
+        }
+
         int islandOffset = getConfig().getInt("islandOffset");
 
         islands = List.of(
@@ -206,25 +240,25 @@ public class Main extends JavaPlugin {
     }
 
     public void loadSchematics(CommandSender sender) {
-        final Plugin worldEdit = Bukkit.getPluginManager().getPlugin("WorldEdit");
+        final Plugin fawe = Bukkit.getPluginManager().getPlugin("FastAsyncWorldEdit");
 
-        if (worldEdit == null || !worldEdit.isEnabled()) {
-            sender.sendMessage(Component.text("Error: WorldEdit is not loaded!"));
-            getLogger().severe("WorldEdit is not loaded!");
+        if (fawe == null || !fawe.isEnabled()) {
+            sender.sendMessage(Component.translatable("rush.error_fawe_not_loaded"));
+            getLogger().severe("FastAsyncWorldEdit is not loaded!");
             return;
         }
 
         Bukkit.getScheduler().runTask(this, () -> {
             loadSchematicsInternal();
-            sender.sendMessage(Component.text("Schematics loaded!"));
+            sender.sendMessage(Component.translatable("rush.schematics_loaded"));
         });
     }
 
     public void loadSchematicsSync() {
-        final Plugin worldEdit = Bukkit.getPluginManager().getPlugin("WorldEdit");
+        final Plugin fawe = Bukkit.getPluginManager().getPlugin("FastAsyncWorldEdit");
 
-        if (worldEdit == null || !worldEdit.isEnabled()) {
-            getLogger().severe("WorldEdit is not loaded!");
+        if (fawe == null || !fawe.isEnabled()) {
+            getLogger().severe("FastAsyncWorldEdit is not loaded!");
             return;
         }
 
@@ -291,35 +325,25 @@ public class Main extends JavaPlugin {
 
         final MerchantType[] regularTypes = MerchantType.firstN(4);
 
-        // spawn speed villagers (2) at direction * speedOffset ± spread[0]
-        for (int i = 0; i < 2; i++) {
-            final int sign = (i == 0) ? 1 : -1;
-            final int speedX = island.getX() + (dir[0] * speedOffset) + (perpX * sign);
-            final int speedZ = island.getZ() + (dir[1] * speedOffset) + (perpZ * sign);
-
-            final Location speedLoc = new Location(world, speedX + 0.5, ISLAND_Y + 0.5, speedZ + 0.5, facingYaw, 0);
+        // spawn speed villagers (2) at direction * speedOffset ± perp
+        for (int[] pos : GameManager.speedMerchantPositions(island, dir, perpX, perpZ, speedOffset)) {
+            final Location speedLoc = new Location(world, pos[0] + 0.5, ISLAND_Y + 0.5, pos[1] + 0.5, facingYaw, 0);
             spawnMerchant(world, speedLoc, MerchantType.SPEED);
         }
 
         // spawn regular villagers (4) at direction * regularOffset ± spread
         for (int i = 0; i < 4; i++) {
-            final int sign = (i < 2) ? 1 : -1;
-            final int spreadIdx = (i % 2 == 0) ? 0 : 1;
-            final int regX = island.getX() + (dir[0] * regularOffset) + (perpX * spread.get(spreadIdx) * sign);
-            final int regZ = island.getZ() + (dir[1] * regularOffset) + (perpZ * spread.get(spreadIdx) * sign);
+            int[] pos = GameManager.regularMerchantPos(
+                    i, island.getX(), island.getZ(), dir, perpX, perpZ, regularOffset, spread);
+            int[] fpos = GameManager.regularMerchantPos(
+                    i, island.getX(), island.getZ(), dir, perpX, perpZ, regularOffset + 2, spread);
 
-            final Location villagerLoc = new Location(world, regX + 0.5, ISLAND_Y + 1, regZ + 0.5, facingYaw, 0);
+            final Location villagerLoc = new Location(world, pos[0] + 0.5, ISLAND_Y + 1, pos[1] + 0.5, facingYaw, 0);
             final Villager villager = spawnMerchant(world, villagerLoc, regularTypes[i]);
 
             merchantVillagers.put(regularTypes[i], villager);
 
-            // Spawn item frame 2 blocks in front of villager with corresponding item
-            final int frameX = island.getX() + (dir[0] * (regularOffset + 2))
-                    + (perpX * spread.get(spreadIdx) * sign);
-            final int frameZ = island.getZ() + (dir[1] * (regularOffset + 2))
-                    + (perpZ * spread.get(spreadIdx) * sign);
-
-            placeIslandItemFrames(i, world, island, regularTypes, frameX, frameZ);
+            placeIslandItemFrames(i, world, island, regularTypes, fpos[0], fpos[1]);
         }
 
         pastedRegions.add(island);
@@ -398,7 +422,7 @@ public class Main extends JavaPlugin {
         final CuboidRegion cuboidRegion = new CuboidRegion(worldEditWorld, min, max);
 
         try (final EditSession editSession = WorldEdit.getInstance().newEditSession(worldEditWorld)) {
-            editSession.setBlocks(cuboidRegion, BlockTypes.AIR.getDefaultState());
+            editSession.setBlocks((Region) cuboidRegion, BlockTypes.AIR.getDefaultState());
         } catch (WorldEditException e) {
             getLogger().severe("Failed to clear region: " + e.getMessage());
         }
@@ -406,17 +430,16 @@ public class Main extends JavaPlugin {
 
     private void pasteSchematic(Island island) {
         final String schematic = getConfig().getString("schematicFilename");
-        final File schematicFile = new File(getDataFolder().getParentFile(), "WorldEdit/schematics/" + schematic);
+        final File schematicFile = new File(getDataFolder().getParentFile(),
+                "FastAsyncWorldEdit/schematics/" + schematic);
 
         if (!schematicFile.exists()) {
             getLogger().warning("Schematic not found: " + schematicFile.getPath());
             return;
         }
 
-        final ClipboardFormat format = ClipboardFormats.findByFile(schematicFile);
-
-        try (ClipboardReader reader = format.getReader(new FileInputStream(schematicFile))) {
-            final Clipboard clipboard = reader.read();
+        try {
+            final Clipboard clipboard = com.fastasyncworldedit.core.FaweAPI.load(schematicFile);
             final BlockVector3 dimensions = clipboard.getDimensions();
 
             World bukkitWorld = Bukkit.getWorld(getGameWorld());
@@ -462,7 +485,7 @@ public class Main extends JavaPlugin {
                     "Pasted schematic: " + schematic + " at (" + island.getX() + ", " + ISLAND_Y + ", " + island.getZ()
                             + ")");
 
-        } catch (IOException | WorldEditException event) {
+        } catch (IOException event) {
             getLogger().severe("Failed to paste schematic " + schematic + ": " + event.getMessage());
         }
     }

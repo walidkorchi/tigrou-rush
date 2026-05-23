@@ -76,7 +76,10 @@ public class TeamSelectionGUI {
 
         ItemStack wool = new ItemStack(woolMaterial);
         ItemMeta meta = wool.getItemMeta();
-        meta.displayName(Component.text(color.getTextColor() + color.name() + " Team §7(" + current + "/" + max + ")"));
+        meta.displayName(Component.translatable("rush.team_wool_name",
+                Component.text(color.name()).color(color.getTextColor()),
+                Component.text(current),
+                Component.text(max)));
         wool.setItemMeta(meta);
         wool.setData(DataComponentTypes.LORE,
                 ItemLore.lore(List.of(Component.translatable("rush.chooseTeam"))));
@@ -117,7 +120,7 @@ public class TeamSelectionGUI {
         final ItemStack slimeball = new ItemStack(Material.SLIME_BALL);
         final ItemMeta meta = slimeball.getItemMeta();
 
-        meta.displayName(Component.text("§c§lQuitter l'équipe"));
+        meta.displayName(Component.translatable("rush.quit_team_confirm"));
         slimeball.setItemMeta(meta);
         slimeball.setData(DataComponentTypes.LORE, ItemLore.lore(List.of(Component.translatable("rush.quitLore"))));
 
@@ -158,7 +161,7 @@ public class TeamSelectionGUI {
             player.getInventory().setItem(1, null);
             player.getInventory().setHelmet(null);
 
-            player.sendMessage(Component.text("§cVous avez quitté votre équipe"));
+            player.sendMessage(Component.translatable("rush.quit_team"));
         }
     }
 
@@ -207,12 +210,8 @@ public class TeamSelectionGUI {
                 long readyCount = game.getPlayersReadyCount();
                 int maxPlayers = barRoom.getMaxPlayers();
                 NamedTextColor countColor = readyCount >= maxPlayers ? NamedTextColor.GREEN : NamedTextColor.RED;
-                Component bar = Component.text()
-                        .content("Joueurs prêts (")
-                        .color(NamedTextColor.WHITE)
-                        .append(Component.text(readyCount + "/" + maxPlayers).color(countColor))
-                        .append(Component.text(")").color(NamedTextColor.WHITE))
-                        .build();
+                Component bar = Component.translatable("rush.ready_players",
+                        Component.text(readyCount + "/" + maxPlayers).color(countColor));
                 for (Player p : barRoom.getWorld().getPlayers()) {
                     p.sendActionBar(bar);
                 }

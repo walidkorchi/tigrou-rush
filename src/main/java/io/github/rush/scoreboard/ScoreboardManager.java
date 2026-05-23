@@ -82,8 +82,13 @@ public class ScoreboardManager {
 
         lines.add(getAnimatedSeparator());
         lines.add("");
-        lines.add("§7✪ Niveau: " + playerLevel.getFormattedLevel() + " §8[" + playerLevel.getCurrentXP() + "/"
-                + playerLevel.getXPForNextLevel() + "§8]");
+        if (playerLevel.getRankIndex() >= 0) {
+            long progress = playerLevel.getProgressInRank();
+            long range = playerLevel.getXPForCurrentRange();
+            lines.add(playerLevel.getFormattedRank() + " §8[" + progress + "/" + range + "§8]");
+        } else {
+            lines.add("§8Non classé");
+        }
         lines.add("§8[" + generateProgressBar(playerLevel) + "§8]");
         lines.add("");
         lines.add("§f☆ §7Statistiques:");
@@ -97,8 +102,8 @@ public class ScoreboardManager {
     }
 
     private String generateProgressBar(PlayerLevel playerLevel) {
-        final int currentXP = playerLevel.getCurrentXP();
-        final int nextLevelXP = playerLevel.getXPForNextLevel();
+        final long currentXP = playerLevel.getProgressInRank();
+        final long nextLevelXP = playerLevel.getXPForCurrentRange();
 
         double progress = nextLevelXP > 0 ? (double) currentXP / nextLevelXP : 0.0;
 

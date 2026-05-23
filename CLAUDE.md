@@ -603,7 +603,7 @@ Key domain terms used throughout this document and the codebase.
 | Library | Version | Purpose |
 |---|---|---|
 | Paper API | 1.21.11 | Minecraft server API (compileOnly) |
-| WorldEdit Bukkit | 7.4.0 | Schematic loading & pasting (compileOnly) |
+| FastAsyncWorldEdit Bukkit | 2.13.0 | Schematic loading & pasting (compileOnly) |
 | PostgreSQL JDBC | 42.7.1 | Database driver |
 | Hibernate ORM | 6.4.1 | ORM for stats & levels |
 | FastBoard | 2.1.5 | Scoreboard rendering |
@@ -613,7 +613,7 @@ Key domain terms used throughout this document and the codebase.
 
 ### Required Server Plugins (load before TigrouRush)
 
-- WorldEdit
+- FastAsyncWorldEdit
 - GMusic (background music)
 - PacketEvents
 - HologramLib

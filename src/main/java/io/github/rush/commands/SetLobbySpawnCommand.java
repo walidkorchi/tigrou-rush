@@ -11,7 +11,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.jspecify.annotations.NullMarked;
 
-import static net.kyori.adventure.text.Component.text;
+import net.kyori.adventure.text.Component;
 
 @NullMarked
 public class SetLobbySpawnCommand {
@@ -32,7 +32,7 @@ public class SetLobbySpawnCommand {
         CommandSender sender = ctx.getSource().getSender();
 
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(text("§cCette commande doit être exécutée par un joueur."));
+            sender.sendMessage(Component.translatable("rush.command_player_only"));
             return Command.SINGLE_SUCCESS;
         }
 
@@ -46,9 +46,12 @@ public class SetLobbySpawnCommand {
         plugin.getConfig().set("lobby-spawn.pitch", (double) loc.getPitch());
         plugin.saveConfig();
 
-        sender.sendMessage(text(String.format(
-                "§aSpawn du lobby défini à §f%.2f, %.2f, %.2f §7(yaw=%.1f, pitch=%.1f)",
-                loc.getX(), loc.getY(), loc.getZ(), loc.getYaw(), loc.getPitch())));
+        sender.sendMessage(Component.translatable("rush.setlobby_spawn_set",
+                Component.text(String.format("%.2f", loc.getX())),
+                Component.text(String.format("%.2f", loc.getY())),
+                Component.text(String.format("%.2f", loc.getZ())),
+                Component.text(String.format("%.1f", loc.getYaw())),
+                Component.text(String.format("%.1f", loc.getPitch()))));
 
         return Command.SINGLE_SUCCESS;
     }

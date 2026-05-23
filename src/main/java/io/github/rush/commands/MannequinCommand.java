@@ -28,16 +28,13 @@ import org.bukkit.inventory.EquipmentSlot;
 import com.destroystokyo.paper.profile.PlayerProfile;
 import org.jspecify.annotations.NullMarked;
 
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
-
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
 
-import static net.kyori.adventure.text.Component.text;
+import net.kyori.adventure.text.Component;
 
 @NullMarked
 public class MannequinCommand {
@@ -68,7 +65,7 @@ public class MannequinCommand {
         final CommandSender sender = ctx.getSource().getSender();
 
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(text("This command must be run by a player", NamedTextColor.RED));
+            sender.sendMessage(Component.translatable("rush.mannequin_player_only"));
             return 0;
         }
 
@@ -100,7 +97,7 @@ public class MannequinCommand {
 
     private void spawnMannequinAsync(Location location, CommandSender sender, String teamName) {
         Set<String> existingNames = new HashSet<>();
-        for (var entity : location.getWorld().getEntities()) {
+        for (Entity entity : location.getWorld().getEntities()) {
             if (entity instanceof Mannequin m && m.customName().toString() != null) {
                 existingNames.add(m.customName().toString());
             }
@@ -111,7 +108,7 @@ public class MannequinCommand {
                 .toList();
 
         if (availableNames.isEmpty()) {
-            sender.sendMessage(text("All mannequin names are already in use!", NamedTextColor.RED));
+            sender.sendMessage(Component.translatable("rush.mannequin_names_used"));
             return;
         }
 
@@ -163,15 +160,15 @@ public class MannequinCommand {
                     mannequin.teleport(team.getSpawnLocation());
                 }
                 mannequin.getEquipment().setItem(EquipmentSlot.HEAD, TeamSelectionGUI.createTeamBanner(teamColor));
-                sender.sendMessage(text("Spawned mannequin \"" + name + "\" on team " + teamColor.name(),
-                        NamedTextColor.GREEN));
+                sender.sendMessage(Component.translatable("rush.mannequin_spawned",
+                        Component.text(name), Component.text(teamColor.name())));
             } else {
-                sender.sendMessage(text("Failed to join mannequin to team", NamedTextColor.RED));
+                sender.sendMessage(Component.translatable("rush.mannequin_join_failed"));
             }
             return;
         }
 
-        sender.sendMessage(text("Spawned mannequin \"" + name + "\" (no active game in this world)", NamedTextColor.YELLOW));
+        sender.sendMessage(Component.translatable("rush.mannequin_no_game", Component.text(name)));
     }
 
     private TeamColor getSmallestTeam(Game game) {
@@ -202,8 +199,8 @@ public class MannequinCommand {
             }
         }
 
-        sender.sendMessage(
-                text("Removed " + count + " mannequins from " + target.getWorld().getName(), NamedTextColor.GREEN));
+        sender.sendMessage(Component.translatable("rush.mannequin_removed",
+                Component.text(count), Component.text(target.getWorld().getName())));
 
         return Command.SINGLE_SUCCESS;
     }

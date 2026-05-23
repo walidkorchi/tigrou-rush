@@ -31,7 +31,8 @@ public record GameRoomConfig(
 
         public Builder islandType(GameRoom.IslandType islandType) {
             this.islandType = islandType;
-            if (maxTeams > islandType.getCount()) maxTeams = islandType.getCount();
+            if (maxTeams > islandType.getCount())
+                maxTeams = islandType.getCount();
             return this;
         }
 
@@ -67,16 +68,67 @@ public record GameRoomConfig(
             return this;
         }
 
-        public GameRoom.IslandType islandType() { return islandType; }
-        public int maxTeams() { return maxTeams; }
-        public GameRoom.TeamSize teamSize() { return teamSize; }
-        public MapType mapType() { return mapType; }
-        public boolean extraHearts() { return extraHearts; }
-        public boolean overtimeStart() { return overtimeStart; }
-        public int overtimeDuration() { return overtimeDuration; }
+        public GameRoom.IslandType islandType() {
+            return islandType;
+        }
+
+        public int maxTeams() {
+            return maxTeams;
+        }
+
+        public GameRoom.TeamSize teamSize() {
+            return teamSize;
+        }
+
+        public MapType mapType() {
+            return mapType;
+        }
+
+        public boolean extraHearts() {
+            return extraHearts;
+        }
+
+        public boolean overtimeStart() {
+            return overtimeStart;
+        }
+
+        public int overtimeDuration() {
+            return overtimeDuration;
+        }
 
         public GameRoomConfig build() {
-            return new GameRoomConfig(islandType, maxTeams, teamSize, mapType, extraHearts, overtimeStart, overtimeDuration);
+            return new GameRoomConfig(islandType, maxTeams, teamSize, mapType, extraHearts, overtimeStart,
+                    overtimeDuration);
         }
+    }
+
+    public double getCoefficient() {
+        int t = maxTeams;
+        int p = teamSize.getPlayersPerTeam();
+        if (t == 2)
+            return switch (p) {
+                case 1 -> 1.00;
+                case 2 -> 1.15;
+                case 3 -> 1.25;
+                case 4 -> 1.35;
+                default -> 1.0;
+            };
+        if (t == 3)
+            return switch (p) {
+                case 1 -> 1.05;
+                case 2 -> 1.20;
+                case 3 -> 1.30;
+                case 4 -> 1.40;
+                default -> 1.0;
+            };
+        if (t == 4)
+            return switch (p) {
+                case 1 -> 1.10;
+                case 2 -> 1.25;
+                case 3 -> 1.35;
+                case 4 -> 1.45;
+                default -> 1.0;
+            };
+        return 1.0;
     }
 }

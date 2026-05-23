@@ -40,12 +40,12 @@ public class GameLobbyCountdown {
     }
 
     private void broadcastCountdown(int seconds) {
-        String message = "§eLa partie commence dans §c" + seconds + " §esecondes!";
         float pitch = seconds <= 1 ? 2.0f : 1.0f;
+        Component message = Component.translatable("rush.countdown_seconds", Component.text(seconds));
 
         for (Entity entity : game.getPlayers()) {
             if (entity instanceof Player player) {
-                player.sendMessage(Component.text(message));
+                player.sendMessage(message);
                 player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1.0f, pitch);
             }
         }
@@ -69,11 +69,11 @@ public class GameLobbyCountdown {
     }
 
     public void broadcastCountdownMessage(int seconds) {
-        String message = "§eLa partie commence dans §c" + seconds + " §esecondes!";
+        Component message = Component.translatable("rush.countdown_seconds", Component.text(seconds));
 
         for (Entity entity : game.getPlayers()) {
             if (entity instanceof Player player) {
-                player.sendMessage(Component.text(message));
+                player.sendMessage(message);
             }
         }
     }

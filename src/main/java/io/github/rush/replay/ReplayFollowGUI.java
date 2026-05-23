@@ -3,6 +3,7 @@ package io.github.rush.replay;
 import io.github.rush.menus.GUI;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -18,7 +19,7 @@ public final class ReplayFollowGUI {
     public static void open(Player viewer, ReplayPlayback playback) {
         var mannequins = playback.getMannequinByPlayer();
         int rows = Math.max(1, (int) Math.ceil(mannequins.size() / 9.0));
-        GUI gui = new GUI("§8Suivre un joueur", rows);
+        GUI gui = new GUI(Component.translatable("gui.replay_follow.title"), rows);
 
         int slot = 0;
         for (UUID uuid : mannequins.keySet()) {
@@ -30,15 +31,15 @@ public final class ReplayFollowGUI {
             ItemStack head = new ItemStack(Material.PLAYER_HEAD);
             SkullMeta meta = (SkullMeta) head.getItemMeta();
             meta.setOwningPlayer(Bukkit.getOfflinePlayer(uuid));
-            meta.displayName(Component.text("§f" + displayName));
+            meta.displayName(Component.translatable("rush.replay_follow_name", Component.text(displayName)));
 
             UUID currentTarget = playback.getFollowTarget(viewer.getUniqueId());
             if (targetUuid.equals(currentTarget)) {
                 meta.lore(List.of(
-                        Component.text("§aSuivi en cours"),
-                        Component.text("§7Cliquer pour arrêter")));
+                        Component.translatable("rush.replay_following"),
+                        Component.translatable("rush.replay_stop_follow")));
             } else {
-                meta.lore(List.of(Component.text("§7Cliquer pour suivre")));
+                meta.lore(List.of(Component.translatable("rush.replay_click_follow")));
             }
             head.setItemMeta(meta);
 
@@ -48,6 +49,13 @@ public final class ReplayFollowGUI {
                     playback.clearFollowTarget(p.getUniqueId());
                 } else {
                     playback.setFollowTarget(p.getUniqueId(), targetUuid);
+                    var mannequin = playback.getMannequinByPlayer().get(targetUuid);
+                    if (mannequin != null) {
+                        Location mLoc = mannequin.getLocation();
+                        if (mLoc.getY() > playback.getWorld().getMinHeight() + 1) {
+                            p.teleport(mLoc);
+                        }
+                    }
                 }
                 p.closeInventory();
             });

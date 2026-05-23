@@ -1,12 +1,18 @@
 package io.github.rush.statistics;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import net.momirealms.craftengine.bukkit.font.BukkitFontManager;
+import net.momirealms.craftengine.core.font.BitmapImage;
+import net.momirealms.craftengine.core.util.Key;
+
 import org.bukkit.OfflinePlayer;
 
+import java.util.Optional;
 import java.util.UUID;
 
 @Entity
@@ -15,16 +21,21 @@ import java.util.UUID;
 @NoArgsConstructor
 public class PlayerLevel {
 
-    private int getMaxLevel() {
-        return PlayerLevelManager.getMaxLevel();
-    }
+    public static final long FIRST_RANK_XP = 10_000;
+    public static final double RANK_MULTIPLIER = 1.25;
+    public static final double[] PRESTIGE_NERFS = { 1.0, 0.8, 0.5 };
+
+    private static String[][] rankMiniMessageTags = null;
+    private static boolean ranksLoaded = false;
 
     @Id
     private UUID uuid;
 
-    private int level = 0;
-    private int currentXP = 0;
-    private int totalXP = 0;
+    @Column(name = "rank_index")
+    private int rankIndex = -1;
+
+    @Column(name = "total_xp")
+    private long totalXP = 0;
 
     public PlayerLevel(UUID uuid) {
         this.uuid = uuid;
@@ -34,140 +45,153 @@ public class PlayerLevel {
         this.uuid = player.getUniqueId();
     }
 
-    public int getXPForNextLevel() {
-        return getXPForLevel(level + 1);
-    }
-
-    public static int getXPForLevel(int lvl) {
-        // Base 100 XP, +20 per level (level 1 = 100, level 2 = 120, level 50 = 1080, level 150 = 3080)
-        return 80 + (lvl * 20);
-    }
-
-    public static int getCumulativeXP(int lvl) {
-        // Sum of getXPForLevel(1..lvl) = sum(80 + i*20) for i=1..lvl = 80*lvl + 20*lvl*(lvl+1)/2
-        return 80 * lvl + 10 * lvl * (lvl + 1);
-    }
-
-    public String getTierIcon() {
-        return getTierIcon(level);
-    }
-
-    public static String getTierIcon(int level) {
-        if (level >= PlayerLevelManager.getMaxLevel()) return "♕";
-        if (level >= 5) return "✦";
-        return "☆";
-    }
-
-    public String getTierColor() {
-        return getTierColor(level);
-    }
-
-    public static String getTierColor(int level) {
-        int max = PlayerLevelManager.getMaxLevel();
-        if (level >= max)  return "§c[§61§e5§a0§d]";
-        if (level >= 145)  return "§b";
-        if (level >= 135)  return "§c";
-        if (level >= 125)  return "§e";
-        if (level >= 115)  return "§7";
-        if (level >= 110)  return "§b";
-        if (level >= 105)  return "§4";
-        if (level >= 100)  return "§1";
-        if (level >= 95)   return "§e";
-        if (level >= 85)   return "§3";
-        if (level >= 80)   return "§b";
-        if (level >= 75)   return "§9";
-        if (level >= 70)   return "§6";
-        if (level >= 65)   return "§f";
-        if (level >= 60)   return "§c";
-        if (level >= 55)   return "§f";
-        if (level >= 50)   return "§c[§65§e0§b]";
-        if (level >= 45)   return "§5";
-        if (level >= 40)   return "§9";
-        if (level >= 35)   return "§d";
-        if (level >= 30)   return "§4";
-        if (level >= 25)   return "§3";
-        if (level >= 20)   return "§2";
-        if (level >= 15)   return "§b";
-        if (level >= 10)   return "§6";
-        if (level >= 5)    return "§f";
-        return "§8";
-    }
-
-    public static String tierColorMiniMessage(int level) {
-        int max = PlayerLevelManager.getMaxLevel();
-        if (level >= max)  return "<red>";
-        if (level >= 145)  return "<aqua>";
-        if (level >= 135)  return "<red>";
-        if (level >= 125)  return "<yellow>";
-        if (level >= 115)  return "<gray>";
-        if (level >= 110)  return "<aqua>";
-        if (level >= 105)  return "<dark_red>";
-        if (level >= 100)  return "<dark_blue>";
-        if (level >= 95)   return "<yellow>";
-        if (level >= 85)   return "<dark_aqua>";
-        if (level >= 80)   return "<aqua>";
-        if (level >= 75)   return "<blue>";
-        if (level >= 70)   return "<gold>";
-        if (level >= 65)   return "<white>";
-        if (level >= 60)   return "<red>";
-        if (level >= 55)   return "<white>";
-        if (level >= 50)   return "<red>";
-        if (level >= 45)   return "<dark_purple>";
-        if (level >= 40)   return "<blue>";
-        if (level >= 35)   return "<light_purple>";
-        if (level >= 30)   return "<dark_red>";
-        if (level >= 25)   return "<dark_aqua>";
-        if (level >= 20)   return "<dark_green>";
-        if (level >= 15)   return "<aqua>";
-        if (level >= 10)   return "<gold>";
-        if (level >= 5)    return "<white>";
-        return "<dark_gray>";
-    }
-
-    public String getFormattedLevel() {
-        String tierColor = getTierColor();
-        String icon = getTierIcon();
-
-        if (level >= 50 && level < getMaxLevel()) {
-            return tierColor + level + icon;
-        } else if (level >= getMaxLevel()) {
-            return tierColor + icon;
+    public static long getRankThreshold(int rankIndex) {
+        if (rankIndex < 0)
+            return 0;
+        if (rankIndex < 12) {
+            return (long) (FIRST_RANK_XP * Math.pow(RANK_MULTIPLIER, rankIndex));
         }
-
-        return tierColor + String.valueOf(level) + icon;
+        int prestige = rankIndex / 12;
+        int offset = rankIndex % 12;
+        long base = getRankThreshold(prestige * 12 - 1);
+        double effMultiplier = 1 + (RANK_MULTIPLIER - 1) * PRESTIGE_NERFS[prestige];
+        return (long) (base * Math.pow(effMultiplier, offset + 1));
     }
 
-    public void addXP(int xp) {
+    public static int getRankIndex(long totalXP) {
+        if (totalXP < FIRST_RANK_XP)
+            return -1;
+        int rank = 0;
+        while (rank < 35 && getRankThreshold(rank + 1) <= totalXP)
+            rank++;
+        return rank;
+    }
+
+    public static String getPrestigeName(int rankIndex) {
+        if (rankIndex < 0)
+            return "";
+        return switch (rankIndex / 12) {
+            case 0 -> "Bronze";
+            case 1 -> "Argent";
+            case 2 -> "Or";
+            default -> "";
+        };
+    }
+
+    public static String getGemName(int rankIndex) {
+        if (rankIndex < 0)
+            return "";
+        return switch ((rankIndex % 12) / 3) {
+            case 0 -> "Emeraude";
+            case 1 -> "Améthyste";
+            case 2 -> "Diamant";
+            case 3 -> "Rubis";
+            default -> "";
+        };
+    }
+
+    public static int getLevelInRank(int rankIndex) {
+        if (rankIndex < 0)
+            return 0;
+        return (rankIndex % 12) % 3 + 1;
+    }
+
+    public static void loadRankImages() {
+        try {
+            BukkitFontManager fontManager = BukkitFontManager
+                    .instance();
+            if (fontManager == null)
+                return;
+            Key key = Key
+                    .of("tland:level_ranks");
+            Optional<BitmapImage> opt = fontManager.bitmapImageById(key);
+            if (opt.isEmpty())
+                return;
+            BitmapImage bitmap = opt.get();
+            String[][] tags = new String[bitmap.rows()][bitmap.columns()];
+            for (int row = 0; row < bitmap.rows(); row++)
+                for (int col = 0; col < bitmap.columns(); col++)
+                    tags[row][col] = bitmap.miniMessageAt(row, col);
+            rankMiniMessageTags = tags;
+            ranksLoaded = true;
+        } catch (Exception | NoClassDefFoundError ignored) {
+            // CraftEngine not yet ready; retry will be scheduled by Main
+        }
+    }
+
+    public static boolean isRanksLoaded() {
+        return ranksLoaded;
+    }
+
+    /**
+     * Returns the MiniMessage tag for this player's rank, or "§7Non classé" if
+     * unranked.
+     */
+    public String getFormattedRank() {
+        return getRankTag(rankIndex);
+    }
+
+    /**
+     * Returns the MiniMessage tag for the given rank index, or "§7Non classé" if
+     * unranked.
+     */
+    public static String getRankTag(int rankIndex) {
+        if (rankIndex < 0)
+            return "<gray>Non classé</gray>";
+        if (ranksLoaded && rankMiniMessageTags != null) {
+            int prestige = rankIndex / 12; // 0=Bronze, 1=Silver, 2=Gold
+            int inPrestige = rankIndex % 12;
+            int gem = inPrestige / 3; // 0=Emerald, 1=Amethyst, 2=Diamond, 3=Ruby
+            int level = inPrestige % 3; // 0=I, 1=II, 2=III
+            int row = prestige * 4 + gem;
+            int col = level;
+            if (row < rankMiniMessageTags.length && col < rankMiniMessageTags[row].length) {
+                return rankMiniMessageTags[row][col];
+            }
+        }
+        return "<gray>" + getPrestigeName(rankIndex) + " " + getGemName(rankIndex) + " " + getLevelInRank(rankIndex)
+                + "</gray>";
+    }
+
+    // --- Instance progress helpers ---
+
+    /** XP accumulated since entering current rank (or totalXP if unranked). */
+    public long getProgressInRank() {
+        if (rankIndex < 0)
+            return totalXP;
+        return totalXP - getRankThreshold(rankIndex);
+    }
+
+    /** XP needed to reach next rank; 0 if at max rank. */
+    public long getXPToNextRank() {
+        if (rankIndex >= 35)
+            return 0;
+        return getRankThreshold(rankIndex + 1) - totalXP;
+    }
+
+    /** Total XP range for the current rank segment (used for progress bar). */
+    public long getXPForCurrentRange() {
+        if (rankIndex < 0)
+            return FIRST_RANK_XP;
+        if (rankIndex >= 35)
+            return 1;
+        return getRankThreshold(rankIndex + 1) - getRankThreshold(rankIndex);
+    }
+
+    // --- Mutation ---
+
+    public void addXP(long xp) {
         this.totalXP += xp;
-        this.currentXP += xp;
-
-        while (level < getMaxLevel() && currentXP >= getXPForNextLevel()) {
-            currentXP -= getXPForNextLevel();
-            level++;
+        int newRank = getRankIndex(this.totalXP);
+        if (newRank > this.rankIndex) {
+            this.rankIndex = newRank;
+        } else if (newRank < this.rankIndex) {
+            this.rankIndex = newRank;
         }
     }
 
-    public void removeXP(int xp) {
-        this.totalXP = Math.max(0, this.totalXP - xp);
-        this.currentXP -= xp;
-
-        while (currentXP < 0 && level > 0) {
-            level--;
-            currentXP += getXPForLevel(level + 1);
-        }
-
-        this.currentXP = Math.max(0, this.currentXP);
-    }
-
-    public void setLevel(int level) {
-        this.level = Math.min(level, getMaxLevel());
-    }
-
-    public void setCurrentXP(int currentXP) {
-        this.currentXP = Math.max(0, currentXP);
-    }
-
-    public void setTotalXP(int totalXP) {
+    public void setTotalXP(long totalXP) {
         this.totalXP = Math.max(0, totalXP);
+        this.rankIndex = getRankIndex(this.totalXP);
     }
 }

@@ -11,4 +11,7 @@ public record ReplayHeader(
         String winnerTeamColorName,
         List<String> participantNames,
         String mapTypeName,
-        Map<String, String> teamColorsByPlayerUuid) {}
+        String islandTypeName,
+        int maxTeams,
+        Map<String, String> teamColorsByPlayerUuid) {
+}

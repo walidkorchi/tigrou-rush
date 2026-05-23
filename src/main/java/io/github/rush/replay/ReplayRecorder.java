@@ -2,19 +2,39 @@ package io.github.rush.replay;
 
 import io.github.rush.Main;
 import io.github.rush.game.Game;
+import io.papermc.paper.event.player.AsyncChatEvent;
+import io.papermc.paper.event.player.PlayerArmSwingEvent;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.Item;
+import org.bukkit.entity.Mannequin;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Projectile;
+import org.bukkit.entity.TNTPrimed;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.EntitySpawnEvent;
+import org.bukkit.event.player.PlayerDropItemEvent;
+import org.bukkit.block.Block;
+import org.bukkit.util.Vector;
+import org.bukkit.inventory.EntityEquipment;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.scheduler.BukkitTask;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 public final class ReplayRecorder implements Listener {
 
@@ -45,19 +65,42 @@ public final class ReplayRecorder implements Listener {
         long ts = elapsed();
         for (Entity entity : game.getPlayers()) {
             if (entity instanceof Player player) {
-                var loc = player.getLocation();
+                Location loc = player.getLocation();
+                PlayerInventory inv = player.getInventory();
+                String mainHand = inv.getItemInMainHand().getType().name();
+                String offHand = inv.getItemInOffHand().getType().name();
                 actionsFor(player.getUniqueId()).add(
                         new MoveAction(ts, player.getUniqueId(),
                                 loc.getX(), loc.getY(), loc.getZ(),
-                                loc.getYaw(), loc.getPitch()));
+                                loc.getYaw(), loc.getPitch(),
+                                mainHand, offHand, player.isSneaking()));
+            } else if (entity instanceof Mannequin mannequin) {
+                Location loc = mannequin.getLocation();
+                String mainHand = "AIR";
+                String offHand = "AIR";
+                EntityEquipment equip = mannequin.getEquipment();
+                if (equip != null) {
+                    ItemStack mh = equip.getItemInMainHand();
+                    if (mh != null)
+                        mainHand = mh.getType().name();
+                    ItemStack oh = equip.getItemInOffHand();
+                    if (oh != null)
+                        offHand = oh.getType().name();
+                }
+                actionsFor(mannequin.getUniqueId()).add(
+                        new MoveAction(ts, mannequin.getUniqueId(),
+                                loc.getX(), loc.getY(), loc.getZ(),
+                                loc.getYaw(), loc.getPitch(),
+                                mainHand, offHand, false));
             }
         }
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBlockPlace(BlockPlaceEvent event) {
-        if (!event.getPlayer().getWorld().getName().equals(worldName)) return;
-        var block = event.getBlock();
+        if (!event.getPlayer().getWorld().getName().equals(worldName))
+            return;
+        Block block = event.getBlock();
         actionsFor(event.getPlayer().getUniqueId()).add(new BlockChangeAction(elapsed(),
                 block.getX(), block.getY(), block.getZ(), worldName,
                 block.getType().name(),
@@ -66,12 +109,81 @@ public final class ReplayRecorder implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBlockBreak(BlockBreakEvent event) {
-        if (!event.getPlayer().getWorld().getName().equals(worldName)) return;
-        var block = event.getBlock();
+        if (!event.getPlayer().getWorld().getName().equals(worldName))
+            return;
+        Block block = event.getBlock();
         actionsFor(event.getPlayer().getUniqueId()).add(new BlockChangeAction(elapsed(),
                 block.getX(), block.getY(), block.getZ(), worldName,
                 "AIR",
                 block.getType().name()));
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onChat(AsyncChatEvent event) {
+        if (!event.getPlayer().getWorld().getName().equals(worldName))
+            return;
+        String text = PlainTextComponentSerializer.plainText().serialize(event.message());
+        long ts = elapsed();
+        UUID uuid = event.getPlayer().getUniqueId();
+        Bukkit.getScheduler().runTask(Main.getInstance(), () -> {
+            actionsFor(GLOBAL).add(new ChatAction(ts, uuid, text));
+        });
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onArmSwing(PlayerArmSwingEvent event) {
+        if (!event.getPlayer().getWorld().getName().equals(worldName))
+            return;
+        UUID uuid = event.getPlayer().getUniqueId();
+        actionsFor(uuid).add(new ArmSwingAction(elapsed(), uuid, event.getHand()));
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onEntityDamage(EntityDamageEvent event) {
+        if (!(event.getEntity() instanceof Player victim))
+            return;
+        if (!victim.getWorld().getName().equals(worldName))
+            return;
+
+        UUID attackerUuid = null;
+        if (event instanceof EntityDamageByEntityEvent byEntity) {
+            if (byEntity.getDamager() instanceof Player attacker) {
+                attackerUuid = attacker.getUniqueId();
+            } else if (byEntity.getDamager() instanceof Projectile projectile
+                    && projectile.getShooter() instanceof Player attacker) {
+                attackerUuid = attacker.getUniqueId();
+            }
+        }
+
+        actionsFor(victim.getUniqueId()).add(new DamageAction(
+                elapsed(), victim.getUniqueId(), attackerUuid,
+                event.getCause().name(), event.getFinalDamage()));
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onPlayerDropItem(PlayerDropItemEvent event) {
+        if (!event.getPlayer().getWorld().getName().equals(worldName))
+            return;
+        Player player = event.getPlayer();
+        Item item = event.getItemDrop();
+        Location loc = item.getLocation();
+        Vector vel = item.getVelocity();
+        actionsFor(player.getUniqueId()).add(new DropItemAction(
+                elapsed(), player.getUniqueId(),
+                item.getItemStack().getType().name(),
+                item.getItemStack().getAmount(),
+                loc.getX(), loc.getY(), loc.getZ(), loc.getYaw(),
+                vel.getX(), vel.getY(), vel.getZ()));
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onEntitySpawn(EntitySpawnEvent event) {
+        if (event.getEntity() instanceof TNTPrimed tnt) {
+            if (!tnt.getWorld().getName().equals(worldName))
+                return;
+            actionsFor(GLOBAL).add(new TntIgniteAction(
+                    elapsed(), tnt.getX(), tnt.getY(), tnt.getZ(), tnt.getFuseTicks()));
+        }
     }
 
     public void recordDeath(UUID uuid) {
@@ -91,8 +203,9 @@ public final class ReplayRecorder implements Listener {
     }
 
     public void stop(String sessionId, String winnerTeamColorName, String hostName,
-                     List<String> participantNames, String mapTypeName,
-                     Map<String, String> teamColorsByPlayerUuid) {
+            List<String> participantNames, String mapTypeName,
+            String islandTypeName, int maxTeams,
+            Map<String, String> teamColorsByPlayerUuid) {
         HandlerList.unregisterAll(this);
         if (movementTask != null) {
             movementTask.cancel();
@@ -100,7 +213,8 @@ public final class ReplayRecorder implements Listener {
         }
         long durationMs = elapsed();
         ReplayHeader header = new ReplayHeader(sessionId, hostName, startMs, durationMs,
-                winnerTeamColorName, participantNames, mapTypeName, teamColorsByPlayerUuid);
+                winnerTeamColorName, participantNames, mapTypeName,
+                islandTypeName, maxTeams, teamColorsByPlayerUuid);
         ReplayFile file = new ReplayFile(header, new HashMap<>(actionMap));
         Bukkit.getScheduler().runTaskAsynchronously(Main.getInstance(),
                 () -> Main.getInstance().getReplayStorage().save(file));

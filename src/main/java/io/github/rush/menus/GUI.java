@@ -76,6 +76,20 @@ public class GUI implements InventoryHolder {
     }
 
     /**
+     * Creates a new GUI with a Component title.
+     *
+     * @param title The title of the GUI as a Component
+     * @param rows  The number of rows
+     */
+    public GUI(Component title, int rows) {
+        this.inventory = Bukkit.createInventory(this, rows * 9, title);
+        this.title = null;
+        this.clickActions = new HashMap<>();
+        this.rightClickActions = new HashMap<>();
+        this.cancelClicks = null;
+    }
+
+    /**
      * Creates a new GUI.
      *
      * @param title        The title of the GUI

@@ -66,18 +66,21 @@ public class Merchant {
      * merchant type, ready to be opened via {@code player.openMerchant()}.
      */
     public static org.bukkit.inventory.Merchant createBukkitMerchant(MerchantType type) {
-        String displayName = switch (type) {
-            case WEAPONSMITH -> "Forgeron";
-            case BUILDER -> "Constructeur";
-            case ALCHEMIST -> "Alchimiste";
-            case ARMORSMITH -> "Armurier";
-            default -> type.name();
-        };
-        org.bukkit.inventory.Merchant merchant = Bukkit.createMerchant(Component.text(displayName));
+        org.bukkit.inventory.Merchant merchant = Bukkit.createMerchant(Component.translatable(typeKey(type)));
         merchant.setRecipes(type.getTrades().stream()
                 .map(Merchant::toMerchantRecipe)
                 .toList());
         return merchant;
+    }
+
+    private static String typeKey(MerchantType type) {
+        return switch (type) {
+            case WEAPONSMITH -> "rush.merchant_weaponsmith";
+            case BUILDER -> "rush.merchant_builder";
+            case ALCHEMIST -> "rush.merchant_alchemist";
+            case ARMORSMITH -> "rush.merchant_armorsmith";
+            default -> "rush.merchant_" + type.name().toLowerCase();
+        };
     }
 
     static MerchantRecipe toMerchantRecipe(Trade trade) {

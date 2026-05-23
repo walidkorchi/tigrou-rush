@@ -5,13 +5,14 @@ import io.github.rush.settings.PlayerSettings;
 import io.github.rush.settings.PlayerSettingsManager;
 import io.github.rush.utils.ItemBuilder;
 import org.bukkit.Material;
+import net.kyori.adventure.text.Component;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
 public class PlayerSettingsGUI {
 
     public static void openPlayerSettings(Player player) {
-        final GUI gui = new GUI("§8Paramètres du joueur", 1);
+        final GUI gui = new GUI(Component.translatable("gui.player_settings.title").toString(), 1);
         final PlayerSettingsManager settingsManager = Main.getInstance().getPlayerSettingsManager();
         final PlayerSettings settings = settingsManager.loadSettings(player.getUniqueId());
 
@@ -51,18 +52,22 @@ public class PlayerSettingsGUI {
     }
 
     private static ItemStack createScoreboardToggleItem(boolean enabled) {
-        return createToggleItem(Material.GREEN_STAINED_GLASS_PANE, Material.RED_STAINED_GLASS_PANE, "§fScoreboard", enabled);
+        return createToggleItem(Material.GREEN_STAINED_GLASS_PANE, Material.RED_STAINED_GLASS_PANE,
+                "gui.player_settings.scoreboard", enabled);
     }
 
     private static ItemStack createMusicToggleItem(boolean enabled) {
-        return createToggleItem(Material.MUSIC_DISC_CAT, Material.MUSIC_DISC_11, "§fMusique", enabled);
+        return createToggleItem(Material.MUSIC_DISC_CAT, Material.MUSIC_DISC_11,
+                "gui.player_settings.music", enabled);
     }
 
-    private static ItemStack createToggleItem(Material on, Material off, String label, boolean enabled) {
-        String status = enabled ? "§aActivé" : "§cDésactivé";
+    private static ItemStack createToggleItem(Material on, Material off, String labelKey, boolean enabled) {
+        Component status = Component.translatable(enabled ? "gui.player_settings.enabled" : "gui.player_settings.disabled");
         return ItemBuilder.of(enabled ? on : off)
-                .name(label)
-                .lore("§7État: " + status, "§7Clic pour basculer")
+                .name(Component.translatable(labelKey))
+                .lore(
+                        Component.translatable("gui.player_settings.status", status),
+                        Component.translatable("gui.player_settings.click_toggle"))
                 .build();
     }
 }

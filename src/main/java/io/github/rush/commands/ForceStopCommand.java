@@ -17,6 +17,7 @@ import org.jspecify.annotations.NullMarked;
 
 import net.kyori.adventure.text.format.NamedTextColor;
 
+import net.kyori.adventure.text.Component;
 import static net.kyori.adventure.text.Component.text;
 
 @NullMarked
@@ -52,7 +53,7 @@ public class ForceStopCommand {
                     game.forceStop();
                     plugin.clearGame();
                     for (var p : plugin.getServer().getOnlinePlayers()) {
-                        p.sendMessage(text("§c⚠ Un administrateur a forcé l'arrêt de la partie!"));
+                        p.sendMessage(Component.translatable("rush.force_stop_broadcast"));
                     }
                 }
                 sender.sendMessage(text("Game force stopped.", NamedTextColor.GREEN));
@@ -60,7 +61,7 @@ public class ForceStopCommand {
             }
         }
 
-        sender.sendMessage(text("Aucune partie en cours trouvée.", NamedTextColor.RED));
+        sender.sendMessage(text("No running game found.", NamedTextColor.RED));
         return Command.SINGLE_SUCCESS;
     }
 }

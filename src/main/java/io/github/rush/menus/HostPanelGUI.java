@@ -25,19 +25,21 @@ public final class HostPanelGUI {
         // Rows: 1 for the force-start button + ceil(players / 9) for kick list, min 2
         // rows
         int rows = Math.max(2, 1 + (int) Math.ceil(players.size() / 9.0));
-        GUI gui = new GUI("§8Panneau de l'Hôte", rows);
+        GUI gui = new GUI(Component.translatable("rush.host_panel_title"), rows);
 
         // Delete room button (slot 0, top row left)
         ItemStack deleteRoom = ItemBuilder.of(Material.BARRIER)
-                .name("§c§lSupprimer la partie")
-                .lore("§7Supprime la partie et renvoie", "§7tous les joueurs au lobby.")
+                .name(Component.translatable("rush.host_panel_delete"))
+                .lore(
+                        Component.translatable("rush.host_panel_delete_lore1"),
+                        Component.translatable("rush.host_panel_delete_lore2"))
                 .build();
 
         gui.addItem(0, deleteRoom, p -> {
             p.closeInventory();
             for (Entity entity : new java.util.ArrayList<>(room.getWorld().getPlayers())) {
                 if (entity instanceof Player roomPlayer) {
-                    roomPlayer.sendMessage(Component.text("§cLa partie a été supprimée par l'hôte."));
+                    roomPlayer.sendMessage(Component.translatable("rush.room_deleted_by_host"));
                 }
             }
             manager.removeGameRoom(room.getId());
@@ -45,8 +47,10 @@ public final class HostPanelGUI {
 
         // Force-start button (slot 4, top row centre)
         ItemStack forceStart = ItemBuilder.of(Material.LIME_DYE)
-                .name("§a§lForcer le démarrage")
-                .lore("§7Démarre la partie immédiatement", "§7sans attendre le compte à rebours.")
+                .name(Component.translatable("rush.host_panel_force_start"))
+                .lore(
+                        Component.translatable("rush.host_panel_force_start_lore1"),
+                        Component.translatable("rush.host_panel_force_start_lore2"))
                 .build();
 
         gui.addItem(4, forceStart, p -> {
@@ -61,8 +65,10 @@ public final class HostPanelGUI {
                 continue;
 
             ItemStack head = ItemBuilder.of(Material.PLAYER_HEAD)
-                    .name("§c§lExpulser §f" + target.getName())
-                    .lore("§7Clic pour expulser " + target.getName(), "§7de la salle d'attente.")
+                    .name(Component.translatable("rush.host_panel_kick_name", Component.text(target.getName())))
+                    .lore(
+                            Component.translatable("rush.host_panel_kick_lore1", Component.text(target.getName())),
+                            Component.translatable("rush.host_panel_kick_lore2"))
                     .build();
 
             final Player kicked = target;
@@ -72,8 +78,8 @@ public final class HostPanelGUI {
                 manager.removePlayerFromGameRoom(kicked);
                 kicked.teleport(kicked.getServer().getWorlds().get(0).getSpawnLocation());
                 kicked.getInventory().clear();
-                kicked.sendMessage(Component.text("§cVous avez été expulsé de la partie."));
-                p.sendMessage(Component.text("§7" + kicked.getName() + " a été expulsé."));
+                kicked.sendMessage(Component.translatable("rush.room_kicked"));
+                p.sendMessage(Component.translatable("rush.player_kicked", Component.text(kicked.getName())));
             });
             slot++;
         }
