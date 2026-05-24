@@ -106,6 +106,10 @@ public class PlayerActivity implements Listener {
 
         event.joinMessage(Component.translatable("rush.chat_join", Component.text(player.getName())));
 
+        if (plugin.getTablistManager() != null) {
+            plugin.getTablistManager().onPlayerJoin(player);
+        }
+
         // Check if the player was in a running game room before disconnecting
         GameManager.ReconnectData reconnectData = plugin.getGameManager().consumeReconnectData(player.getUniqueId());
         if (reconnectData != null) {
@@ -153,6 +157,10 @@ public class PlayerActivity implements Listener {
 
         if (plugin.getScoreboardManager() != null) {
             plugin.getScoreboardManager().removeScoreboard(player);
+        }
+
+        if (plugin.getTablistManager() != null) {
+            plugin.getTablistManager().onPlayerQuit(player);
         }
 
         if (plugin.getPlayerSettingsManager() != null) {
@@ -240,11 +248,9 @@ public class PlayerActivity implements Listener {
         final Material blockType = block.getType();
         final String worldName = player.getWorld().getName();
 
-        final boolean isLegacyOrHubWorld = worldName.equals(plugin.getGameWorld());
-        final GameRoom breakRoom = isLegacyOrHubWorld ? null
-                : Main.getInstance().getGameManager().getGameRoomByWorld(worldName);
+        final GameRoom breakRoom = Main.getInstance().getGameManager().getGameRoomByWorld(worldName);
 
-        if (!isLegacyOrHubWorld && breakRoom == null) {
+        if (breakRoom == null) {
             return;
         }
 
@@ -254,9 +260,7 @@ public class PlayerActivity implements Listener {
 
         // sandstone/endstone are emancipated from island block protection logic
         if (blockType == Material.SANDSTONE || blockType == Material.END_STONE) {
-            final Game game = isLegacyOrHubWorld
-                    ? Main.getInstance().getGameManager().getCurrentGame()
-                    : breakRoom.getGame();
+            final Game game = breakRoom.getGame();
 
             if (game != null) {
                 final Team breakerTeam = game.getPlayerTeam(player);
@@ -347,22 +351,12 @@ public class PlayerActivity implements Listener {
         final Player player = event.getPlayer();
         final String worldName = player.getWorld().getName();
 
-        if (worldName.equals(plugin.getGameWorld()) && player.getLocation().getY() < 0) {
+        if (worldName.equals(plugin.getHubWorld()) && player.getLocation().getY() < 0) {
             final Location lobby = plugin.getMainLobby();
 
             if (lobby != null) {
                 player.setFallDistance(0);
                 player.teleport(lobby);
-            }
-
-            return;
-        }
-
-        if (plugin.isGameStarted() && worldName.equals(plugin.getGameWorld())) {
-            final Game game = Main.getInstance().getGameManager().getCurrentGame();
-
-            if (game != null && !game.isSpectator(player)) {
-                rescueFromVoid(player, game, Main.getISLAND_Y());
             }
 
             return;
@@ -417,14 +411,8 @@ public class PlayerActivity implements Listener {
         }
 
         GameRoom room = Main.getInstance().getGameManager().getGameRoomByWorld(mannequin.getWorld().getName());
-        Game game;
-        if (room != null) {
-            game = room.getGame();
-        } else if (plugin.isGameStarted()) {
-            game = Main.getInstance().getGameManager().getCurrentGame();
-        } else {
-            return;
-        }
+        if (room == null) return;
+        Game game = room.getGame();
 
         if (game == null || game.getPlayerTeam(mannequin) == null) {
             return;
@@ -589,9 +577,8 @@ public class PlayerActivity implements Listener {
             }
         }
 
-        // Block interactive block access in hub for non-OP players (outside legacy
-        // game)
-        if (isHubPlayer(player) && !plugin.isGameStarted() && !player.isOp()) {
+        // Block interactive block access in hub for non-OP players
+        if (isHubPlayer(player) && !player.isOp()) {
             Block block = pie.getClickedBlock();
             if (pie.getAction() == Action.RIGHT_CLICK_BLOCK && block != null && isHubRestrictedBlock(block)) {
                 pie.setCancelled(true);
@@ -623,15 +610,6 @@ public class PlayerActivity implements Listener {
             }
         }
 
-        if (plugin.isGameStarted()) {
-            Block clickedBlock = pie.getClickedBlock();
-
-            if (pie.getAction() == Action.PHYSICAL && clickedBlock != null) {
-                if (clickedBlock.getType() == Material.WHEAT || clickedBlock.getType() == Material.FARMLAND) {
-                    pie.setCancelled(true);
-                }
-            }
-        }
     }
 
     @EventHandler
@@ -729,49 +707,18 @@ public class PlayerActivity implements Listener {
         if (player.isOp())
             return false;
 
-        if (player.getWorld().getName().equals(plugin.getGameWorld())) {
-            GameState gameState = GameState.WAITING;
-
-            if (plugin.getGameManager() != null && plugin.getGameManager().getCurrentGame() != null) {
-                gameState = plugin.getGameManager().getCurrentGame().getState();
-            }
-
-            if (gameState == GameState.WAITING) {
-                return true;
-            }
-        }
-
         GameRoom queueRoom = plugin.getGameManager().getGameRoomByWorld(player.getWorld().getName());
-        if (queueRoom != null && queueRoom.isWaiting()) {
-            return true;
-        }
-
-        return false;
+        return queueRoom != null && queueRoom.isWaiting();
     }
 
     private boolean isHubPlayer(Player player) {
-        return player.getWorld().getName().equals(plugin.getGameWorld());
+        return player.getWorld().getName().equals(plugin.getHubWorld());
     }
 
     private boolean isPlayerInGame(Player player) {
-        if (player.getWorld().getName().equals(plugin.getGameWorld())) {
-            GameState gameState = GameState.WAITING;
-
-            if (plugin.getGameManager() != null && plugin.getGameManager().getCurrentGame() != null) {
-                gameState = plugin.getGameManager().getCurrentGame().getState();
-            }
-
-            return gameState == GameState.RUNNING;
-        }
-
-        if (plugin.getGameManager() != null) {
-            GameRoom room = plugin.getGameManager().getGameRoomByWorld(player.getWorld().getName());
-            if (room != null && room.isRunning()) {
-                return true;
-            }
-        }
-
-        return false;
+        if (plugin.getGameManager() == null) return false;
+        GameRoom room = plugin.getGameManager().getGameRoomByWorld(player.getWorld().getName());
+        return room != null && room.isRunning();
     }
 
     private boolean isArmorItem(Material material) {
@@ -799,8 +746,8 @@ public class PlayerActivity implements Listener {
             return;
         }
 
-        // Hub players are always invulnerable (outside of legacy game)
-        if (isHubPlayer(player) && !plugin.isGameStarted()) {
+        // Hub players are always invulnerable
+        if (isHubPlayer(player)) {
             event.setCancelled(true);
             return;
         }

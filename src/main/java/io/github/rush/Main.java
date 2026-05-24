@@ -28,6 +28,7 @@ import io.github.rush.replay.ReplayStorage;
 import io.github.rush.settings.PlayerSettingsManager;
 import io.github.rush.statistics.*;
 import io.github.rush.scoreboard.ScoreboardManager;
+import io.github.rush.tablist.TablistManager;
 import io.github.rush.utils.CustomSoundRegistrar;
 import com.maximde.hologramlib.HologramLib;
 import com.maximde.hologramlib.hologram.HologramManager;
@@ -83,6 +84,9 @@ public class Main extends JavaPlugin {
 
     @Getter
     private ScoreboardManager scoreboardManager = null;
+
+    @Getter
+    private TablistManager tablistManager = null;
 
     @Getter
     private PlayerSettingsManager playerSettingsManager = null;
@@ -157,12 +161,14 @@ public class Main extends JavaPlugin {
         // Initialize config manager first (other managers may depend on it)
         configManager = new ConfigManager(this);
         ResourceType.loadFromConfig(configManager.getConfig());
+        MerchantType.loadFromConfig(configManager.getConfig());
         DISTANCE_HEIGHT_LIMIT = configManager.getConfig().getInt("distance-height-limit", 12);
 
         // Load translations into Adventure's GlobalTranslator
         TranslationLoader.register(this);
 
         scoreboardManager = new ScoreboardManager(this);
+        tablistManager = new TablistManager(this);
         playerSettingsManager = new PlayerSettingsManager(this);
         playerStatisticManager = new PlayerStatisticManager(this);
         playerLevelManager = new PlayerLevelManager(this);
@@ -222,6 +228,7 @@ public class Main extends JavaPlugin {
             scoreboardManager.updateAll();
         }, 0L, 1L);
 
+
         Bukkit.getScheduler().runTaskTimer(this, () -> {
             if (gameManager != null && gameManager.getCurrentGame() != null) {
                 gameManager.getCurrentGame().autoStart();
@@ -229,8 +236,13 @@ public class Main extends JavaPlugin {
         }, 0L, 100L);
 
         PlayerLevel.loadRankImages();
-        if (!PlayerLevel.isRanksLoaded()) {
-            Bukkit.getScheduler().runTaskLater(this, PlayerLevel::loadRankImages, 1L);
+        if (PlayerLevel.isRanksLoaded()) {
+            tablistManager.updateAll();
+        } else {
+            Bukkit.getScheduler().runTaskLater(this, () -> {
+                PlayerLevel.loadRankImages();
+                tablistManager.updateAll();
+            }, 1L);
         }
 
         int islandOffset = getConfig().getInt("islandOffset");
@@ -310,7 +322,7 @@ public class Main extends JavaPlugin {
     }
 
     private void spawnMerchantsInIsland(int islandIndex) {
-        final World world = Bukkit.getWorld(getGameWorld());
+        final World world = Bukkit.getWorld(getHubWorld());
         final Island island = islands.get(islandIndex);
 
         final int speedOffset = getConfig().getInt("villagerSpeedOffset");
@@ -402,7 +414,7 @@ public class Main extends JavaPlugin {
         spawnedVillagers.clear();
         merchantVillagers.clear();
 
-        World world = Bukkit.getWorld(getGameWorld());
+        World world = Bukkit.getWorld(getHubWorld());
 
         if (world != null) {
             for (Island region : pastedRegions) {
@@ -450,10 +462,10 @@ public class Main extends JavaPlugin {
             final Clipboard clipboard = format.load(schematicFile);
             final BlockVector3 dimensions = clipboard.getDimensions();
 
-            World bukkitWorld = Bukkit.getWorld(getGameWorld());
+            World bukkitWorld = Bukkit.getWorld(getHubWorld());
 
             if (bukkitWorld == null) {
-                getLogger().warning("World not found: " + getGameWorld());
+                getLogger().warning("World not found: " + getHubWorld());
                 return;
             }
 
@@ -498,8 +510,8 @@ public class Main extends JavaPlugin {
         }
     }
 
-    public String getGameWorld() {
-        return getConfig().getString("gameWorld");
+    public String getHubWorld() {
+        return getConfig().getString("lobbyWorld");
     }
 
     public Villager getMerchantVillager(MerchantType type) {
@@ -542,7 +554,7 @@ public class Main extends JavaPlugin {
 
     public Location getSpectatorSpawn() {
         return new Location(
-                Bukkit.getWorld(getConfig().getString("gameWorld")),
+                Bukkit.getWorld(getHubWorld()),
                 0, 100, 0);
     }
 

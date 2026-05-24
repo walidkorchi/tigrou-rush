@@ -128,6 +128,10 @@ public class DebugCommand {
         pl.setTotalXP(threshold);
         plugin.getPlayerLevelManager().savePlayerLevel(pl);
 
+        if (plugin.getTablistManager() != null) {
+            plugin.getTablistManager().updatePlayerListName(target);
+        }
+
         LeaderboardCommand lb = plugin.getCommandManager().getLeaderboardCommand();
         if (lb != null)
             lb.updateAllHolograms();

@@ -6,6 +6,7 @@ import io.github.rush.entities.MerchantType;
 import net.momirealms.craftengine.core.item.Item;
 import net.momirealms.craftengine.core.item.ItemManager;
 import net.momirealms.craftengine.core.plugin.context.PlayerOptionalContext;
+import net.momirealms.craftengine.core.util.Key;
 import net.momirealms.craftengine.core.plugin.gui.Gui;
 import net.momirealms.craftengine.core.plugin.gui.GuiElement;
 import net.momirealms.craftengine.core.plugin.gui.GuiLayout;
@@ -53,13 +54,16 @@ public class ShopGUI {
     }
 
     private static GuiElement createFillerElement() {
-        final ItemStack bukkitStack = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
-
-        bukkitStack.setData(DataComponentTypes.ITEM_NAME, Component.text(" "));
-        bukkitStack.setData(DataComponentTypes.TOOLTIP_DISPLAY,
-                TooltipDisplay.tooltipDisplay().hideTooltip(true).build());
-
-        final Item item = itemManager().wrap(bukkitStack);
+        // Try CraftEngine custom item first
+        Item item = itemManager().createCustomWrappedItem(Key.of("tland:empty_slot"), null);
+        if (item == null || item.isEmpty()) {
+            // Fallback: gray stained glass pane
+            final ItemStack bukkitStack = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
+            bukkitStack.setData(DataComponentTypes.ITEM_NAME, Component.text(" "));
+            bukkitStack.setData(DataComponentTypes.TOOLTIP_DISPLAY,
+                    TooltipDisplay.tooltipDisplay().hideTooltip(true).build());
+            item = itemManager().wrap(bukkitStack);
+        }
         return GuiElement.constant(item, (element, click) -> click.cancel());
     }
 

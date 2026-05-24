@@ -5,6 +5,7 @@ import io.github.rush.TranslationLoader;
 import io.github.rush.menus.TeamSelectionGUI;
 import io.github.rush.utils.ItemBuilder;
 import io.github.rush.objects.Island;
+import io.github.rush.replay.ReplayFile;
 import io.github.rush.replay.ReplayRecorder;
 import io.github.rush.statistics.PlayerLevelManager;
 import io.github.rush.statistics.PlayerStatistic;
@@ -12,8 +13,11 @@ import lombok.Getter;
 import lombok.Setter;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.JoinConfiguration;
+import net.kyori.adventure.text.event.ClickCallback;
+import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.title.Title;
 
 import org.bukkit.Bukkit;
@@ -44,6 +48,8 @@ import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.*;
+import java.time.Duration;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -101,6 +107,8 @@ public class Game {
     @Getter
     private final int maxPlayers;
     private final int islandCount;
+    @Getter
+    private List<Island> islands = List.of();
 
     @Getter
     private final int minPlayers = 2;
@@ -128,7 +136,7 @@ public class Game {
     public Game(String name) {
         this.state = GameState.WAITING;
         this.cycle = new GameCycle(this);
-        this.worldName = Main.getInstance().getConfig().getString("gameWorld");
+        this.worldName = Main.getInstance().getHubWorld();
         this.maxPlayers = 8;
         this.islandCount = 4;
 
@@ -805,6 +813,7 @@ public class Game {
 
             startResourceSpawners();
             startCompassTracker();
+            startMannequinVoidCheck();
 
             cycle.onGameStart();
 
@@ -820,7 +829,6 @@ public class Game {
 
     private void loadIslandsAndSetSpawns() {
         World gameWorld;
-        List<Island> islands;
         int islandY;
 
         if (isGameRoomMode()) {
@@ -835,7 +843,7 @@ public class Game {
         } else {
             // Legacy mode: use Main's world and islands
             Main plugin = Main.getInstance();
-            gameWorld = Bukkit.getWorld(plugin.getGameWorld());
+            gameWorld = Bukkit.getWorld(plugin.getHubWorld());
 
             if (gameWorld == null) {
                 plugin.getLogger().warning("Game world not found, cannot load islands");
@@ -1175,6 +1183,7 @@ public class Game {
 
         // Notify GameManager that game ended (for GameRoom mode)
         if (isGameRoomMode()) {
+            ReplayFile pendingReplay = null;
             if (recorder != null) {
                 List<String> participantNames = playerStats.keySet().stream()
                         .map(Player::getName)
@@ -1193,7 +1202,7 @@ public class Game {
                         }
                     }
                 }
-                recorder.stop(gameRoom.getId(), winner != null ? winner.getColor().name() : null,
+                pendingReplay = recorder.stop(gameRoom.getId(), winner != null ? winner.getColor().name() : null,
                         gameRoom.getHostName(), participantNames,
                         gameRoom.getConfig().mapType().name(),
                         gameRoom.getConfig().islandType().name(),
@@ -1202,9 +1211,62 @@ public class Game {
                 recorder = null;
             }
             Main.getInstance().getGameManager().onGameRoomEnded(gameRoom);
+            if (pendingReplay != null) {
+                sendArchivalPrompt(pendingReplay);
+            }
         } else {
             Bukkit.getScheduler().runTaskLater(Main.getInstance(), this::resetGame, 400L);
         }
+    }
+
+    private void sendArchivalPrompt(ReplayFile replayFile) {
+        Player host = Bukkit.getPlayer(gameRoom.getHostUUID());
+        if (host == null) return;
+
+        AtomicBoolean decided = new AtomicBoolean(false);
+
+        ClickCallback.Options unlimitedOptions = ClickCallback.Options.builder()
+                .uses(ClickCallback.UNLIMITED_USES)
+                .lifetime(Duration.ofMinutes(5))
+                .build();
+
+        Component yes = Component.text("[OUI]")
+                .color(NamedTextColor.GREEN)
+                .decorate(TextDecoration.BOLD)
+                .clickEvent(ClickEvent.callback(audience -> {
+                    if (!decided.compareAndSet(false, true)) {
+                        if (audience instanceof Player p)
+                            p.sendMessage(Component.text("Il n'est plus possible de rechoisir l'archivage de la game.")
+                                    .color(NamedTextColor.RED));
+                        return;
+                    }
+                    Bukkit.getScheduler().runTaskAsynchronously(Main.getInstance(),
+                            () -> Main.getInstance().getReplayStorage().save(replayFile));
+                    if (audience instanceof Player p)
+                        p.sendMessage(Component.text("La partie a été archivée et pourra être revisitée ultérieurement.")
+                                .color(NamedTextColor.GREEN));
+                }, unlimitedOptions));
+
+        Component no = Component.text("[NON]")
+                .color(NamedTextColor.RED)
+                .decorate(TextDecoration.BOLD)
+                .clickEvent(ClickEvent.callback(audience -> {
+                    if (!decided.compareAndSet(false, true)) {
+                        if (audience instanceof Player p)
+                            p.sendMessage(Component.text("Il n'est plus possible de rechoisir l'archivage de la game.")
+                                    .color(NamedTextColor.RED));
+                        return;
+                    }
+                    if (audience instanceof Player p)
+                        p.sendMessage(Component.text("Cette partie ne sera pas archivée, et donc ne pourra pas être revisitée.")
+                                .color(NamedTextColor.GRAY));
+                }, unlimitedOptions));
+
+        host.sendMessage(Component.text("Voulez-vous archiver cette game pour la revoir ultérieurement ? ")
+                .color(NamedTextColor.YELLOW)
+                .append(yes)
+                .append(Component.space())
+                .append(no));
     }
 
     private void sendGameSummary() {
@@ -1388,6 +1450,28 @@ public class Game {
         runningTasks.add(task);
     }
 
+    private void startMannequinVoidCheck() {
+        final int islandY = isGameRoomMode() && gameRoom != null
+                ? gameRoom.getIslandY()
+                : Main.getISLAND_Y();
+        final double voidThreshold = islandY - Main.getInstance().getVoidThreshold();
+
+        final BukkitTask task = Bukkit.getScheduler().runTaskTimer(Main.getInstance(), () -> {
+            for (Team team : teams.values()) {
+                for (Entity entity : team.getPlayers()) {
+                    if (!(entity instanceof Mannequin mannequin) || mannequin.isDead())
+                        continue;
+                    if (mannequin.getLocation().getY() < voidThreshold) {
+                        mannequin.setFallDistance(0);
+                        mannequin.setHealth(0);
+                    }
+                }
+            }
+        }, 0L, 2L);
+
+        runningTasks.add(task);
+    }
+
     private void startResourceSpawners() {
         for (int i = 0; i < islandAssignment.size(); i++) {
             Team team = islandAssignment.get(i);
@@ -1424,7 +1508,7 @@ public class Game {
         if (state != GameState.WAITING)
             return;
 
-        String gameWorld = Main.getInstance().getGameWorld();
+        String gameWorld = Main.getInstance().getHubWorld();
         if (gameWorld == null)
             return;
 

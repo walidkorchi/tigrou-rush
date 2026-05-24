@@ -20,7 +20,6 @@ public final class HostConfigGUI {
     public static void open(Player player, GameRoomConfig.Builder builder, GameManager manager) {
         final GUI gui = new GUI(TranslationLoader.txt("rush.config_gui_title"), 3);
 
-        // Row 1: the 4 main settings
         gui.addItem(10, islandTypeItem(builder), p -> {
             final GameRoom.IslandType next = builder.islandType() == GameRoom.IslandType.FOUR_ISLANDS
                     ? GameRoom.IslandType.EIGHT_ISLANDS
@@ -30,21 +29,8 @@ public final class HostConfigGUI {
             open(p, builder, manager);
         });
 
-        gui.addItem(12, maxTeamsItem(builder),
-                p -> {
-                    builder.maxTeams(-1);
-                    open(p, builder, manager);
-                },
-                p -> {
-                    builder.maxTeams(+1);
-                    open(p, builder, manager);
-                });
-
-        gui.addItem(14, teamSizeItem(builder), p -> {
-            final GameRoom.TeamSize[] sizes = GameRoom.TeamSize.values();
-            final GameRoom.TeamSize next = sizes[(builder.teamSize().ordinal() + 1) % sizes.length];
-
-            builder.teamSize(next);
+        gui.addItem(13, formatItem(builder), p -> {
+            cycleFormat(builder);
             open(p, builder, manager);
         });
 
@@ -90,6 +76,33 @@ public final class HostConfigGUI {
         gui.openGUI(player);
     }
 
+    private static void cycleFormat(GameRoomConfig.Builder b) {
+        int maxCount = b.islandType().getCount();
+        int players = b.teamSize().getPlayersPerTeam();
+        int teams = b.maxTeams();
+
+        teams++;
+        if (teams > maxCount) {
+            teams = 2;
+            players++;
+            if (players > 4) {
+                players = 1;
+            }
+        }
+
+        b.maxTeams(teams - b.maxTeams());
+        b.teamSize(GameRoom.TeamSize.values()[players - 1]);
+    }
+
+    private static String formatDisplayName(int teams, int playersPerTeam) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < teams; i++) {
+            if (i > 0) sb.append("vs");
+            sb.append(playersPerTeam);
+        }
+        return sb.toString();
+    }
+
     private static ItemStack islandTypeItem(GameRoomConfig.Builder b) {
         final Material mat = b.islandType() == GameRoom.IslandType.FOUR_ISLANDS
                 ? Material.GRASS_BLOCK
@@ -102,22 +115,13 @@ public final class HostConfigGUI {
                 TranslationLoader.txt("rush.config_island_type_current", b.islandType().getDisplayName())));
     }
 
-    private static ItemStack maxTeamsItem(GameRoomConfig.Builder b) {
-        final Component displayName = TranslationLoader.txt("rush.config_max_teams_name",
-                b.maxTeams());
-        return labeled(Material.COMPARATOR, displayName, List.of(
-                TranslationLoader.txt("rush.config_max_teams_left"),
-                TranslationLoader.txt("rush.config_max_teams_right"),
-                TranslationLoader.txt("rush.config_max_teams_range", b.islandType().getCount())));
-    }
-
-    private static ItemStack teamSizeItem(GameRoomConfig.Builder b) {
-        final Component displayName = TranslationLoader.txt("rush.config_team_size_name",
-                b.teamSize().getDisplayName());
-        return labeled(Material.IRON_HELMET, displayName, List.of(
-                TranslationLoader.txt("rush.config_team_size_click"),
-                Component.empty(),
-                TranslationLoader.txt("rush.config_team_size_current", b.teamSize().getDisplayName())));
+    private static ItemStack formatItem(GameRoomConfig.Builder b) {
+        String displayName = formatDisplayName(b.maxTeams(), b.teamSize().getPlayersPerTeam());
+        return labeled(Material.IRON_SWORD, TranslationLoader.txt("rush.config_format_name", displayName),
+                List.of(
+                        TranslationLoader.txt("rush.config_format_click"),
+                        Component.empty(),
+                        TranslationLoader.txt("rush.config_format_current", displayName)));
     }
 
     private static ItemStack mapTypeItem(GameRoomConfig.Builder b) {
@@ -151,12 +155,12 @@ public final class HostConfigGUI {
     }
 
     private static ItemStack confirmItem(GameRoomConfig.Builder b) {
+        String formatName = formatDisplayName(b.maxTeams(), b.teamSize().getPlayersPerTeam());
         return labeled(Material.NETHER_STAR,
                 TranslationLoader.txt("rush.config_confirm_name"),
                 List.of(
                         TranslationLoader.txt("rush.config_confirm_lore_islands", b.islandType().getDisplayName()),
-                        TranslationLoader.txt("rush.config_confirm_lore_teams",
-                                b.maxTeams(), b.teamSize().getDisplayName()),
+                        TranslationLoader.txt("rush.config_confirm_lore_format", formatName),
                         TranslationLoader.txt("rush.config_confirm_lore_map", b.mapType().name()),
                         TranslationLoader.txt("rush.config_confirm_lore_extra_hearts",
                                 TranslationLoader.raw(b.extraHearts() ? "rush.config_confirm_lore_extra_hearts_yes" : "rush.config_confirm_lore_extra_hearts_no")),

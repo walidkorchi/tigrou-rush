@@ -20,6 +20,7 @@ import org.bukkit.event.player.PlayerInteractEntityEvent;
 import io.github.rush.Main;
 import io.github.rush.entities.Merchant;
 import io.github.rush.entities.MerchantType;
+import org.bukkit.Bukkit;
 import io.github.rush.game.Game;
 import io.github.rush.game.GameRoom;
 import io.github.rush.game.GameState;
@@ -43,17 +44,9 @@ public class GameRules implements Listener {
             Material.SANDSTONE, Material.END_STONE);
 
     private Game getRunningGameForWorld(String worldName) {
-        if (plugin.isGameStarted() && worldName.equals(plugin.getGameWorld())) {
-            final Game game = plugin.getGameManager().getCurrentGame();
-            if (game != null && game.getState() == GameState.RUNNING)
-                return game;
-        }
-
         final GameRoom room = plugin.getGameManager().getGameRoomByWorld(worldName);
-
         if (room != null && room.getGame() != null && room.getGame().getState() == GameState.RUNNING)
             return room.getGame();
-
         return null;
     }
 
@@ -169,14 +162,16 @@ public class GameRules implements Listener {
             return;
         }
 
+        event.setCancelled(true);
+
         final MerchantType type = Merchant.getType(villager);
 
-        if (type != MerchantType.SPEED) {
-            return;
+        if (type == MerchantType.SPEED) {
+            ShopGUI.openMainMenu(player);
+        } else if (type != null) {
+            final org.bukkit.inventory.Merchant merchant = Merchant.createBukkitMerchant(type);
+            Bukkit.getScheduler().runTask(plugin, () -> player.openMerchant(merchant, true));
         }
-
-        event.setCancelled(true);
-        ShopGUI.openMainMenu(player);
     }
 
     @EventHandler

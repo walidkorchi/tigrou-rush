@@ -41,7 +41,11 @@ public class ForceStartCommand {
             }
 
             GameRoom room = gameManager.getGameRoomByWorld(player.getWorld().getName());
-            if (room != null && room.isWaiting()) {
+            if (room != null) {
+                if (!room.isWaiting()) {
+                    ctx.getSource().getSender().sendMessage(Component.translatable("rush.room_already_started"));
+                    return Command.SINGLE_SUCCESS;
+                }
                 room.getGame().start();
                 for (Player online : plugin.getServer().getOnlinePlayers()) {
                     if (online.getWorld().equals(room.getWorld())) {
@@ -62,7 +66,7 @@ public class ForceStartCommand {
             game.start();
 
             for (Player online : plugin.getServer().getOnlinePlayers()) {
-                if (online.getWorld().getName().equals(plugin.getGameWorld())) {
+                if (online.getWorld().getName().equals(plugin.getHubWorld())) {
                     online.sendMessage(Component.translatable("rush.force_start_broadcast"));
                 }
             }

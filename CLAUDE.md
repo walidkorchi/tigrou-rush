@@ -410,22 +410,11 @@ Lit: ✅ / ❌
 | In-game (global with `@` prefix) | `§7[{level}§7] [{teamColor}{team}§7] §f{name} §f> {message}` |
 | In-game (no prefix) | Team-only — only teammates receive the message |
 
-**System messages:**
-
-- Join: `§a[+] §f{name}`
-- Quit: `§c[-] §f{name}`
-- Kill: `⚔ {victim} §7a été tué par {killer(s)}`
-- Bed destroyed: `§c{destroyer} §7a détruit le lit de l'équipe §c{team}`
-- Countdown: `§eLa partie commence dans §c{n} §esecondes!`
-- Overtime: `§c§lOVERTIME! §7Les restrictions de placement sont levées!`
-- Extra hearts: `+{n} Cœurs permanents!`
-- Admin force-delete: `§cCette partie a été supprimée par un administrateur.` (sent to all ejected players)
-
 ---
 
 ## Hub Lobby
 
-The hub is the main persistent world (configured as `gameWorld` in `config.yml`). It is distinct from GameRoom worlds (named `rush_game_{n}_{host}`).
+The hub is the main persistent world (configured as `lobbyWorld` in `config.yml`). It is distinct from GameRoom worlds (named `rush_game_{n}_{host}`).
 
 ### Spawn
 

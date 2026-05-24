@@ -108,4 +108,13 @@ public record GameRoomConfig(
             };
         return 1.0;
     }
+
+    public String formatDisplayName() {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < maxTeams; i++) {
+            if (i > 0) sb.append("vs");
+            sb.append(teamSize.getPlayersPerTeam());
+        }
+        return sb.toString();
+    }
 }

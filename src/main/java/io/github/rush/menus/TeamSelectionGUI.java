@@ -99,7 +99,7 @@ public class TeamSelectionGUI {
         player.getInventory().setHelmet(createTeamBanner(color));
         player.closeInventory();
 
-        player.sendMessage(Component.translatable("rush.joinTeam", color.name()).color(color.getTextColor()));
+        player.sendMessage(TranslationLoader.txt("rush.joinTeam", color.name()).color(color.getTextColor()));
     }
 
     public static ItemStack createBannerItem() {

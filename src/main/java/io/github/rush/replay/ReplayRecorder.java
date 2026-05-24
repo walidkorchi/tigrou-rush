@@ -219,7 +219,7 @@ public final class ReplayRecorder implements Listener {
         actionsFor(GLOBAL).add(new PhaseAction(elapsed(), phaseName));
     }
 
-    public void stop(String sessionId, String winnerTeamColorName, String hostName,
+    public ReplayFile stop(String sessionId, String winnerTeamColorName, String hostName,
             List<String> participantNames, String mapTypeName,
             String islandTypeName, int maxTeams,
             Map<String, String> teamColorsByPlayerUuid) {
@@ -235,9 +235,6 @@ public final class ReplayRecorder implements Listener {
         final ReplayHeader header = new ReplayHeader(sessionId, hostName, startMs, durationMs,
                 winnerTeamColorName, participantNames, mapTypeName,
                 islandTypeName, maxTeams, teamColorsByPlayerUuid);
-        final ReplayFile file = new ReplayFile(header, new HashMap<>(actionMap));
-
-        Bukkit.getScheduler().runTaskAsynchronously(Main.getInstance(),
-                () -> Main.getInstance().getReplayStorage().save(file));
+        return new ReplayFile(header, new HashMap<>(actionMap));
     }
 }

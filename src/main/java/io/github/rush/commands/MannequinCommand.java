@@ -118,7 +118,7 @@ public class MannequinCommand {
             GameRoom room = gameManager.getGameRoomByWorld(worldName);
             if (room != null && room.isWaiting()) {
                 activeGame = room.getGame();
-            } else if (worldName.equals(main.getGameWorld())) {
+            } else if (worldName.equals(main.getHubWorld())) {
                 Game legacy = gameManager.getCurrentGame();
                 if (legacy != null && legacy.getState() == io.github.rush.game.GameState.WAITING) {
                     activeGame = legacy;

@@ -290,10 +290,7 @@ public class TNT implements Listener {
      * @param player the player to check
      */
     public boolean isPlayerIRG(Player player) {
-        if (!plugin.isGameStarted()) {
-            return false;
-        } else {
-            return player.getWorld().getName().equals(plugin.getGameWorld());
-        }
+        final Game game = plugin.getGameManager().getGameForPlayer(player);
+        return game != null && game.getState() == io.github.rush.game.GameState.RUNNING;
     }
 }

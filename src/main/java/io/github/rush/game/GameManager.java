@@ -7,12 +7,13 @@ import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
 import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormat;
 import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormats;
-
+import com.sk89q.worldedit.extent.clipboard.io.ClipboardReader;
 import com.sk89q.worldedit.function.operation.Operation;
 import com.sk89q.worldedit.function.operation.Operations;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.math.transform.AffineTransform;
 import com.sk89q.worldedit.session.ClipboardHolder;
+
 import io.github.rush.Main;
 import io.github.rush.TranslationLoader;
 import io.github.rush.menus.GUI;
@@ -48,6 +49,7 @@ import io.github.rush.replay.ReplayHeader;
 import io.github.rush.replay.ReplayPlayback;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.zip.ZipEntry;
@@ -58,6 +60,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import org.bukkit.scheduler.BukkitTask;
@@ -143,13 +146,16 @@ public class GameManager {
         final UUID hostUUID = host.getUniqueId();
         final String worldName = "rush_game_" + (++worldCounter) + "_" + host.getName();
 
-        final AtomicReference<Component> currentBar = new AtomicReference<>(
-                buildLoadingBarComponent("Création du monde", 0, 5));
+        final AtomicReference<String> currentLabel = new AtomicReference<>("Création du monde");
+        final AtomicInteger currentStep = new AtomicInteger(0);
+        final int[] dotTick = { 0 };
         final BukkitTask[] barTask = { null };
         barTask[0] = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             Player h = Bukkit.getPlayer(hostUUID);
-            if (h != null)
-                h.sendActionBar(currentBar.get());
+            if (h != null) {
+                String dots = ".".repeat((dotTick[0]++ / 3) % 3 + 1);
+                h.sendActionBar(buildLoadingBarComponent(currentLabel.get() + dots, currentStep.get(), 5));
+            }
         }, 0L, 3L);
 
         Bukkit.getScheduler().runTask(plugin, () -> {
@@ -164,39 +170,46 @@ public class GameManager {
 
                 // Step 2: Register room in CREATING state immediately so host-disconnect
                 // cleanup can find it even if the host goes offline during paste.
-                currentBar.set(buildLoadingBarComponent("Initialisation", 1, 5));
+                currentLabel.set("Initialisation");
+                currentStep.set(1);
                 Location lobbyLocation = new Location(gameWorld, 0, 64, 0);
                 GameRoom room = new GameRoom(host.getName(), hostUUID, gameWorld, config, lobbyLocation);
                 room.getGame().setState(GameState.CREATING);
                 gameRooms.put(room.getId(), room);
 
-                // Steps 3-5: Read and paste schematics fully on async thread —
-                // keeps the main thread free so the bar-refresh task fires on time.
+                // Steps 3-5: Resolve file paths async (progress bar feedback), then
+                // load + paste FAWE clipboard on the main thread — FAWE's
+                // DiskOptimizedClipboard has MappedByteBuffer thread affinity;
+                // creating and consuming it on the same thread avoids NPE.
                 Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-                    currentBar.set(buildLoadingBarComponent("Génération du lobby d'attente", 2, 5));
-                    Clipboard waitingRoomClip = readSchematic("waiting_room.schem");
+                    currentLabel.set("Génération du lobby d'attente");
+                    currentStep.set(2);
+                    File waitingRoomFile = getSchematicFile("waiting_room.schem");
 
-                    currentBar.set(buildLoadingBarComponent("Génération des îles", 3, 5));
-                    Clipboard islandClip = readSchematic(config.mapType().schematicName());
+                    currentLabel.set("Génération des îles");
+                    currentStep.set(3);
+                    File islandFile = getSchematicFile(config.mapType().schematicName());
 
-                    currentBar.set(buildLoadingBarComponent("Construction du monde", 4, 5));
+                    currentLabel.set("Construction du monde");
+                    currentStep.set(4);
 
-                    // Steps 5-6: Paste schematics and finalize on main thread —
-                    // EditSession.close() triggers block onPlace which requires main thread.
+                    // FAWE load + paste stay on this async thread — DiskOptimizedClipboard's
+                    // MappedByteBuffer must be created and consumed on the same thread.
+                    if (waitingRoomFile != null) {
+                        pasteSchematicFile(gameWorld, waitingRoomFile, BlockVector3.at(0, 64, 0), 0);
+                    }
+
+                    if (islandFile != null) {
+                        List<io.github.rush.objects.Island> islands = room.getIslands();
+                        for (io.github.rush.objects.Island isl : islands) {
+                            pasteSchematicFile(gameWorld, islandFile,
+                                    BlockVector3.at(isl.getX(), room.getIslandY(), isl.getZ()),
+                                    isl.getRotation());
+                        }
+                    }
+
+                    // Post-paste Bukkit API calls (entity spawning, inventory, teleport) need main thread.
                     Bukkit.getScheduler().runTask(plugin, () -> {
-                        if (waitingRoomClip != null) {
-                            pasteClipboard(gameWorld, waitingRoomClip, BlockVector3.at(0, 64, 0), 0);
-                        }
-
-                        if (islandClip != null) {
-                            List<io.github.rush.objects.Island> islands = room.getIslands();
-                            for (io.github.rush.objects.Island isl : islands) {
-                                pasteClipboard(gameWorld, islandClip,
-                                        BlockVector3.at(isl.getX(), room.getIslandY(), isl.getZ()),
-                                        isl.getRotation());
-                            }
-                        }
-
                         List<io.github.rush.objects.Island> islands = room.getIslands();
                         for (int i = 0; i < islands.size(); i++) {
                             spawnMerchantsForIsland(room, islands.get(i), i);
@@ -250,29 +263,28 @@ public class GameManager {
         }
     }
 
-    private Clipboard readSchematic(String filename) {
+    private File getSchematicFile(String filename) {
         File schematicFile = new File(plugin.getDataFolder().getParentFile(),
                 "FastAsyncWorldEdit/schematics/" + filename);
         if (!schematicFile.exists()) {
             plugin.getLogger().warning("Schematic not found: " + schematicFile.getPath());
             return null;
         }
-        try {
-            ClipboardFormat format = ClipboardFormats.findByFile(schematicFile);
-            if (format == null) {
-                plugin.getLogger().severe("Unsupported schematic format: " + schematicFile.getPath());
-                return null;
-            }
-            return format.load(schematicFile);
-        } catch (IOException e) {
-            plugin.getLogger().severe("Error reading schematic " + filename + ": " + e.getMessage());
-            return null;
-        }
+        return schematicFile;
     }
 
-    private void pasteClipboard(World world, Clipboard clipboard, BlockVector3 target, int rotation) {
-        try (EditSession editSession = WorldEdit.getInstance().newEditSession(BukkitAdapter.adapt(world));
-             ClipboardHolder holder = new ClipboardHolder(clipboard)) {
+    private void pasteSchematicFile(World world, File schematicFile, BlockVector3 target, int rotation) {
+        ClipboardFormat format = ClipboardFormats.findByFile(schematicFile);
+        if (format == null) {
+            plugin.getLogger().severe("Unknown schematic format: " + schematicFile.getPath());
+            return;
+        }
+        // Must be called from an async thread. Load and paste happen here on the same
+        // thread — FAWE's DiskOptimizedClipboard ties its MappedByteBuffer to the
+        // loading thread, so both operations must share it.
+        try (ClipboardReader reader = format.getReader(new FileInputStream(schematicFile));
+             EditSession editSession = WorldEdit.getInstance().newEditSession(BukkitAdapter.adapt(world));
+             ClipboardHolder holder = new ClipboardHolder(reader.read())) {
             if (rotation != 0) {
                 AffineTransform transform = new AffineTransform().rotateY(rotation);
                 holder.setTransform(holder.getTransform().combine(transform));
@@ -280,7 +292,7 @@ public class GameManager {
             Operation operation = holder.createPaste(editSession).to(target).ignoreAirBlocks(false).build();
             Operations.complete(operation);
             plugin.getLogger().info("Pasted schematic at " + target);
-        } catch (WorldEditException e) {
+        } catch (IOException | WorldEditException e) {
             plugin.getLogger().severe("Error pasting schematic: " + e.getMessage());
         }
     }
@@ -816,6 +828,9 @@ public class GameManager {
                 return;
             }
             Clipboard clipboard = format.load(schematicFile);
+            if (clipboard == null)
+                return;
+
             BlockVector3 dimensions = clipboard.getDimensions();
 
             // Load chunks
@@ -851,7 +866,7 @@ public class GameManager {
             plugin.getLogger()
                     .info("Pasted island schematic at (" + island.getX() + ", " + islandY + ", " + island.getZ() + ")");
 
-        } catch (IOException e) {
+        } catch (IOException | WorldEditException e) {
             plugin.getLogger().severe("Failed to paste island schematic: " + e.getMessage());
         }
     }
@@ -1013,20 +1028,22 @@ public class GameManager {
         }
 
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            Clipboard islandClip = readSchematic(resolvedMapType.schematicName());
+            File islandFile = getSchematicFile(resolvedMapType.schematicName());
 
-            Bukkit.getScheduler().runTask(plugin, () -> {
-                if (islandClip != null) {
-                    for (io.github.rush.objects.Island island : islands) {
-                        pasteClipboard(finalWorld, islandClip,
-                                BlockVector3.at(island.getX(), islandY, island.getZ()),
-                                island.getRotation());
-                    }
-                } else {
-                    plugin.getLogger().warning("Replay world for session " + sessionId
-                            + " loaded without islands — schematic '"
-                            + resolvedMapType.schematicName() + "' not found.");
+            if (islandFile != null) {
+                for (io.github.rush.objects.Island island : islands) {
+                    pasteSchematicFile(finalWorld, islandFile,
+                            BlockVector3.at(island.getX(), islandY, island.getZ()),
+                            island.getRotation());
                 }
+            } else {
+                plugin.getLogger().warning("Replay world for session " + sessionId
+                        + " loaded without islands — schematic '"
+                        + resolvedMapType.schematicName() + "' not found.");
+            }
+
+            // Entity spawning and playback setup need main thread.
+            Bukkit.getScheduler().runTask(plugin, () -> {
                 populateReplayWorld(finalWorld, file, islands);
                 onReady.accept(new ReplayPlayback(file, finalWorld));
             });

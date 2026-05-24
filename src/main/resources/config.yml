@@ -190,8 +190,3 @@ merchants:
             amount: 16
   speed:
     trades: []
-
-# --- Misc Configuration ---
-
-# World where the rush game takes place
-gameWorld: world

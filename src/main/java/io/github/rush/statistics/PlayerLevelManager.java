@@ -51,6 +51,10 @@ public class PlayerLevelManager {
                 } else {
                     player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.0f);
                 }
+
+                if (plugin.getTablistManager() != null) {
+                    plugin.getTablistManager().updatePlayerListName(player);
+                }
             }
 
             var lb = plugin.getCommandManager() != null ? plugin.getCommandManager().getLeaderboardCommand() : null;
@@ -73,6 +77,11 @@ public class PlayerLevelManager {
         final PlayerLevel playerLevel = loadPlayerLevel(uuid);
         playerLevel.setTotalXP(0);
         savePlayerLevel(playerLevel);
+
+        final Player player = Bukkit.getPlayer(uuid);
+        if (player != null && plugin.getTablistManager() != null) {
+            plugin.getTablistManager().updatePlayerListName(player);
+        }
     }
 
     public PlayerLevel loadPlayerLevel(UUID uuid) {

@@ -131,7 +131,7 @@ public class GameRoom {
     public Component getDisplayName() {
         return Component.translatable("rush.room_display_name",
                 Component.text(islandType.getDisplayName()),
-                Component.text(teamSize.getDisplayName()),
+                Component.text(config.formatDisplayName()),
                 Component.text(hostName));
     }
 

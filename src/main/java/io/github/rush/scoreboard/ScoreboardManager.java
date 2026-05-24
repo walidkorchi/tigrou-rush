@@ -142,9 +142,7 @@ public class ScoreboardManager {
 
             lines.add("§eLit: §f" + bedStatus);
 
-            final int islandNum = playerTeam.getColor().getIslandNumber();
-
-            lines.add("§eÎle: §f" + islandNum);
+            lines.add("§eÎle: §f" + getRelativeIslandNumber(player, game, playerTeam));
             lines.add("");
             lines.add("§e§nÉquipes§r");
 
@@ -163,6 +161,70 @@ public class ScoreboardManager {
         }
 
         board.updateLines(lines);
+    }
+
+    private int getRelativeIslandNumber(Player player, Game game, Team playerTeam) {
+        final List<Team> assignment = game.getIslandAssignment();
+        final List<io.github.rush.objects.Island> islands = game.getIslands();
+
+        if (assignment == null || islands == null || islands.isEmpty())
+            return 1;
+
+        final int homeSlot = assignment.indexOf(playerTeam);
+        if (homeSlot < 0)
+            return 1;
+
+        final int nearestSlot = getNearestIslandSlot(player.getLocation(), islands);
+        final int islandCount = islands.size();
+
+        // Go in the direction where the nearest other team is FARTHEST — i.e. take the long
+        // way around. In a 2-team game the two teams sit on adjacent slots (S+E), so both
+        // teams must count away from each other to make the opponent appear at rank 4.
+        if (isClockwisePreferred(assignment, homeSlot, islandCount)) {
+            return (nearestSlot - homeSlot + islandCount) % islandCount + 1;
+        } else {
+            return (homeSlot - nearestSlot + islandCount) % islandCount + 1;
+        }
+    }
+
+    private boolean isClockwisePreferred(List<Team> assignment, int homeSlot, int islandCount) {
+        int nearestCW = islandCount;
+        int nearestCCW = islandCount;
+
+        for (int d = 1; d < islandCount; d++) {
+            if (nearestCW == islandCount) {
+                final int slot = (homeSlot + d) % islandCount;
+                if (slot < assignment.size() && assignment.get(slot) != null)
+                    nearestCW = d;
+            }
+            if (nearestCCW == islandCount) {
+                final int slot = (homeSlot - d + islandCount) % islandCount;
+                if (slot < assignment.size() && assignment.get(slot) != null)
+                    nearestCCW = d;
+            }
+            if (nearestCW < islandCount && nearestCCW < islandCount)
+                break;
+        }
+
+        // Prefer the direction in which the nearest team is farther away (take the long path).
+        // When distances are equal (symmetric 4-team ring) fall back to clockwise.
+        return nearestCW >= nearestCCW;
+    }
+
+    private int getNearestIslandSlot(org.bukkit.Location loc, List<io.github.rush.objects.Island> islands) {
+        int nearest = 0;
+        double minDistSq = Double.MAX_VALUE;
+        for (int i = 0; i < islands.size(); i++) {
+            final io.github.rush.objects.Island island = islands.get(i);
+            final double dx = loc.getX() - island.getX();
+            final double dz = loc.getZ() - island.getZ();
+            final double distSq = dx * dx + dz * dz;
+            if (distSq < minDistSq) {
+                minDistSq = distSq;
+                nearest = i;
+            }
+        }
+        return nearest;
     }
 
     private String getTeamLetter(TeamColor color) {
@@ -203,28 +265,19 @@ public class ScoreboardManager {
     public void updateAll() {
         animationFrame += 1;
 
-        // 10 seconds + n ticks based on animation length
         if (animationFrame >= (200 + SEPARATOR_FRAMES.length)) {
             animationFrame = 0;
         }
 
-        final String gameWorld = plugin.getGameWorld();
-
-        if (gameWorld == null)
-            return;
+        final String hubWorld = plugin.getHubWorld();
 
         for (Player player : plugin.getServer().getOnlinePlayers()) {
-            if (!player.getWorld().getName().equals(gameWorld)) {
-                removeScoreboard(player);
-                continue;
-            }
-
             if (!plugin.getPlayerSettingsManager().isScoreboardEnabled(player.getUniqueId())) {
                 removeScoreboard(player);
                 continue;
             }
 
-            final Game game = plugin.getGameManager().getCurrentGame();
+            final Game game = plugin.getGameManager().getGameForPlayer(player);
 
             if (game != null && game.getState() == GameState.RUNNING) {
                 if (game.isSpectator(player)) {
@@ -232,8 +285,10 @@ public class ScoreboardManager {
                 } else {
                     updateGameScoreboard(player, game);
                 }
-            } else {
+            } else if (hubWorld != null && player.getWorld().getName().equals(hubWorld)) {
                 updateLobbyScoreboard(player);
+            } else {
+                removeScoreboard(player);
             }
         }
     }
