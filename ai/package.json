@@ -1,0 +1,12 @@
+{
+  "name": "@tland/ai",
+  "description": "Minecaft Bot Proxy",
+  "scripts": {
+    "dev": "bun --watch index.ts",
+    "start": "bun dist/index.js"
+  },
+  "dependencies": {
+    "mineflayer": "^4.37.1",
+    "prismarine-item": "^1.18.0"
+  }
+}
