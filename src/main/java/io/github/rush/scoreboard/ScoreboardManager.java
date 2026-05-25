@@ -3,6 +3,7 @@ package io.github.rush.scoreboard;
 import fr.mrmicky.fastboard.FastBoard;
 import io.github.rush.Main;
 import io.github.rush.game.Game;
+import io.github.rush.game.GamePlayer;
 import io.github.rush.game.GameState;
 import io.github.rush.game.Team;
 import io.github.rush.game.TeamColor;
@@ -126,7 +127,7 @@ public class ScoreboardManager {
 
     public void updateGameScoreboard(Player player, Game game) {
         final FastBoard board = getOrCreateBoard(player);
-        final Team playerTeam = game.getPlayerTeam(player);
+        final Team playerTeam = game.getPlayerTeam(new GamePlayer(player));
         final List<String> lines = new ArrayList<>();
 
         lines.add("");
@@ -280,7 +281,7 @@ public class ScoreboardManager {
             final Game game = plugin.getGameManager().getGameForPlayer(player);
 
             if (game != null && game.getState() == GameState.RUNNING) {
-                if (game.isSpectator(player)) {
+                if (game.isSpectator(new GamePlayer(player))) {
                     updateSpectatorScoreboard(player, game);
                 } else {
                     updateGameScoreboard(player, game);

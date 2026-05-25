@@ -39,20 +39,22 @@ repositories {
 }
 
 dependencies {
+    annotationProcessor("org.projectlombok:lombok:1.18.46")
+
+    implementation("fr.mrmicky:fastboard:2.1.5")
+    implementation("net.jthink:jaudiotagger:3.0.1")
+    implementation("org.postgresql:postgresql:42.7.1")
+    implementation("org.hibernate.orm:hibernate-core:6.4.1.Final")
+    implementation("org.hibernate.orm:hibernate-hikaricp:6.4.1.Final")
+
+    compileOnly("org.projectlombok:lombok:1.18.46")
     compileOnly("io.papermc.paper:paper-api:26.1.2.build.65-stable")
     compileOnly("com.google.code.gson:gson:2.13.2")
     compileOnly("net.momirealms:craft-engine-core:26.5.1")
     compileOnly("net.momirealms:craft-engine-bukkit:26.5.1")
     compileOnly("net.momirealms:craft-engine-adventure:26.5.1")
     compileOnly(files("../server/plugins/FastAsyncWorldEdit-Paper-2.15.2-SNAPSHOT-1318.jar"))
-    implementation("fr.mrmicky:fastboard:2.1.5")
-    implementation("net.jthink:jaudiotagger:3.0.1")
-    implementation("org.postgresql:postgresql:42.7.1")
-    implementation("org.hibernate.orm:hibernate-core:6.4.1.Final")
-    implementation("org.hibernate.orm:hibernate-hikaricp:6.4.1.Final")
-    compileOnly("org.projectlombok:lombok:1.18.46")
-    annotationProcessor("org.projectlombok:lombok:1.18.46")
-    compileOnly("com.github.HologramLib:HologramLib:1.8.3.2")
+    compileOnly(files("../server/plugins/HologramLib-1.8.3.jar"))
 }
 
 java {

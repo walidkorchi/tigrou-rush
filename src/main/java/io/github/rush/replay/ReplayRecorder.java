@@ -2,12 +2,14 @@ package io.github.rush.replay;
 
 import io.github.rush.Main;
 import io.github.rush.game.Game;
+import io.github.rush.game.GameParticipant;
+import io.github.rush.game.GamePlayer;
+import io.github.rush.game.GameMannequin;
 import io.papermc.paper.event.player.AsyncChatEvent;
 import io.papermc.paper.event.player.PlayerArmSwingEvent;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
-import org.bukkit.entity.Entity;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Mannequin;
 import org.bukkit.entity.Player;
@@ -66,8 +68,9 @@ public final class ReplayRecorder implements Listener {
     private void sampleMovement() {
         long ts = elapsed();
 
-        for (Entity entity : game.getPlayers()) {
-            if (entity instanceof Player player) {
+        for (GameParticipant participant : game.getPlayers()) {
+            if (participant instanceof GamePlayer gp) {
+                Player player = gp.player();
                 final Location loc = player.getLocation();
                 final PlayerInventory inv = player.getInventory();
                 final String mainHand = inv.getItemInMainHand().getType().name();
@@ -78,7 +81,8 @@ public final class ReplayRecorder implements Listener {
                                 loc.getX(), loc.getY(), loc.getZ(),
                                 loc.getYaw(), loc.getPitch(),
                                 mainHand, offHand, player.isSneaking()));
-            } else if (entity instanceof Mannequin mannequin) {
+            } else if (participant instanceof GameMannequin gm) {
+                Mannequin mannequin = gm.mannequin();
                 final Location loc = mannequin.getLocation();
                 String mainHand = "AIR";
                 String offHand = "AIR";

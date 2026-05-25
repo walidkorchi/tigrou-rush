@@ -1,6 +1,7 @@
 package io.github.rush.menus;
 
 import io.github.rush.game.GameManager;
+import io.github.rush.game.GamePlayer;
 import io.github.rush.game.GameRoom;
 import io.github.rush.TranslationLoader;
 import io.github.rush.utils.ItemBuilder;
@@ -19,8 +20,8 @@ public final class HostPanelGUI {
 
     public static void open(Player host, GameRoom room, GameManager manager) {
         final List<Player> players = room.getGame().getPlayers().stream()
-                .filter(e -> e instanceof Player)
-                .map(e -> (Player) e)
+                .filter(GamePlayer.class::isInstance)
+                .map(e -> ((GamePlayer) e).player())
                 .toList();
 
         // Rows: 1 for the force-start button + ceil(players / 9) for kick list, min 2 rows

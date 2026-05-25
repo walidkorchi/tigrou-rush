@@ -55,10 +55,6 @@ public class GameRoom {
     @Getter
     private final List<Island> islands;
 
-    @Getter
-    @Setter
-    private boolean islandsLoaded = false;
-
     private int islandY = 0;
 
     public enum IslandType {
@@ -122,7 +118,7 @@ public class GameRoom {
 
     public int getIslandY() {
         if (islandY == 0) {
-            islandY = world.getMaxHeight() - Main.getDISTANCE_HEIGHT_LIMIT();
+            islandY = world.getMaxHeight() - Main.getInstance().getConfig().getInt("distance-height-limit", 12);
         }
 
         return islandY;
@@ -156,6 +152,6 @@ public class GameRoom {
     }
 
     public void removePlayer(Player player) {
-        game.removePlayer(player);
+        game.removePlayer(new GamePlayer(player));
     }
 }

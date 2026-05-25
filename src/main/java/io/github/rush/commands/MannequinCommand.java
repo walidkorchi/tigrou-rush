@@ -3,6 +3,7 @@ package io.github.rush.commands;
 import io.github.rush.Main;
 import io.github.rush.game.Game;
 import io.github.rush.game.GameManager;
+import io.github.rush.game.GameMannequin;
 import io.github.rush.game.GameRoom;
 import io.github.rush.game.Team;
 import io.github.rush.game.TeamColor;
@@ -111,18 +112,13 @@ public class MannequinCommand {
         Main main = Main.getInstance();
         GameManager gameManager = main.getGameManager();
 
-        // Resolve the active game from the executor's world so hub admins get no team
+        // Resolve the active game from the executor's world
         Game activeGame = null;
         if (gameManager != null && sender instanceof Player executorPlayer) {
             String worldName = executorPlayer.getWorld().getName();
             GameRoom room = gameManager.getGameRoomByWorld(worldName);
             if (room != null && room.isWaiting()) {
                 activeGame = room.getGame();
-            } else if (worldName.equals(main.getHubWorld())) {
-                Game legacy = gameManager.getCurrentGame();
-                if (legacy != null && legacy.getState() == io.github.rush.game.GameState.WAITING) {
-                    activeGame = legacy;
-                }
             }
         }
 
@@ -147,9 +143,10 @@ public class MannequinCommand {
 
         if (teamColor != null && activeGame != null) {
             Team team = activeGame.getTeam(teamColor.name());
-            boolean joined = activeGame.joinTeam(mannequin, teamColor);
+            GameMannequin gm = new GameMannequin(mannequin);
+            boolean joined = activeGame.joinTeam(gm, teamColor);
             if (joined) {
-                activeGame.setPlayerReady(mannequin, true);
+                activeGame.setPlayerReady(gm, true);
                 if (team != null && team.getSpawnLocation() != null) {
                     mannequin.teleport(team.getSpawnLocation());
                 }
@@ -179,14 +176,15 @@ public class MannequinCommand {
 
         Main main = Main.getInstance();
         GameManager gameManager = main.getGameManager();
-        Game game = gameManager != null ? gameManager.getCurrentGame() : null;
+        GameRoom room = gameManager != null ? gameManager.getGameRoomByWorld(target.getWorld().getName()) : null;
+        Game game = room != null ? room.getGame() : null;
 
         int count = 0;
 
         for (Entity entity : target.getWorld().getEntities()) {
-            if (entity instanceof Mannequin) {
+            if (entity instanceof Mannequin m) {
                 if (game != null) {
-                    game.leaveTeam(entity);
+                    game.leaveTeam(new GameMannequin(m));
                 }
                 entity.remove();
                 count++;

@@ -13,6 +13,7 @@ import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.inventory.MenuType;
 import org.bukkit.event.inventory.CraftItemEvent;
 import org.bukkit.event.player.PlayerBedEnterEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
@@ -133,7 +134,7 @@ public class GameRules implements Listener {
     @EventHandler
     public void onCraft(CraftItemEvent cie) {
         final Player player = (Player) cie.getWhoClicked();
-        final Game game = Main.getInstance().getGameManager().getGameOfPlayer(player);
+        final Game game = Main.getInstance().getGameManager().getGameForPlayer(player);
 
         if (game == null) {
             return;
@@ -170,7 +171,13 @@ public class GameRules implements Listener {
             ShopGUI.openMainMenu(player);
         } else if (type != null) {
             final org.bukkit.inventory.Merchant merchant = Merchant.createBukkitMerchant(type);
-            Bukkit.getScheduler().runTask(plugin, () -> player.openMerchant(merchant, true));
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                player.openInventory(MenuType.MERCHANT
+                        .builder()
+                        .title(Component.translatable(Merchant.typeKey(type)))
+                        .merchant(merchant)
+                        .build(player));
+            });
         }
     }
 

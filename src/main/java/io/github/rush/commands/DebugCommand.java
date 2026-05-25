@@ -184,7 +184,7 @@ public class DebugCommand {
             }
 
             World world = player.getWorld();
-            int islandY = resolveIslandY(game, world);
+            int islandY = game.getGameRoom().getIslandY();
 
             ZonesOvertimeWatcher prev = overtimeWatchers.remove(world.getName());
             if (prev != null)
@@ -244,7 +244,7 @@ public class DebugCommand {
             }
 
             World world = player.getWorld();
-            int islandY = resolveIslandY(game, world);
+            int islandY = game.getGameRoom().getIslandY();
             int removed = 0;
 
             for (int x = -SCAN_RADIUS; x <= SCAN_RADIUS; x++) {
@@ -302,14 +302,6 @@ public class DebugCommand {
             return game;
         }
         return null;
-    }
-
-    private int resolveIslandY(Game game, World world) {
-        if (game.isGameRoomMode() && game.getGameRoom() != null) {
-            return game.getGameRoom().getIslandY();
-        }
-        int y = Main.getISLAND_Y();
-        return y > 0 ? y : world.getMaxHeight() - 12;
     }
 
     private final class ZonesOvertimeWatcher {

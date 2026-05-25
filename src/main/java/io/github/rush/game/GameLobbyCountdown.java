@@ -5,7 +5,6 @@ import lombok.Setter;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.Sound;
-import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
 
@@ -45,8 +44,9 @@ public class GameLobbyCountdown {
         float pitch = seconds <= 1 ? 2.0f : 1.0f;
         Component message = Component.translatable("rush.countdown_seconds", Component.text(seconds));
 
-        for (Entity entity : game.getPlayers()) {
-            if (entity instanceof Player player) {
+        for (GameParticipant participant : game.getPlayers()) {
+            if (participant instanceof GamePlayer gp) {
+                Player player = gp.player();
                 player.sendMessage(message);
                 player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1.0f, pitch);
             }
@@ -69,9 +69,9 @@ public class GameLobbyCountdown {
     public void broadcastCountdownMessage(int seconds) {
         Component message = Component.translatable("rush.countdown_seconds", Component.text(seconds));
 
-        for (Entity entity : game.getPlayers()) {
-            if (entity instanceof Player player) {
-                player.sendMessage(message);
+        for (GameParticipant participant : game.getPlayers()) {
+            if (participant instanceof GamePlayer gp) {
+                gp.player().sendMessage(message);
             }
         }
     }

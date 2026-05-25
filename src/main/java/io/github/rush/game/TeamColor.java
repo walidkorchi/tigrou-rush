@@ -5,37 +5,41 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Color;
 import org.bukkit.DyeColor;
 
+import java.util.List;
+
 public enum TeamColor {
-    GREEN(Color.fromRGB(0, 170, 0), NamedTextColor.DARK_GREEN, DyeColor.GREEN, 1),
-    RED(Color.fromRGB(255, 85, 85), NamedTextColor.RED, DyeColor.RED, 2),
-    BLUE(Color.fromRGB(0, 0, 170), NamedTextColor.DARK_BLUE, DyeColor.BLUE, 3),
-    YELLOW(Color.fromRGB(255, 255, 85), NamedTextColor.YELLOW, DyeColor.YELLOW, 4),
-    AQUA(Color.fromRGB(85, 255, 255), NamedTextColor.AQUA, DyeColor.CYAN, 5),
-    BLACK(Color.BLACK, NamedTextColor.BLACK, DyeColor.BLACK, 6),
-    GOLD(Color.fromRGB(255, 170, 0), NamedTextColor.GOLD, DyeColor.ORANGE, 7),
-    DARK_BLUE(Color.fromRGB(0, 0, 170), NamedTextColor.DARK_BLUE, DyeColor.BLUE, 8),
-    DARK_GREEN(Color.fromRGB(0, 170, 0), NamedTextColor.DARK_GREEN, DyeColor.GREEN, 9),
-    DARK_RED(Color.fromRGB(170, 0, 0), NamedTextColor.DARK_RED, DyeColor.BROWN, 10),
-    DARK_PURPLE(Color.fromRGB(170, 0, 170), NamedTextColor.DARK_PURPLE, DyeColor.MAGENTA, 11),
-    GRAY(Color.fromRGB(170, 170, 170), NamedTextColor.GRAY, DyeColor.LIGHT_GRAY, 12),
-    DARK_GRAY(Color.fromRGB(85, 85, 85), NamedTextColor.DARK_GRAY, DyeColor.GRAY, 13),
-    LIGHT_PURPLE(Color.fromRGB(255, 85, 255), NamedTextColor.LIGHT_PURPLE, DyeColor.PINK, 14),
-    WHITE(Color.WHITE, NamedTextColor.WHITE, DyeColor.WHITE, 15);
+    // Order matches Minecraft's DyeColor enum.
+    // Color is derived from DyeColor.getFireworkColor(), which holds the exact wool block colour.
+    WHITE     (NamedTextColor.WHITE,        DyeColor.WHITE,      1),
+    ORANGE    (NamedTextColor.GOLD,         DyeColor.ORANGE,     2),
+    MAGENTA   (NamedTextColor.LIGHT_PURPLE, DyeColor.MAGENTA,    3),
+    LIGHT_BLUE(NamedTextColor.AQUA,         DyeColor.LIGHT_BLUE, 4),
+    YELLOW    (NamedTextColor.YELLOW,       DyeColor.YELLOW,     5),
+    LIME      (NamedTextColor.GREEN,        DyeColor.LIME,       6),
+    PINK      (NamedTextColor.LIGHT_PURPLE, DyeColor.PINK,       7),
+    GRAY      (NamedTextColor.GRAY,         DyeColor.GRAY,       8),
+    LIGHT_GRAY(NamedTextColor.GRAY,         DyeColor.LIGHT_GRAY, 9),
+    CYAN      (NamedTextColor.DARK_AQUA,    DyeColor.CYAN,       10),
+    PURPLE    (NamedTextColor.DARK_PURPLE,  DyeColor.PURPLE,     11),
+    BLUE      (NamedTextColor.DARK_BLUE,    DyeColor.BLUE,       12),
+    BROWN     (NamedTextColor.DARK_RED,     DyeColor.BROWN,      13),
+    GREEN     (NamedTextColor.DARK_GREEN,   DyeColor.GREEN,      14),
+    RED       (NamedTextColor.RED,          DyeColor.RED,        15),
+    BLACK     (NamedTextColor.BLACK,        DyeColor.BLACK,      16);
 
-    @Getter
-    private NamedTextColor textColor;
-    @Getter
-    private Color color;
-    @Getter
-    private DyeColor dyeColor;
-    @Getter
-    private int islandNumber;
+    @Getter private final NamedTextColor textColor;
+    @Getter private final Color color;
+    @Getter private final DyeColor dyeColor;
+    @Getter private final int islandNumber;
+    @Getter private final String sectionColor;
 
-    private TeamColor(Color color, NamedTextColor textColor, DyeColor dye, int islandNumber) {
+    TeamColor(NamedTextColor textColor, DyeColor dye, int islandNumber) {
         this.textColor = textColor;
-        this.color = color;
         this.dyeColor = dye;
+        this.color = dye.getFireworkColor();
         this.islandNumber = islandNumber;
+        int index = List.copyOf(NamedTextColor.NAMES.values()).indexOf(textColor);
+        this.sectionColor = "§" + (index >= 0 ? Integer.toHexString(index) : "f");
     }
 
     public static TeamColor[] firstN(int n) {
@@ -48,23 +52,5 @@ public enum TeamColor {
 
     public String getChatColor() {
         return this.textColor.toString();
-    }
-
-    public String getSectionColor() {
-        return switch (this) {
-            case GREEN, DARK_GREEN -> "§2";
-            case RED -> "§c";
-            case BLUE, DARK_BLUE -> "§1";
-            case YELLOW -> "§e";
-            case AQUA -> "§b";
-            case BLACK -> "§0";
-            case GOLD -> "§6";
-            case DARK_RED -> "§4";
-            case DARK_PURPLE -> "§5";
-            case GRAY -> "§7";
-            case DARK_GRAY -> "§8";
-            case LIGHT_PURPLE -> "§d";
-            case WHITE -> "§f";
-        };
     }
 }

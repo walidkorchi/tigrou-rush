@@ -15,10 +15,10 @@ public final class CustomSoundRegistrar {
             "tland:music.global.overtime_intro_music",
             "tland:music.global.overtime_loop_music",
             "tland:music.global.gameendmusic",
-            "tland:games.global.win_celebrate"
-    );
+            "tland:game.global.win_celebrate");
 
-    private CustomSoundRegistrar() {}
+    private CustomSoundRegistrar() {
+    }
 
     public static void register(Main plugin) {
         try {
@@ -43,15 +43,16 @@ public final class CustomSoundRegistrar {
             }
 
             frozenField.setBoolean(soundEventRegistry, true);
-
             plugin.getLogger().info("Registered " + SOUNDS.size() + " custom sounds with Minecraft registry");
         } catch (InvocationTargetException e) {
-            plugin.getLogger().warning("Failed to register customs sounds: " + e.getCause().getClass().getName() + ": " + e.getCause().getMessage());
+            plugin.getLogger().warning("Failed to register customs sounds: " + e.getCause().getClass().getName() + ": "
+                    + e.getCause().getMessage());
             for (var ste : e.getCause().getStackTrace()) {
                 plugin.getLogger().warning("  at " + ste.toString());
             }
         } catch (Exception e) {
-            plugin.getLogger().warning("Failed to register customs sounds: " + e.getClass().getName() + ": " + e.getMessage());
+            plugin.getLogger()
+                    .warning("Failed to register customs sounds: " + e.getClass().getName() + ": " + e.getMessage());
             for (var ste : e.getStackTrace()) {
                 plugin.getLogger().warning("  at " + ste.toString());
             }

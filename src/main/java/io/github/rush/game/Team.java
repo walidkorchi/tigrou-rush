@@ -5,7 +5,6 @@ import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.type.Bed;
-import org.bukkit.entity.Entity;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -35,7 +34,7 @@ public class Team {
     @Getter
     private final int maxPlayers;
 
-    private final List<Entity> players = new ArrayList<>();
+    private final List<GameParticipant> players = new ArrayList<>();
 
     @Getter
     @Setter
@@ -62,7 +61,7 @@ public class Team {
         this.maxPlayers = maxPlayers;
     }
 
-    public boolean addPlayer(Entity player) {
+    public boolean addPlayer(GameParticipant player) {
         if (players.size() >= maxPlayers) {
             return false;
         }
@@ -72,15 +71,15 @@ public class Team {
         return true;
     }
 
-    public void removePlayer(Entity entity) {
-        players.remove(entity);
+    public void removePlayer(GameParticipant participant) {
+        players.remove(participant);
     }
 
-    public boolean isInTeam(Entity entity) {
-        return players.contains(entity);
+    public boolean isInTeam(GameParticipant participant) {
+        return players.contains(participant);
     }
 
-    public List<Entity> getPlayers() {
+    public List<GameParticipant> getPlayers() {
         return new ArrayList<>(players);
     }
 
@@ -192,23 +191,8 @@ public class Team {
     }
 
     public static Material bedMaterialFor(TeamColor color) {
-        return switch (color) {
-            case RED -> Material.RED_BED;
-            case BLUE -> Material.BLUE_BED;
-            case GREEN -> Material.GREEN_BED;
-            case YELLOW -> Material.YELLOW_BED;
-            case AQUA -> Material.CYAN_BED;
-            case BLACK -> Material.BLACK_BED;
-            case GOLD -> Material.ORANGE_BED;
-            case DARK_BLUE -> Material.BLUE_BED;
-            case DARK_GREEN -> Material.GREEN_BED;
-            case DARK_RED -> Material.RED_BED;
-            case DARK_PURPLE -> Material.PURPLE_BED;
-            case GRAY -> Material.LIGHT_GRAY_BED;
-            case DARK_GRAY -> Material.GRAY_BED;
-            case LIGHT_PURPLE -> Material.PINK_BED;
-            case WHITE -> Material.WHITE_BED;
-        };
+        Material mat = Material.getMaterial(color.name() + "_BED");
+        return mat != null ? mat : Material.WHITE_BED;
     }
 
 }

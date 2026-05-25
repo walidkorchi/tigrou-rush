@@ -3,6 +3,9 @@ package io.github.rush.events;
 import io.github.rush.Main;
 import io.github.rush.commands.AuthorCommand;
 import io.github.rush.game.Game;
+import io.github.rush.game.GameMannequin;
+import io.github.rush.game.GameParticipant;
+import io.github.rush.game.GamePlayer;
 import io.github.rush.replay.ReplayFollowGUI;
 import io.github.rush.replay.ReplayPlayback;
 import io.github.rush.replay.ReplayViewerInventory;
@@ -206,8 +209,8 @@ public class PlayerActivity implements Listener {
                 // Snapshot in-game state so the player can be restored on reconnect
                 if (room.isRunning()) {
                     final Game roomGame = room.getGame();
-                    final Team team = roomGame.getPlayerTeam(player);
-                    final boolean wasSpectator = roomGame.isSpectator(player);
+                    final Team team = roomGame.getPlayerTeam(new GamePlayer(player));
+                    final boolean wasSpectator = roomGame.isSpectator(new GamePlayer(player));
 
                     plugin.getGameManager().recordDisconnect(player.getUniqueId(),
                             new GameManager.ReconnectData(
@@ -225,14 +228,6 @@ public class PlayerActivity implements Listener {
                 }
             }
 
-            // Remove from legacy game
-            final Game game = plugin.getGameManager().getGameOfPlayer(player);
-
-            if (game != null) {
-                game.getKillTracker().removePlayer(player.getUniqueId());
-                game.removePlayer(player);
-                plugin.getGameManager().removePlayerFromGame(player);
-            }
         }
 
         plugin.setFastBoard(player, null);
@@ -263,7 +258,7 @@ public class PlayerActivity implements Listener {
             final Game game = breakRoom.getGame();
 
             if (game != null) {
-                final Team breakerTeam = game.getPlayerTeam(player);
+                final Team breakerTeam = game.getPlayerTeam(new GamePlayer(player));
 
                 // anti-spleef for same team players and mannequins
                 for (Entity entity : block.getWorld().getNearbyEntities(block.getLocation(), 2, 2, 2)) {
@@ -274,7 +269,11 @@ public class PlayerActivity implements Listener {
                         continue;
                     }
 
-                    final Team entityTeam = game.getPlayerTeam(entity);
+                    final Team entityTeam = game.getPlayerTeam(
+                        entity instanceof Player p
+                            ? new GamePlayer(p)
+                            : new GameMannequin((Mannequin) entity)
+                    );
 
                     if (breakerTeam != null && entityTeam != null && breakerTeam.equals(entityTeam)) {
                         event.setCancelled(true);
@@ -367,7 +366,7 @@ public class PlayerActivity implements Listener {
         if (room != null && room.isRunning()) {
             final Game game = room.getGame();
 
-            if (game != null && !game.isSpectator(player)) {
+            if (game != null && !game.isSpectator(new GamePlayer(player))) {
                 rescueFromVoid(player, game, room.getIslandY());
             }
         }
@@ -411,10 +410,11 @@ public class PlayerActivity implements Listener {
         }
 
         GameRoom room = Main.getInstance().getGameManager().getGameRoomByWorld(mannequin.getWorld().getName());
-        if (room == null) return;
+        if (room == null)
+            return;
         Game game = room.getGame();
 
-        if (game == null || game.getPlayerTeam(mannequin) == null) {
+        if (game == null || game.getPlayerTeam(new GameMannequin(mannequin)) == null) {
             return;
         }
 
@@ -422,16 +422,23 @@ public class PlayerActivity implements Listener {
         event.setDroppedExp(0);
         event.getDrops().clear();
 
+        // Restore health immediately so the entity survives the cancelled death.
         mannequin.setHealth(mannequin.getAttribute(Attribute.MAX_HEALTH).getValue());
 
-        Player killer = mannequin.getKiller();
-        handleEntityDeath(game, mannequin, killer);
+        final Player killer = mannequin.getKiller();
+        // Schedule 1 tick out: teleporting inside EntityDeathEvent is silently dropped
+        // even when the event is cancelled, because the entity is still in dying state.
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (mannequin.isDead())
+                return;
+            game.handleMannequinDeath(mannequin, killer);
+        }, 1L);
     }
 
     private void handleEntityDeath(Game game, Entity entity, Player killer) {
-        game.onPlayerDeath(entity, killer);
+        game.onPlayerDeath(new GamePlayer((Player) entity), killer);
 
-        Team team = game.getPlayerTeam(entity);
+        Team team = game.getPlayerTeam(new GamePlayer((Player) entity));
         boolean bedDestroyed = team != null && team.isBedDestroyed();
 
         if (!bedDestroyed && team != null) {
@@ -444,7 +451,7 @@ public class PlayerActivity implements Listener {
                 entity.teleport(spawn);
             }
 
-            game.equipEntity(entity, team);
+            game.equipEntity(new GamePlayer((Player) entity), team);
 
             if (entity instanceof Player player) {
                 game.addProtection(player);
@@ -507,8 +514,8 @@ public class PlayerActivity implements Listener {
             if (item != null && item.getType() == Material.COMPASS) {
                 // Spectator compass: return to lobby (GameRoom or legacy game)
                 Game spectatorGame = Main.getInstance().getGameManager().getGameForPlayer(player);
-                if (spectatorGame != null && spectatorGame.isSpectator(player)) {
-                    spectatorGame.removeSpectator(player);
+                if (spectatorGame != null && spectatorGame.isSpectator(new GamePlayer(player))) {
+                    spectatorGame.removeSpectator(new GamePlayer(player));
                     GameRoom spectatorRoom = plugin.getGameManager().getGameRoomOfPlayer(player);
                     if (spectatorRoom != null) {
                         plugin.getGameManager().removePlayerFromGameRoom(player);
@@ -716,7 +723,8 @@ public class PlayerActivity implements Listener {
     }
 
     private boolean isPlayerInGame(Player player) {
-        if (plugin.getGameManager() == null) return false;
+        if (plugin.getGameManager() == null)
+            return false;
         GameRoom room = plugin.getGameManager().getGameRoomByWorld(player.getWorld().getName());
         return room != null && room.isRunning();
     }
@@ -787,8 +795,12 @@ public class PlayerActivity implements Listener {
             return;
         }
 
-        Team victimTeam = game.getPlayerTeam(victim);
-        Team attackerTeam = game.getPlayerTeam(attacker);
+        Team victimTeam = game.getPlayerTeam(
+            victim instanceof Player p
+                ? new GamePlayer(p)
+                : new GameMannequin((Mannequin) victim)
+        );
+        Team attackerTeam = game.getPlayerTeam(new GamePlayer(attacker));
 
         if (victimTeam != null && victimTeam.equals(attackerTeam)) {
             event.setCancelled(true);
@@ -837,7 +849,7 @@ public class PlayerActivity implements Listener {
         } else {
             Game game = Main.getInstance().getGameManager().getGameForPlayer(player);
             Team team = (game != null && game.getState() == GameState.RUNNING)
-                    ? game.getPlayerTeam(player)
+                    ? game.getPlayerTeam(new GamePlayer(player))
                     : null;
 
             if (team != null) {
@@ -853,7 +865,7 @@ public class PlayerActivity implements Listener {
                 if (!isGlobal) {
                     event.setCancelled(true);
                     for (Player recipient : plugin.getServer().getOnlinePlayers()) {
-                        Team recipientTeam = game.getPlayerTeam(recipient);
+                        Team recipientTeam = game.getPlayerTeam(new GamePlayer(recipient));
                         if (recipientTeam != null && recipientTeam.equals(team)) {
                             recipient.sendMessage(formatComponent);
                         }

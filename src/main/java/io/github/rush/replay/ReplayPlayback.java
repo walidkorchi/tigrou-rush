@@ -19,6 +19,7 @@ import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Mannequin;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Pose;
 import org.bukkit.entity.TNTPrimed;
 import org.bukkit.inventory.EntityEquipment;
 import org.bukkit.inventory.ItemStack;
@@ -58,11 +59,13 @@ public final class ReplayPlayback {
     private final Set<Entity> replayEntities = new HashSet<>();
     private final List<BukkitTask> pendingTasks = new ArrayList<>();
 
-    @Getter @Setter
+    @Getter
+    @Setter
     private long playheadMs = 0;
     @Getter
     private boolean isPaused = true;
-    @Getter @Setter
+    @Getter
+    @Setter
     private double speedMultiplier = 1.0;
     private BukkitTask tickTask;
 
@@ -181,11 +184,11 @@ public final class ReplayPlayback {
             Mannequin mannequin = mannequinByPlayer.get(uuid);
             if (mannequin != null) {
                 double yOffset = move.sneaking() ? -0.3 : 0.0;
+                mannequin.setPose(move.sneaking() ? Pose.SNEAKING : Pose.STANDING, true);
                 mannequin.teleport(new Location(world,
                         move.x(), move.y() + yOffset, move.z(),
                         move.yaw(), move.pitch()));
                 applyEquipment(mannequin, move.mainHand(), move.offHand());
-                mannequin.setSneaking(move.sneaking());
             }
         } else if (action instanceof BlockChangeAction block) {
             Block b = world.getBlockAt(block.x(), block.y(), block.z());
@@ -479,7 +482,7 @@ public final class ReplayPlayback {
         player.setAllowFlight(true);
         player.setFlying(true);
         player.setInvulnerable(true);
-        int islandY = world.getMaxHeight() - Main.getDISTANCE_HEIGHT_LIMIT();
+        int islandY = world.getMaxHeight() - 12;
         player.teleport(new Location(world, 0.5, islandY + 10, 0.5, 0f, -30f));
         ReplayViewerInventory.give(player, isPaused, speedMultiplier);
         player.sendMessage(Component.translatable("rush.replay_watching_full",

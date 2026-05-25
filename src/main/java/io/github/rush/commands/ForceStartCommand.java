@@ -3,7 +3,6 @@ package io.github.rush.commands;
 import io.papermc.paper.command.brigadier.Commands;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.github.rush.Main;
-import io.github.rush.game.Game;
 import io.github.rush.game.GameManager;
 import io.github.rush.game.GameRoom;
 
@@ -41,36 +40,22 @@ public class ForceStartCommand {
             }
 
             GameRoom room = gameManager.getGameRoomByWorld(player.getWorld().getName());
-            if (room != null) {
-                if (!room.isWaiting()) {
-                    ctx.getSource().getSender().sendMessage(Component.translatable("rush.room_already_started"));
-                    return Command.SINGLE_SUCCESS;
-                }
-                room.getGame().start();
-                for (Player online : plugin.getServer().getOnlinePlayers()) {
-                    if (online.getWorld().equals(room.getWorld())) {
-                        online.sendMessage(Component.translatable("rush.force_start_broadcast"));
-                    }
-                }
-                ctx.getSource().getSender().sendMessage(Component.translatable("rush.game_force_started"));
-                return Command.SINGLE_SUCCESS;
-            }
-
-            Game game = gameManager.getCurrentGame();
-
-            if (game == null) {
+            if (room == null) {
                 ctx.getSource().getSender().sendMessage(Component.translatable("rush.no_active_game"));
                 return Command.SINGLE_SUCCESS;
             }
 
-            game.start();
+            if (!room.isWaiting()) {
+                ctx.getSource().getSender().sendMessage(Component.translatable("rush.room_already_started"));
+                return Command.SINGLE_SUCCESS;
+            }
 
+            room.getGame().start();
             for (Player online : plugin.getServer().getOnlinePlayers()) {
-                if (online.getWorld().getName().equals(plugin.getHubWorld())) {
+                if (online.getWorld().equals(room.getWorld())) {
                     online.sendMessage(Component.translatable("rush.force_start_broadcast"));
                 }
             }
-
             ctx.getSource().getSender().sendMessage(Component.translatable("rush.game_force_started"));
 
             return Command.SINGLE_SUCCESS;

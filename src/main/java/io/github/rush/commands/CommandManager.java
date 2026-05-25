@@ -48,6 +48,7 @@ public class CommandManager {
 
     public void registerAll(Main plugin) {
         register(new DebugCommand(plugin)::createCommand);
+        register(new ArchiveCommand(plugin)::createCommand);
         register(new MannequinCommand()::createCommand);
         register(new ForceStartCommand(plugin)::createCommand);
         register(new ForceStopCommand(plugin)::createCommand);

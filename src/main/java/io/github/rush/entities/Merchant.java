@@ -1,7 +1,6 @@
 package io.github.rush.entities;
 
 import io.github.rush.Main;
-import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Villager;
@@ -62,21 +61,15 @@ public class Merchant {
     }
 
     /**
-     * Creates a synthetic Bukkit Merchant (not backed by a villager entity) for the
-     * given
-     * merchant type, ready to be opened via {@code player.openMerchant()}.
+     * Creates a synthetic Bukkit Merchant for a given merchant type.
      */
     public static org.bukkit.inventory.Merchant createBukkitMerchant(MerchantType type) {
-        final org.bukkit.inventory.Merchant merchant = Bukkit.createMerchant(Component.translatable(typeKey(type)));
-
-        merchant.setRecipes(type.getTrades().stream()
-                .map(Merchant::toMerchantRecipe)
-                .toList());
-
+        final org.bukkit.inventory.Merchant merchant = Bukkit.createMerchant();
+        merchant.setRecipes(type.getTrades().stream().map(Merchant::toMerchantRecipe).toList());
         return merchant;
     }
 
-    private static String typeKey(MerchantType type) {
+    public static String typeKey(MerchantType type) {
         return switch (type) {
             case WEAPONSMITH -> "rush.merchant_weaponsmith";
             case BUILDER -> "rush.merchant_builder";

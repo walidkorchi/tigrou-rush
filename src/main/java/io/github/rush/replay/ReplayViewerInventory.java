@@ -2,7 +2,6 @@ package io.github.rush.replay;
 
 import io.github.rush.TranslationLoader;
 import io.github.rush.utils.ItemBuilder;
-import net.kyori.adventure.text.Component;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -17,7 +16,8 @@ public final class ReplayViewerInventory {
     public static final int SLOT_SPEED_UP = 6;
     public static final int SLOT_MENU = 8;
 
-    private ReplayViewerInventory() {}
+    private ReplayViewerInventory() {
+    }
 
     public static void give(Player player, boolean isPaused, double speedMultiplier) {
         player.getInventory().clear();
@@ -83,7 +83,8 @@ public final class ReplayViewerInventory {
     }
 
     public static boolean isPauseResumeDye(ItemStack item) {
-        if (item == null) return false;
+        if (item == null)
+            return false;
         return item.getType() == Material.GRAY_DYE || item.getType() == Material.LIME_DYE;
     }
 }

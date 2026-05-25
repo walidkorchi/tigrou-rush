@@ -13,7 +13,6 @@ import lombok.Getter;
 import lombok.Setter;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.JoinConfiguration;
-import net.kyori.adventure.text.event.ClickCallback;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
@@ -33,7 +32,6 @@ import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.enchantments.Enchantment;
-import org.bukkit.entity.Entity;
 import org.bukkit.entity.Mannequin;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.EntityEquipment;
@@ -48,8 +46,6 @@ import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.*;
-import java.time.Duration;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -71,11 +67,12 @@ public class Game {
     private final Map<String, Team> teams = new HashMap<>();
 
     @Getter
-    private final List<Entity> freePlayers = new ArrayList<>();
+    private final List<GameParticipant> freePlayers = new ArrayList<>();
     private final Map<Player, PlayerStatistic> playerStats = new HashMap<>();
     private final Map<UUID, TeamColor> playerTeamColors = new HashMap<>();
-    private final Set<Player> spectators = new HashSet<>();
+    private final Set<GamePlayer> spectators = new HashSet<>();
     private final Set<Player> protectedPlayers = new HashSet<>();
+    private final Set<UUID> mannequinsBeingRescued = new HashSet<>();
 
     @Getter
     private final KillTracker killTracker = new KillTracker();
@@ -119,7 +116,7 @@ public class Game {
     @Getter
     private final String worldName;
     private GameLobbyCountdown lobbyCountdown;
-    private final Map<Entity, Boolean> playersReady = new HashMap<>();
+    private final Map<GameParticipant, Boolean> playersReady = new HashMap<>();
 
     @Setter
     @Getter
@@ -129,23 +126,6 @@ public class Game {
     @Getter
     private double coefficient = 1.0;
     private ReplayRecorder recorder = null;
-
-    /**
-     * Legacy constructor for single-game mode.
-     */
-    public Game(String name) {
-        this.state = GameState.WAITING;
-        this.cycle = new GameCycle(this);
-        this.worldName = Main.getInstance().getHubWorld();
-        this.maxPlayers = 8;
-        this.islandCount = 4;
-
-        final World world = Bukkit.getWorld(Main.getInstance().getConfig().getString("lobbyWorld"));
-
-        this.lobby = world != null ? world.getSpawnLocation() : null;
-
-        initializeTeams(4, 4);
-    }
 
     /**
      * Constructor for multi-game mode with configurable team sizes.
@@ -164,13 +144,6 @@ public class Game {
         initializeTeams(maxTeams, playersPerTeam);
     }
 
-    /**
-     * Returns true if this game is running in a GameRoom (multi-game mode).
-     */
-    public boolean isGameRoomMode() {
-        return gameRoom != null;
-    }
-
     private void initializeTeams(int maxTeams, int playersPerTeam) {
         List<TeamColor> colors = List.of(
                 TeamColor.RED, TeamColor.BLUE, TeamColor.GREEN, TeamColor.YELLOW);
@@ -187,14 +160,17 @@ public class Game {
         return getPlayers().size();
     }
 
-    public void removePlayer(Entity player) {
-        freePlayers.remove(player);
-        playersReady.remove(player);
-        spectators.remove(player);
+    /**
+     * Unsubscribe a game participant from the game room, and updates the tablist.
+     */
+    public void removePlayer(GameParticipant participant) {
+        freePlayers.remove(participant);
+        playersReady.remove(participant);
+        spectators.remove(participant);
 
         for (Team team : teams.values()) {
-            if (team.isInTeam(player)) {
-                team.removePlayer(player);
+            if (team.isInTeam(participant)) {
+                team.removePlayer(participant);
                 break;
             }
         }
@@ -202,7 +178,18 @@ public class Game {
         updatePlayerList();
     }
 
-    public boolean joinTeam(Entity player, TeamColor color) {
+    /**
+     * Assigns a team and color to the specified player
+     * Marks the player by default as not ready
+     * Notifies a message to all team players
+     * Updates the player list
+     * Checks if current game room is auto-startable
+     *
+     * @param player - the player to join the team
+     * @param color  - the color of the team to join
+     * @return boolean - evaluates if the player was successfully added to the team
+     */
+    public boolean joinTeam(GameParticipant participant, TeamColor color) {
         final Team team = teams.get(color.name());
 
         if (team == null) {
@@ -210,27 +197,26 @@ public class Game {
         }
 
         for (Team existingTeam : teams.values()) {
-            if (existingTeam.isInTeam(player)) {
-                existingTeam.removePlayer(player);
+            if (existingTeam.isInTeam(participant)) {
+                existingTeam.removePlayer(participant);
                 break;
             }
         }
 
-        Boolean added = team.addPlayer(player);
+        final Boolean added = team.addPlayer(participant);
 
-        if (freePlayers.contains(player)) {
-            freePlayers.remove(player);
+        if (freePlayers.contains(participant)) {
+            freePlayers.remove(participant);
         }
 
-        playersReady.put(player, false);
-        playerTeamColors.put(player.getUniqueId(), color);
+        playersReady.put(participant, true);
+        playerTeamColors.put(participant.uniqueId(), color);
 
-        for (Entity existingPlayer : team.getPlayers()) {
-            if (existingPlayer instanceof Player && !existingPlayer.equals(player)) {
-                existingPlayer
-                        .sendMessage(Component.translatable("rush.player_joined_team",
-                                Component.text(player.getName()), Component.text(color.name()))
-                                .color(color.getTextColor()));
+        for (GameParticipant existing : team.getPlayers()) {
+            if (existing instanceof GamePlayer gp && !gp.uniqueId().equals(participant.uniqueId())) {
+                gp.player().sendMessage(Component.translatable("rush.player_joined_team",
+                        Component.text(participant.name()), Component.text(color.name()))
+                        .color(color.getTextColor()));
             }
         }
 
@@ -240,76 +226,77 @@ public class Game {
         return added;
     }
 
-    public void leaveTeam(Entity entity) {
+    public void leaveTeam(GameParticipant participant) {
         for (Team team : teams.values()) {
-            if (team.isInTeam(entity)) {
-                team.removePlayer(entity);
+            if (team.isInTeam(participant)) {
+                team.removePlayer(participant);
                 break;
             }
         }
 
-        if (!freePlayers.contains(entity)) {
-            freePlayers.add(entity);
+        if (!freePlayers.contains(participant)) {
+            freePlayers.add(participant);
         }
 
-        playersReady.put(entity, false);
+        playersReady.put(participant, false);
 
-        if (entity instanceof Player) {
+        if (participant instanceof GamePlayer) {
             updatePlayerList();
         }
     }
 
-    public boolean isPlayerReady(Entity entity) {
-        Boolean ready = playersReady.get(entity);
+    public boolean isPlayerReady(GameParticipant participant) {
+        Boolean ready = playersReady.get(participant);
         return ready != null && ready;
     }
 
-    public void addSpectator(Player player) {
-        addSpectator(player, false);
-        player.sendMessage(Component.translatable("rush.spectatorModeEnteredAfterBedDestroyed"));
+    public void addSpectator(GamePlayer gamePlayer) {
+        addSpectator(gamePlayer, false);
+        gamePlayer.player().sendMessage(Component.translatable("rush.spectatorModeEnteredAfterBedDestroyed"));
     }
 
-    public void addObserver(Player player) {
-        addSpectator(player, true);
-        player.sendMessage(Component.translatable("rush.spectator_viewing"));
+    public void addObserver(GamePlayer gamePlayer) {
+        addSpectator(gamePlayer, true);
+        gamePlayer.player().sendMessage(Component.translatable("rush.spectator_viewing"));
     }
 
-    private void addSpectator(Player player, boolean isObserver) {
-        spectators.add(player);
+    private void addSpectator(GamePlayer gamePlayer, boolean isObserver) {
+        spectators.add(gamePlayer);
 
         if (!isObserver) {
-            Team team = getPlayerTeam(player);
+            Team team = getPlayerTeam(gamePlayer);
             if (team != null) {
-                team.removePlayer(player);
+                team.removePlayer(gamePlayer);
             }
-            freePlayers.remove(player);
-            playersReady.remove(player);
+            freePlayers.remove(gamePlayer);
+            playersReady.remove(gamePlayer);
         }
 
-        applySpectatorMode(player);
+        applySpectatorMode(gamePlayer.player());
 
         final String compassName = isObserver ? "§cQuitter la partie" : "§cQuitter le spectator";
 
-        player.getInventory().setItem(0, ItemBuilder.of(Material.COMPASS).name(compassName).build());
-        hideFromGameWorld(player);
+        gamePlayer.player().getInventory().setItem(0, ItemBuilder.of(Material.COMPASS).name(compassName).build());
+        hideFromGameWorld(gamePlayer.player());
 
         if (lobby != null) {
-            player.teleport(lobby);
+            gamePlayer.teleport(lobby);
         }
 
         updatePlayerList();
     }
 
-    public boolean isSpectator(Player player) {
-        return spectators.contains(player);
+    public boolean isSpectator(GamePlayer gamePlayer) {
+        return spectators.contains(gamePlayer);
     }
 
-    public Collection<Player> getSpectators() {
+    public Collection<GamePlayer> getSpectators() {
         return Collections.unmodifiableCollection(spectators);
     }
 
-    public void removeSpectator(Player player) {
-        spectators.remove(player);
+    public void removeSpectator(GamePlayer gamePlayer) {
+        spectators.remove(gamePlayer);
+        Player player = gamePlayer.player();
         player.setGameMode(GameMode.ADVENTURE);
         player.setAllowFlight(false);
         player.setFlying(false);
@@ -332,7 +319,7 @@ public class Game {
         if (protectionTime <= 0)
             return;
 
-        if (isGameRoomMode() && recorder != null) {
+        if (recorder != null) {
             Location loc = player.getLocation();
             recorder.recordRespawn(player.getUniqueId(), loc.getX(), loc.getY(), loc.getZ());
         }
@@ -432,7 +419,7 @@ public class Game {
         killTracker.reset();
     }
 
-    private void resetPlayerHealth(Player player) {
+    public void resetPlayerHealth(Player player) {
         AttributeInstance maxHealth = player.getAttribute(Attribute.MAX_HEALTH);
         if (maxHealth != null) {
             maxHealth.removeModifier(NamespacedKey.minecraft("extra_hearts"));
@@ -440,8 +427,8 @@ public class Game {
         player.setHealth(20.0);
     }
 
-    public void setPlayerReady(Entity entity, boolean ready) {
-        playersReady.put(entity, ready);
+    public void setPlayerReady(GameParticipant participant, boolean ready) {
+        playersReady.put(participant, ready);
         checkStartCondition();
     }
 
@@ -490,7 +477,7 @@ public class Game {
 
     public void autoStart() {
         if (state == GameState.WAITING) {
-            final List<Entity> unassigned = freePlayers.stream()
+            final List<GameParticipant> unassigned = freePlayers.stream()
                     .filter(p -> teams.values().stream().noneMatch(t -> t.isInTeam(p)))
                     .collect(Collectors.toList());
 
@@ -499,11 +486,11 @@ public class Game {
                         .sorted(Comparator.comparingInt(t -> t.getPlayers().size()))
                         .collect(Collectors.toList());
 
-                for (Entity player : unassigned) {
+                for (GameParticipant participant : unassigned) {
                     Team smallestTeam = sortedTeams.get(0);
 
                     if (smallestTeam.getPlayers().size() < smallestTeam.getMaxPlayers()) {
-                        smallestTeam.addPlayer(player);
+                        smallestTeam.addPlayer(participant);
                     }
                 }
 
@@ -513,10 +500,7 @@ public class Game {
     }
 
     private int getOvertimeSeconds() {
-        if (isGameRoomMode()) {
-            return gameRoom.getConfig().overtimeDuration() * 60;
-        }
-        return Main.getInstance().getConfig().getInt("overtime-duration", 30) * 60;
+        return gameRoom.getConfig().overtimeDuration() * 60;
     }
 
     public boolean isOvertime() {
@@ -533,7 +517,7 @@ public class Game {
         gameTime++;
         if (gameTime == getOvertimeSeconds()) {
             broadcastMessage(Component.translatable("rush.overtime"));
-            if (isGameRoomMode() && recorder != null) {
+            if (recorder != null) {
                 recorder.recordPhaseChange("OVERTIME");
             }
             playOvertimeMusic();
@@ -545,14 +529,16 @@ public class Game {
             return;
         String intro = "tland:music.global.overtime_intro_music";
         String loop = "tland:music.global.overtime_loop_music";
-        for (Entity entity : getPlayers()) {
-            if (entity instanceof Player player) {
+        for (GameParticipant participant : getPlayers()) {
+            if (participant instanceof GamePlayer gp) {
+                Player player = gp.player();
                 player.playSound(player.getLocation(), intro, SoundCategory.MUSIC, 1.0f, 1.0f);
             }
         }
         overtimeMusicTask = Bukkit.getScheduler().runTaskTimer(Main.getInstance(), () -> {
-            for (Entity entity : getPlayers()) {
-                if (entity instanceof Player player) {
+            for (GameParticipant participant : getPlayers()) {
+                if (participant instanceof GamePlayer gp) {
+                    Player player = gp.player();
                     player.playSound(player.getLocation(), loop, SoundCategory.MUSIC, 1.0f, 1.0f);
                 }
             }
@@ -621,9 +607,7 @@ public class Game {
         int speedOffset = Main.getInstance().getConfig().getInt("villagerSpeedOffset", 13);
         int regularOffset = Main.getInstance().getConfig().getInt("villagerRegularOffset", speedOffset - 1);
         int radius = Main.getInstance().getConfig().getInt("merchantProtectionRadius", 3);
-        int islandY = isGameRoomMode() && gameRoom != null
-                ? gameRoom.getIslandY()
-                : (Main.getISLAND_Y() > 0 ? Main.getISLAND_Y() : world.getMaxHeight() - 12);
+        int islandY = gameRoom.getIslandY();
 
         // Merchants span islandY+1 (feet) to islandY+2 (head); skip all iteration if Y
         // is out of range
@@ -674,9 +658,7 @@ public class Game {
         if (allIslands.isEmpty())
             return false;
 
-        final int islandY = isGameRoomMode() && gameRoom != null
-                ? gameRoom.getIslandY()
-                : (Main.getISLAND_Y() > 0 ? Main.getISLAND_Y() : world.getMaxHeight() - 12);
+        final int islandY = gameRoom.getIslandY();
 
         final int regularOffset = Main.getInstance().getConfig().getInt("villagerRegularOffset",
                 Main.getInstance().getConfig().getInt("villagerSpeedOffset", 13) - 1);
@@ -734,12 +716,7 @@ public class Game {
     }
 
     public List<Island> getAllIslandPositions() {
-        List<Island> raw;
-        if (isGameRoomMode() && gameRoom != null) {
-            raw = gameRoom.getIslands();
-        } else {
-            raw = Main.getInstance().getIslands();
-        }
+        List<Island> raw = gameRoom.getIslands();
         if (raw == null || raw.isEmpty())
             return List.of();
         // Sort by angle from centroid to guarantee cyclic (N→E→S→W) order for
@@ -774,15 +751,10 @@ public class Game {
             state = GameState.RUNNING;
             gameTime = 0;
 
-            if (isGameRoomMode() && gameRoom.getConfig().overtimeStart()) {
+            if (gameRoom.getConfig().overtimeStart()) {
                 gameTime = getOvertimeSeconds();
                 broadcastMessage(Component.translatable("rush.overtime"));
                 playOvertimeMusic();
-            }
-
-            // Only set global game started flag for legacy mode
-            if (!isGameRoomMode()) {
-                Main.getInstance().setGameStarted(true);
             }
 
             computeIslandAssignment();
@@ -796,18 +768,18 @@ public class Game {
                 }
             }
 
-            for (Entity entity : getPlayers()) {
-                final Team team = getPlayerTeam(entity);
+            for (GameParticipant participant : getPlayers()) {
+                final Team team = getPlayerTeam(participant);
 
                 if (team != null) {
-                    if (entity instanceof Player player) {
-                        player.getInventory().clear();
-                        player.getEnderChest().clear();
-                        player.setGameMode(GameMode.SURVIVAL);
+                    if (participant instanceof GamePlayer gp) {
+                        gp.player().getInventory().clear();
+                        gp.player().getEnderChest().clear();
+                        gp.player().setGameMode(GameMode.SURVIVAL);
                     }
 
-                    teleportToTeamSpawn(entity, team);
-                    equipEntity(entity, team);
+                    teleportToTeamSpawn(participant, team);
+                    equipEntity(participant, team);
                 }
             }
 
@@ -817,46 +789,16 @@ public class Game {
 
             cycle.onGameStart();
 
-            if (isGameRoomMode()) {
-                recorder = new ReplayRecorder(this, worldName);
-            }
+            recorder = new ReplayRecorder(this, worldName);
 
-            if (isGameRoomMode()) {
-                Main.getInstance().getGameManager().onGameRoomStarted(gameRoom);
-            }
+            Main.getInstance().getGameManager().onGameRoomStarted(gameRoom);
         }
     }
 
     private void loadIslandsAndSetSpawns() {
-        World gameWorld;
-        int islandY;
-
-        if (isGameRoomMode()) {
-            // GameRoom mode: use room's own world and islands
-            gameWorld = gameRoom.getWorld();
-            islands = gameRoom.getIslands();
-            islandY = gameRoom.getIslandY();
-
-            if (!gameRoom.isIslandsLoaded()) {
-                Main.getInstance().getGameManager().loadIslandsForGameRoom(gameRoom);
-            }
-        } else {
-            // Legacy mode: use Main's world and islands
-            Main plugin = Main.getInstance();
-            gameWorld = Bukkit.getWorld(plugin.getHubWorld());
-
-            if (gameWorld == null) {
-                plugin.getLogger().warning("Game world not found, cannot load islands");
-                return;
-            }
-
-            if (!plugin.isIslandsLoaded()) {
-                plugin.loadSchematicsSync();
-            }
-
-            islands = plugin.getIslands();
-            islandY = Main.getISLAND_Y();
-        }
+        World gameWorld = gameRoom.getWorld();
+        islands = gameRoom.getIslands();
+        int islandY = gameRoom.getIslandY();
 
         for (int i = 0; i < islandAssignment.size() && i < islands.size(); i++) {
             final Team team = islandAssignment.get(i);
@@ -871,7 +813,7 @@ public class Game {
         }
     }
 
-    private void teleportToTeamSpawn(Entity player, Team team) {
+    private void teleportToTeamSpawn(GameParticipant participant, Team team) {
         Location spawn = team.getSpawnLocation();
 
         if (team.getBedLocation() != null && !team.isBedDestroyed()) {
@@ -880,18 +822,13 @@ public class Game {
         }
 
         if (spawn != null) {
-            player.teleport(spawn);
+            participant.teleport(spawn);
         }
     }
 
-    public EntityEquipment getPlayerInventory(Entity entity) {
-        return entity instanceof Player player ? player.getEquipment()
-                : ((Mannequin) entity).getEquipment();
-    }
-
-    public void equipEntity(Entity entity, Team team) {
+    public void equipEntity(GameParticipant participant, Team team) {
         final ItemStack[] armorAndTool = createTeamArmorAndTool(team.getColor().getColor());
-        final EntityEquipment equipment = getPlayerInventory(entity);
+        final EntityEquipment equipment = participant.equipment();
 
         equipment.setHelmet(armorAndTool[0]);
         equipment.setLeggings(armorAndTool[1]);
@@ -927,13 +864,13 @@ public class Game {
         return new ItemStack[] { helmet, leggings, boots, pickaxe };
     }
 
-    public void onPlayerDeath(Entity entity, Player bukkitKiller) {
-        final Team playerTeam = getPlayerTeam(entity);
+    public void onPlayerDeath(GameParticipant victim, Player bukkitKiller) {
+        final Team playerTeam = getPlayerTeam(victim);
 
-        if (entity instanceof Player player) {
-            player.getInventory().clear();
+        if (victim instanceof GamePlayer gp) {
+            gp.player().getInventory().clear();
         } else {
-            final EntityEquipment equipment = getPlayerInventory(entity);
+            final EntityEquipment equipment = victim.equipment();
             equipment.clear();
             equipment.setArmorContents(null);
         }
@@ -949,7 +886,8 @@ public class Game {
         Player killer = bukkitKiller;
         List<Player> assists = List.of();
 
-        if (entity instanceof Player player) {
+        if (victim instanceof GamePlayer gp) {
+            Player player = gp.player();
             player.setRespawnLocation(respawnLocation);
 
             KillTracker.KillResult result = killTracker.resolveKill(player, bukkitKiller);
@@ -980,36 +918,36 @@ public class Game {
             }
         }
 
-        broadcastKillMessage(entity, playerTeam, killer, assists);
+        broadcastKillMessage(victim, playerTeam, killer, assists);
 
-        if (isGameRoomMode() && recorder != null && entity instanceof Player dp) {
-            recorder.recordDeath(dp.getUniqueId());
+        if (recorder != null && victim instanceof GamePlayer dp) {
+            recorder.recordDeath(dp.uniqueId());
         }
 
         boolean bedDestroyed = playerTeam != null && playerTeam.isBedDestroyed();
 
         if (bedDestroyed) {
-            if (entity instanceof Player player) {
-                addSpectator(player);
+            if (victim instanceof GamePlayer gp) {
+                addSpectator(gp);
             } else {
-                playerTeam.removePlayer(entity);
+                playerTeam.removePlayer(victim);
             }
             checkGameOver();
         }
     }
 
-    private void broadcastKillMessage(Entity victim, Team victimTeam, Player killer, List<Player> assists) {
+    private void broadcastKillMessage(GameParticipant victim, Team victimTeam, Player killer, List<Player> assists) {
         TextColor victimColor = victimTeam != null
                 ? victimTeam.getColor().getTextColor()
                 : NamedTextColor.GRAY;
 
         if (killer == null) {
             broadcastMessage(Component.translatable("rush.kill_no_killer",
-                    Component.text(victim.getName()).color(victimColor)));
+                    Component.text(victim.name()).color(victimColor)));
             return;
         }
 
-        Team killerTeam = getPlayerTeam(killer);
+        Team killerTeam = getPlayerTeam(new GamePlayer(killer));
         TextColor killerColor = killerTeam != null
                 ? killerTeam.getColor().getTextColor()
                 : NamedTextColor.GRAY;
@@ -1020,28 +958,30 @@ public class Game {
             killerNames.add(Component.text(assist.getName()).color(killerColor));
         }
 
-        Component killersDisplay = Component.join(JoinConfiguration.separator(Component.text(", ", NamedTextColor.GRAY)), killerNames);
+        Component killersDisplay = Component
+                .join(JoinConfiguration.separator(Component.text(", ", NamedTextColor.GRAY)), killerNames);
         broadcastMessage(Component.translatable("rush.kill_with_killer",
-                Component.text(victim.getName()).color(victimColor), killersDisplay));
+                Component.text(victim.name()).color(victimColor), killersDisplay));
     }
 
     public void onBedDestroyed(Team team, Player destroyer) {
         team.setBedDestroyed(true);
 
-        if (isGameRoomMode() && recorder != null) {
+        if (recorder != null) {
             recorder.recordBedDestroy(team.getColor().name(), destroyer != null ? destroyer.getUniqueId() : null);
         }
 
         String destroyerName = destroyer != null ? destroyer.getName() : "TNT";
-        Team destroyerTeam = destroyer != null ? getPlayerTeam(destroyer) : null;
+        Team destroyerTeam = destroyer != null ? getPlayerTeam(new GamePlayer(destroyer)) : null;
         String destroyerTeamName = destroyerTeam != null ? destroyerTeam.getColor().name() : "";
 
         broadcastMessage(Component.translatable("rush.bed_destroyed_broadcast",
                 Component.text(destroyerName), Component.text(destroyerTeamName),
                 Component.text(team.getColor().name())));
 
-        for (Entity entity : getPlayers()) {
-            if (entity instanceof Player player) {
+        for (GameParticipant participant : getPlayers()) {
+            if (participant instanceof GamePlayer gp) {
+                Player player = gp.player();
                 player.playSound(player.getLocation(), Sound.ENTITY_ENDER_DRAGON_GROWL, 1.0f, 1.0f);
             }
         }
@@ -1057,10 +997,11 @@ public class Game {
 
         if (destroyerTeam != null) {
             destroyerTeam.setBedsDestroyed(destroyerTeam.getBedsDestroyed() + 1);
-            if (!isGameRoomMode() || gameRoom.getConfig().extraHearts()) {
+            if (gameRoom.getConfig().extraHearts()) {
                 double bonusHealth = destroyerTeam.getBedsDestroyed() * 4.0;
-                for (Entity entity : destroyerTeam.getPlayers()) {
-                    if (entity instanceof Player player) {
+                for (GameParticipant participant : destroyerTeam.getPlayers()) {
+                    if (participant instanceof GamePlayer gp) {
+                        Player player = gp.player();
                         AttributeInstance maxHealth = player.getAttribute(Attribute.MAX_HEALTH);
                         if (maxHealth != null) {
                             maxHealth.removeModifier(NamespacedKey.minecraft("extra_hearts"));
@@ -1076,9 +1017,9 @@ public class Game {
             }
         }
 
-        for (Entity entity : team.getPlayers()) {
-            if (entity instanceof Player player) {
-                player.sendMessage(Component.translatable("rush.bed_destroyed"));
+        for (GameParticipant participant : team.getPlayers()) {
+            if (participant instanceof GamePlayer gp) {
+                gp.player().sendMessage(Component.translatable("rush.bed_destroyed"));
             }
         }
 
@@ -1108,49 +1049,44 @@ public class Game {
 
     private void endGame(Team winner) {
         state = GameState.STOPPED;
-        Main.getInstance().setGameStarted(false);
 
         if (winner != null) {
-            for (Entity entity : getPlayers()) {
-                if (entity instanceof Player player) {
-                    player.showTitle(Title.title(
+            for (GameParticipant participant : getPlayers()) {
+                if (participant instanceof GamePlayer gp) {
+                    gp.player().showTitle(Title.title(
                             Component.translatable("rush.win", Component.text(winner.getColor().name())),
                             Component.empty()));
                 }
             }
-            for (Player spectator : spectators) {
-                spectator.showTitle(
+            for (GamePlayer spectator : spectators) {
+                spectator.player().showTitle(
                         Title.title(Component.translatable("rush.win", Component.text(winner.getColor().name())),
                                 Component.empty()));
             }
 
-            // Update winstreaks: increment for winners, reset for losers
             updateWinStreaks(winner);
         }
 
-        // Cancel overtime music
         if (overtimeMusicTask != null) {
             overtimeMusicTask.cancel();
             overtimeMusicTask = null;
         }
 
-        // Play game-end sounds
-        if (isGameRoomMode()) {
-            String winSound = "tland:games.global.win_celebrate";
-            String endMusic = "tland:music.global.gameendmusic";
-            for (Entity entity : getPlayers()) {
-                if (entity instanceof Player player) {
-                    player.playSound(player.getLocation(), winSound, SoundCategory.MUSIC, 1.0f, 1.0f);
-                    player.playSound(player.getLocation(), endMusic, SoundCategory.MUSIC, 1.0f, 1.0f);
-                }
-            }
-            for (Player spectator : spectators) {
-                spectator.playSound(spectator.getLocation(), winSound, SoundCategory.MUSIC, 1.0f, 1.0f);
-                spectator.playSound(spectator.getLocation(), endMusic, SoundCategory.MUSIC, 1.0f, 1.0f);
+        String winSound = "tland:game.global.win_celebrate";
+        String endMusic = "tland:music.global.gameendmusic";
+        for (GameParticipant participant : getPlayers()) {
+            if (participant instanceof GamePlayer gp) {
+                Player player = gp.player();
+                player.playSound(player.getLocation(), winSound, SoundCategory.MUSIC, 1.0f, 1.0f);
+                player.playSound(player.getLocation(), endMusic, SoundCategory.MUSIC, 1.0f, 1.0f);
             }
         }
+        for (GamePlayer spectator : spectators) {
+            Player player = spectator.player();
+            player.playSound(player.getLocation(), winSound, SoundCategory.MUSIC, 1.0f, 1.0f);
+            player.playSound(player.getLocation(), endMusic, SoundCategory.MUSIC, 1.0f, 1.0f);
+        }
 
-        // Clear all players' ender chests
         clearAllEnderChests();
 
         sendGameSummary();
@@ -1158,109 +1094,72 @@ public class Game {
         PlayerLevelManager endLevelManager = Main.getInstance().getPlayerLevelManager();
         if (endLevelManager != null) {
             for (Player player : playerStats.keySet()) {
-                boolean won = winner != null && winner.equals(getPlayerTeam(player));
+                boolean won = winner != null && winner.equals(getPlayerTeam(new GamePlayer(player)));
                 if (won) {
                     endLevelManager.addXP(player.getUniqueId(), Math.round(200 * coefficient));
                 }
             }
         }
 
-        // Immediately set all players to spectator and remove mannequins
         for (Team team : teams.values()) {
-            for (Entity entity : team.getPlayers()) {
-                if (entity instanceof Player player) {
-                    player.setGameMode(GameMode.SPECTATOR);
-                } else if (entity instanceof Mannequin mannequin) {
-                    mannequin.remove();
+            for (GameParticipant participant : team.getPlayers()) {
+                switch (participant) {
+                    case GamePlayer gp -> gp.player().setGameMode(GameMode.SPECTATOR);
+                    case GameMannequin mm -> mm.remove();
                 }
             }
         }
 
         cycle.onGameEnd();
 
-        // Update all leaderboard holograms after stats are persisted
         updateLeaderboardHolograms();
 
-        // Notify GameManager that game ended (for GameRoom mode)
-        if (isGameRoomMode()) {
-            ReplayFile pendingReplay = null;
-            if (recorder != null) {
-                List<String> participantNames = playerStats.keySet().stream()
-                        .map(Player::getName)
-                        .collect(Collectors.toList());
-                Map<String, String> teamColorsByPlayerUuid = new HashMap<>();
-                // Include all players (including eliminated ones whose team was tracked
-                // persistently)
-                for (Map.Entry<UUID, TeamColor> entry : playerTeamColors.entrySet()) {
-                    teamColorsByPlayerUuid.put(entry.getKey().toString(), entry.getValue().name());
-                }
-                // Also include mannequins still on teams
-                for (Team team : teams.values()) {
-                    for (Entity entity : team.getPlayers()) {
-                        if (entity instanceof Mannequin) {
-                            teamColorsByPlayerUuid.put(entity.getUniqueId().toString(), team.getColor().name());
-                        }
+        ReplayFile pendingReplay = null;
+        if (recorder != null) {
+            List<String> participantNames = playerStats.keySet().stream()
+                    .map(Player::getName)
+                    .collect(Collectors.toList());
+            Map<String, String> teamColorsByPlayerUuid = new HashMap<>();
+            for (Map.Entry<UUID, TeamColor> entry : playerTeamColors.entrySet()) {
+                teamColorsByPlayerUuid.put(entry.getKey().toString(), entry.getValue().name());
+            }
+            for (Team team : teams.values()) {
+                for (GameParticipant participant : team.getPlayers()) {
+                    if (participant instanceof GameMannequin) {
+                        teamColorsByPlayerUuid.put(participant.uniqueId().toString(), team.getColor().name());
                     }
                 }
-                pendingReplay = recorder.stop(gameRoom.getId(), winner != null ? winner.getColor().name() : null,
-                        gameRoom.getHostName(), participantNames,
-                        gameRoom.getConfig().mapType().name(),
-                        gameRoom.getConfig().islandType().name(),
-                        gameRoom.getConfig().maxTeams(),
-                        teamColorsByPlayerUuid);
-                recorder = null;
             }
-            Main.getInstance().getGameManager().onGameRoomEnded(gameRoom);
-            if (pendingReplay != null) {
-                sendArchivalPrompt(pendingReplay);
-            }
-        } else {
-            Bukkit.getScheduler().runTaskLater(Main.getInstance(), this::resetGame, 400L);
+            pendingReplay = recorder.stop(gameRoom.getId(), winner != null ? winner.getColor().name() : null,
+                    gameRoom.getHostName(), participantNames,
+                    gameRoom.getConfig().mapType().name(),
+                    gameRoom.getConfig().islandType().name(),
+                    gameRoom.getConfig().maxTeams(),
+                    teamColorsByPlayerUuid);
+            recorder = null;
+        }
+        Main.getInstance().getGameManager().onGameRoomEnded(gameRoom);
+        if (pendingReplay != null) {
+            sendArchivalPrompt(pendingReplay);
         }
     }
 
     private void sendArchivalPrompt(ReplayFile replayFile) {
         Player host = Bukkit.getPlayer(gameRoom.getHostUUID());
-        if (host == null) return;
+        if (host == null)
+            return;
 
-        AtomicBoolean decided = new AtomicBoolean(false);
-
-        ClickCallback.Options unlimitedOptions = ClickCallback.Options.builder()
-                .uses(ClickCallback.UNLIMITED_USES)
-                .lifetime(Duration.ofMinutes(5))
-                .build();
+        Main.getInstance().getGameManager().storePendingArchive(gameRoom.getHostUUID(), replayFile);
 
         Component yes = Component.text("[OUI]")
                 .color(NamedTextColor.GREEN)
                 .decorate(TextDecoration.BOLD)
-                .clickEvent(ClickEvent.callback(audience -> {
-                    if (!decided.compareAndSet(false, true)) {
-                        if (audience instanceof Player p)
-                            p.sendMessage(Component.text("Il n'est plus possible de rechoisir l'archivage de la game.")
-                                    .color(NamedTextColor.RED));
-                        return;
-                    }
-                    Bukkit.getScheduler().runTaskAsynchronously(Main.getInstance(),
-                            () -> Main.getInstance().getReplayStorage().save(replayFile));
-                    if (audience instanceof Player p)
-                        p.sendMessage(Component.text("La partie a été archivée et pourra être revisitée ultérieurement.")
-                                .color(NamedTextColor.GREEN));
-                }, unlimitedOptions));
+                .clickEvent(ClickEvent.runCommand("/rusharchive yes"));
 
         Component no = Component.text("[NON]")
                 .color(NamedTextColor.RED)
                 .decorate(TextDecoration.BOLD)
-                .clickEvent(ClickEvent.callback(audience -> {
-                    if (!decided.compareAndSet(false, true)) {
-                        if (audience instanceof Player p)
-                            p.sendMessage(Component.text("Il n'est plus possible de rechoisir l'archivage de la game.")
-                                    .color(NamedTextColor.RED));
-                        return;
-                    }
-                    if (audience instanceof Player p)
-                        p.sendMessage(Component.text("Cette partie ne sera pas archivée, et donc ne pourra pas être revisitée.")
-                                .color(NamedTextColor.GRAY));
-                }, unlimitedOptions));
+                .clickEvent(ClickEvent.runCommand("/rusharchive no"));
 
         host.sendMessage(Component.text("Voulez-vous archiver cette game pour la revoir ultérieurement ? ")
                 .color(NamedTextColor.YELLOW)
@@ -1282,8 +1181,9 @@ public class Game {
         broadcastMessage(duration);
         broadcastMessage(Component.empty());
 
-        for (Entity entity : getPlayers()) {
-            if (entity instanceof Player player) {
+        for (GameParticipant participant : getPlayers()) {
+            if (participant instanceof GamePlayer gp) {
+                Player player = gp.player();
                 PlayerStatistic stats = getPlayerStatistic(player);
                 Component playerSummary = Component.text(player.getName())
                         .color(NamedTextColor.GRAY)
@@ -1301,53 +1201,50 @@ public class Game {
     }
 
     private void broadcastMessage(Component message) {
-        for (Entity entity : getPlayers()) {
-            if (entity instanceof Player player) {
-                player.sendMessage(message);
+        for (GameParticipant participant : getPlayers()) {
+            if (participant instanceof GamePlayer gp) {
+                gp.player().sendMessage(message);
             }
         }
-        for (Player spectator : spectators) {
-            spectator.sendMessage(message);
+        for (GamePlayer spectator : spectators) {
+            spectator.player().sendMessage(message);
         }
     }
 
     public void forceStop() {
         state = GameState.STOPPED;
-        Main.getInstance().setGameStarted(false);
 
         runningTasks.forEach(BukkitTask::cancel);
         runningTasks.clear();
         stopResourceSpawners();
 
-        List<Entity> allPlayers = new ArrayList<>(getPlayers());
-        for (Entity entity : allPlayers) {
-
-            removePlayer(entity);
+        for (GameParticipant participant : getPlayers()) {
+            removePlayer(participant);
 
             if (lobby != null) {
-                entity.teleport(lobby);
+                participant.teleport(lobby);
             }
 
-            EntityEquipment equipment = getPlayerInventory(entity);
+            participant.equipment().clear();
+            participant.equipment().setArmorContents(null);
 
-            equipment.clear();
-            equipment.setArmorContents(null);
-
-            if (entity instanceof Player p) {
-                p.setGameMode(GameMode.ADVENTURE);
-                resetPlayerHealth(p);
-                p.getInventory().setItem(0, TeamSelectionGUI.createBannerItem());
+            if (participant instanceof GamePlayer gp) {
+                Player player = gp.player();
+                player.setGameMode(GameMode.ADVENTURE);
+                resetPlayerHealth(player);
+                player.getInventory().setItem(0, TeamSelectionGUI.createBannerItem());
             }
         }
 
-        for (Player spectator : new ArrayList<>(spectators)) {
+        for (GamePlayer spectator : new ArrayList<>(spectators)) {
             removeSpectator(spectator);
+            Player player = spectator.player();
 
             if (lobby != null) {
-                spectator.teleport(lobby);
+                player.teleport(lobby);
             }
 
-            spectator.getInventory().setItem(0, TeamSelectionGUI.createBannerItem());
+            player.getInventory().setItem(0, TeamSelectionGUI.createBannerItem());
         }
 
         for (Team team : teams.values()) {
@@ -1363,33 +1260,35 @@ public class Game {
     }
 
     private void resetGame() {
-        for (Entity entity : getPlayers()) {
-            if (entity instanceof Player p) {
-                p.setGameMode(GameMode.ADVENTURE);
-                resetPlayerHealth(p);
-                p.getInventory().clear();
-                p.getInventory().setArmorContents(null);
+        for (GameParticipant participant : getPlayers()) {
+            if (participant instanceof GamePlayer gp) {
+                Player player = gp.player();
+                player.setGameMode(GameMode.ADVENTURE);
+                resetPlayerHealth(player);
+                player.getInventory().clear();
+                player.getInventory().setArmorContents(null);
 
                 if (lobby != null) {
-                    p.teleport(lobby);
+                    player.teleport(lobby);
                 }
 
-                p.getInventory().setItem(0, TeamSelectionGUI.createBannerItem());
-            } else if (entity instanceof Mannequin mannequin) {
-                mannequin.remove();
+                player.getInventory().setItem(0, TeamSelectionGUI.createBannerItem());
+            } else if (participant instanceof GameMannequin mm) {
+                mm.remove();
             }
 
-            removePlayer(entity);
+            removePlayer(participant);
         }
 
-        for (Player spectator : new ArrayList<>(spectators)) {
+        for (GamePlayer spectator : new ArrayList<>(spectators)) {
             removeSpectator(spectator);
+            Player player = spectator.player();
 
             if (lobby != null) {
-                spectator.teleport(lobby);
+                player.teleport(lobby);
             }
 
-            spectator.getInventory().setItem(0, TeamSelectionGUI.createBannerItem());
+            player.getInventory().setItem(0, TeamSelectionGUI.createBannerItem());
         }
 
         for (Team team : teams.values()) {
@@ -1409,9 +1308,9 @@ public class Game {
         BukkitTask task = Bukkit.getScheduler().runTaskTimer(Main.getInstance(), () -> {
             List<CompassTracker.Candidate> candidates = teams.values().stream()
                     .flatMap(t -> t.getPlayers().stream()
-                            .filter(e -> e instanceof Player)
+                            .filter(GamePlayer.class::isInstance)
                             .map(e -> {
-                                Player p = (Player) e;
+                                Player p = ((GamePlayer) e).player();
                                 return new CompassTracker.Candidate(
                                         UUID.nameUUIDFromBytes(t.getColor().name().getBytes()),
                                         p.getLocation().getX(),
@@ -1422,9 +1321,10 @@ public class Game {
 
             for (Team team : teams.values()) {
                 UUID teamId = UUID.nameUUIDFromBytes(team.getColor().name().getBytes());
-                for (Entity entity : team.getPlayers()) {
-                    if (!(entity instanceof Player holder))
+                for (GameParticipant participant : team.getPlayers()) {
+                    if (!(participant instanceof GamePlayer gp))
                         continue;
+                    Player holder = gp.player();
                     if (holder.getInventory().getItemInMainHand().getType() != Material.COMPASS)
                         continue;
 
@@ -1451,19 +1351,17 @@ public class Game {
     }
 
     private void startMannequinVoidCheck() {
-        final int islandY = isGameRoomMode() && gameRoom != null
-                ? gameRoom.getIslandY()
-                : Main.getISLAND_Y();
+        final int islandY = gameRoom.getIslandY();
         final double voidThreshold = islandY - Main.getInstance().getVoidThreshold();
 
         final BukkitTask task = Bukkit.getScheduler().runTaskTimer(Main.getInstance(), () -> {
             for (Team team : teams.values()) {
-                for (Entity entity : team.getPlayers()) {
-                    if (!(entity instanceof Mannequin mannequin) || mannequin.isDead())
+                for (GameParticipant participant : new ArrayList<>(team.getPlayers())) {
+                    if (!(participant instanceof GameMannequin mm) || mm.dead())
                         continue;
-                    if (mannequin.getLocation().getY() < voidThreshold) {
-                        mannequin.setFallDistance(0);
-                        mannequin.setHealth(0);
+                    if (mm.location().getY() < voidThreshold) {
+                        mm.setFallDistance(0);
+                        handleMannequinDeath(mm.mannequin(), null);
                     }
                 }
             }
@@ -1472,17 +1370,83 @@ public class Game {
         runningTasks.add(task);
     }
 
+    public void handleMannequinDeath(Mannequin mannequin, Player killer) {
+        if (!mannequinsBeingRescued.add(mannequin.getUniqueId())) {
+            return;
+        }
+
+        GameMannequin gm = new GameMannequin(mannequin);
+        mannequin.setHealth(mannequin.getAttribute(Attribute.MAX_HEALTH).getValue());
+        onPlayerDeath(gm, killer);
+
+        final Team team = getPlayerTeam(gm);
+        if (team == null || team.isBedDestroyed()) {
+            mannequinsBeingRescued.remove(mannequin.getUniqueId());
+            return;
+        }
+
+        final Location bedLoc = team.getBedLocation();
+        final Location spawn = bedLoc != null
+                ? new Location(bedLoc.getWorld(), bedLoc.getX() + 0.5, bedLoc.getY() + 1, bedLoc.getZ() + 0.5)
+                : team.getSpawnLocation();
+
+        if (spawn == null) {
+            mannequinsBeingRescued.remove(mannequin.getUniqueId());
+            return;
+        }
+
+        Bukkit.getScheduler().runTaskLater(Main.getInstance(), () -> {
+            mannequinsBeingRescued.remove(mannequin.getUniqueId());
+            if (mannequin.isDead())
+                return;
+            mannequin.teleport(spawn);
+            equipEntity(gm, team);
+            addMannequinProtection(mannequin);
+        }, 1L);
+    }
+
+    private void addMannequinProtection(Mannequin mannequin) {
+        final int protectionTicks = Main.getInstance().getRespawnProtectionTime() * 20;
+        if (protectionTicks <= 0)
+            return;
+
+        mannequin.setInvulnerable(true);
+        mannequin.setVisibleByDefault(false);
+
+        Bukkit.getScheduler().runTaskLater(Main.getInstance(), () -> {
+            if (mannequin.isDead())
+                return;
+            mannequin.setInvulnerable(false);
+            mannequin.setVisibleByDefault(true);
+        }, protectionTicks);
+    }
+
     private void startResourceSpawners() {
+        final int islandY = gameRoom.getIslandY();
+        final World gameWorld = gameRoom.getWorld();
+
         for (int i = 0; i < islandAssignment.size(); i++) {
             Team team = islandAssignment.get(i);
 
-            if (team == null) {
+            List<Location> chestLocations;
+            if (team != null) {
+                team.placeEnderChests(i);
+                chestLocations = team.getEnderChestLocations();
+            } else if (islands != null && i < islands.size() && gameWorld != null) {
+                Island island = islands.get(i);
+                int[] dir = IslandLayout.ISLAND_DIRECTIONS[i];
+                int perpX = dir[1];
+                chestLocations = GameManager.placeIslandEnderChests(
+                        gameWorld,
+                        island.getX(), island.getZ(),
+                        islandY,
+                        dir, perpX, 12,
+                        Team.facingTowardsCenter(i), 2);
+            } else {
                 continue;
             }
 
-            team.placeEnderChests(i);
-
-            for (Location chestLocation : team.getEnderChestLocations()) {
+            for (Location chestLocation : chestLocations) {
                 for (ResourceType type : ResourceType.values()) {
                     ResourceSpawner spawner = new ResourceSpawner(this, type, chestLocation);
                     resourceSpawners.add(spawner);
@@ -1508,9 +1472,7 @@ public class Game {
         if (state != GameState.WAITING)
             return;
 
-        String gameWorld = Main.getInstance().getHubWorld();
-        if (gameWorld == null)
-            return;
+        String gameWorld = worldName;
 
         long readyCount = getPlayersReadyCount();
         NamedTextColor color = readyCount >= maxPlayers ? NamedTextColor.GREEN : NamedTextColor.RED;
@@ -1525,11 +1487,11 @@ public class Game {
     }
 
     private void updatePlayerList() {
-        for (Entity entity : freePlayers) {
-            if (entity instanceof Player player) {
-                final Boolean isReady = playersReady.get(player);
-                player.playerListName(
-                        Component.text(entity.getName()).color(isReady ? NamedTextColor.GREEN : NamedTextColor.RED));
+        for (GameParticipant participant : freePlayers) {
+            if (participant instanceof GamePlayer gp) {
+                final Boolean isReady = playersReady.get(participant);
+                gp.player().playerListName(
+                        Component.text(participant.name()).color(isReady ? NamedTextColor.GREEN : NamedTextColor.RED));
             }
         }
     }
@@ -1544,17 +1506,17 @@ public class Game {
         return playersReady.values().stream().filter(r -> r).count();
     }
 
-    public List<Entity> getPlayers() {
-        final List<Entity> allPlayers = new ArrayList<>(freePlayers);
+    public List<GameParticipant> getPlayers() {
+        final List<GameParticipant> allPlayers = new ArrayList<>(freePlayers);
         for (Team team : teams.values()) {
             allPlayers.addAll(team.getPlayers());
         }
         return allPlayers;
     }
 
-    public Team getPlayerTeam(Entity player) {
+    public Team getPlayerTeam(GameParticipant participant) {
         for (Team team : teams.values()) {
-            if (team.isInTeam(player)) {
+            if (team.isInTeam(participant)) {
                 return team;
             }
         }
@@ -1584,33 +1546,30 @@ public class Game {
     }
 
     private void updateWinStreaks(Team winner) {
-        for (Entity entity : getPlayers()) {
-            if (entity instanceof Player player) {
+        for (GameParticipant participant : getPlayers()) {
+            if (participant instanceof GamePlayer gp) {
+                Player player = gp.player();
                 final PlayerStatistic stats = getPlayerStatistic(player);
-                final Team playerTeam = getPlayerTeam(player);
+                final Team playerTeam = getPlayerTeam(new GamePlayer(player));
 
                 if (playerTeam != null && playerTeam.equals(winner)) {
                     stats.setWinStreak(stats.getWinStreak() + 1);
                 } else {
-                    stats.setWinStreak(0); // streak is lost
+                    stats.setWinStreak(0);
                 }
             }
         }
     }
 
     /**
-     * Removes all items from the ender chests
-     * of all players/spectators.
+     * Removes all items from ender chests of all game participants and spectators.
      */
     private void clearAllEnderChests() {
-        for (Entity entity : getPlayers()) {
-            if (entity instanceof Player player) {
-                player.getEnderChest().clear();
-            }
-        }
-        for (Player spectator : spectators) {
-            spectator.getEnderChest().clear();
-        }
+        for (GameParticipant p : getPlayers())
+            if (p instanceof GamePlayer gp)
+                gp.player().getEnderChest().clear();
+        for (GamePlayer sp : spectators)
+            sp.player().getEnderChest().clear();
     }
 
     /**

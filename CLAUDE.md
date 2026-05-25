@@ -1,7 +1,7 @@
 # TigrouRush — Game Design Document
 
 **Platform:** Minecraft Bukkit plugin (Paper 26.1.2), Java 21  
-**Type:** Bed Wars / Rush hybrid — 4-team arena, each team on its own island. Destroy enemy beds to prevent their respawns. Last team standing wins.
+**Type:** BedWars / Rush hybrid — 4/8-team arena, each team on its own island. Destroy enemy beds to prevent their respawns. Last team standing wins.
 
 ---
 
@@ -24,7 +24,8 @@
 15. [Balance Numbers](#balance-numbers)
 16. [Replays](#replays)
 17. [Glossary](#glossary)
-18. [Build System & Dependencies](#build-system--dependencies)
+18. [Rank System v2](#rank-system-v2)
+19. [Build System & Dependencies](#build-system--dependencies)
 
 ---
 
@@ -328,22 +329,7 @@ Stats are persisted to PostgreSQL across sessions.
 
 ### Leveling (`player_levels` table)
 
-- Max level: **150**
-- XP required per level: `80 + (level × 20)`
-  - Level 1 = 100 XP, Level 50 = 1,080 XP, Level 150 = 3,080 XP
-- Cumulative XP: `80 × level + 10 × level × (level + 1)`
-
-**XP gains per event:**
-
-| Event | XP |
-|---|---|
-| Win | +100 |
-| Loss | +20 |
-| Kill | +15 |
-| Assist | +5 |
-| Death | −10 |
-
-**Level tiers** have distinct icon and color formatting (☆ → ♕ across 0–150).
+Replaced by the **36-rank prestige system** (see [Rank System v2](#rank-system-v2) below). Old columns `level` (int), `current_xp` (int) → `rank_index` (smallint, default -1), `total_xp` (bigint, default 0). Linear formula replaced by per-prestige geometric thresholds.
 
 ---
 
@@ -364,6 +350,19 @@ Stats are persisted to PostgreSQL across sessions.
 
 ✪ Niveau: {color}{level}{icon}  {xp}/{max_xp}
 {XP progress bar}
+
+☆ Statistiques:
+{kills} 🗡  {assists} ⚔  {deaths} ☠  (K/D)
+
+[Animated separator]
+```
+
+**Lobby (rank system v2):**
+```
+[Animated separator]
+
+{rankMiniMessageTag} §8[{progress}/{threshold}§8]
+§8[{progressBar}§8]
 
 ☆ Statistiques:
 {kills} 🗡  {assists} ⚔  {deaths} ☠  (K/D)
@@ -409,6 +408,8 @@ Lit: ✅ / ❌
 | Hub / lobby | `§7[{level}§7] [§9Lobby§7] §f{name} §f> {message}` |
 | In-game (global with `@` prefix) | `§7[{level}§7] [{teamColor}{team}§7] §f{name} §f> {message}` |
 | In-game (no prefix) | Team-only — only teammates receive the message |
+
+For unranked players, `{level}` shows `§8Non classé`. For ranked players, the `{level}` prefix uses the rank's MiniMessage image tag from the spritesheet instead of a numeric level.
 
 ---
 
@@ -469,7 +470,8 @@ Hub inventory is restored automatically whenever a player is teleported out of a
 | Void rescue threshold | islandY − 20 | `void-threshold` |
 | Min players to start | `minTeams × playersPerTeam` (e.g. 2 for VS1, 4 for VS2, 6 for VS3, 8 for VS4) | derived |
 | Min teams to start | 2 | hardcoded |
-| Max level | 150 | `maxLevel` |
+| Rank multiplier | 1.25 | `rank.rank-multiplier` |
+| First rank XP | 10,000 | `rank.first-rank-xp` |
 | Kill tracker expiry | 10 seconds | hardcoded |
 | Assist threshold | 25% of killer's damage to victim | hardcoded |
 | Compass update interval | 20 ticks (1 s) | hardcoded |
@@ -581,6 +583,289 @@ Key domain terms used throughout this document and the codebase.
 
 ---
 
+## Rank System v2
+
+Replace the linear numeric level system (1–150, XP capped at ~238K cumulative) with a **36-rank prestige system** rendered via a CraftEngine `BitmapImage` spritesheet (3×12 grid). Each rank within a prestige is 25% harder to reach than the previous one, but the growth rate is **nerfed per prestige** to keep Gold accessible. Players start unranked and must earn 10,000 XP to achieve their first rank.
+
+**Prestige nerf coefficients** (applied to the growth rate, not to XP earnings):
+- Bronze: ×1.0 → all 12 ranks use the full ×1.25 multiplier
+- Silver: ×0.8 → effective multiplier = 1 + 0.25 × 0.8 = **×1.20**
+- Gold: ×0.5 → effective multiplier = 1 + 0.25 × 0.5 = **×1.125**
+
+This means each prestige curves more gently than the last, so Gold Ruby III requires ~14K games instead of ~80K.
+
+### Rank Structure
+
+**Spritesheet Grid (3 rows × 12 columns)**
+
+Each row is a **prestige**; each column is a rank within that prestige:
+
+| Row | Prestige | Cols 0–2 | Cols 3–5 | Cols 6–8 | Cols 9–11 |
+|-----|----------|----------|----------|----------|-----------|
+| 0   | Bronze   | Emerald I–III | Amethyst I–III | Diamond I–III | Ruby I–III |
+| 1   | Silver   | Emerald I–III | Amethyst I–III | Diamond I–III | Ruby I–III |
+| 2   | Gold     | Emerald I–III | Amethyst I–III | Diamond I–III | Ruby I–III |
+
+**Rank index** = `row × 12 + col` (0–35).
+- `rankIndex / 12` → prestige index (0=Bronze, 1=Silver, 2=Gold)
+- `rankIndex % 12` → position within prestige
+- `(rankIndex % 12) / 3` → gem index (0=Emerald, 1=Amethyst, 2=Diamond, 3=Ruby)
+- `(rankIndex % 12) % 3` → gem level (0→I, 1→II, 2→III), displayed as +1
+
+**Unranked State:** A player with `totalXP < 10,000` has `rankIndex = -1`. No rank image is shown — instead, a progress bar toward the first rank is displayed.
+
+### XP Thresholds
+
+**Formula:** Each prestige has its own effective multiplier: `effMultiplier = 1 + (RANK_MULTIPLIER - 1) × PRESTIGE_NERF[prestige]`
+
+| Prestige | Nerf | effMultiplier | Formula within prestige |
+|----------|------|---------------|------------------------|
+| Bronze (ranks 0–11) | ×1.0 | ×1.25 | `threshold(n) = 10_000 × 1.25ⁿ` |
+| Silver (ranks 12–23) | ×0.8 | ×1.20 | `threshold(12+k) = threshold(11) × 1.20^(k+1)` |
+| Gold (ranks 24–35) | ×0.5 | ×1.125 | `threshold(24+k) = threshold(23) × 1.125^(k+1)` |
+
+Thresholds are cumulative — `totalXP` must reach or exceed a threshold to attain that rank.
+
+**Full Table:**
+
+| # | Prestige | Gem | Lvl | Eff. mult. | Cumul. XP | XP → next | ~2v2 games |
+|---|----------|-----|-----|------------|-----------|-----------|------------|
+| -1 | (unranked) | — | — | — | 0 | 10,000 | 0 |
+| 0 | Bronze | Emerald | I | ×1.250 | 10,000 | 2,500 | 32 |
+| 1 | Bronze | Emerald | II | ×1.250 | 12,500 | 3,125 | 40 |
+| 2 | Bronze | Emerald | III | ×1.250 | 15,625 | 3,906 | 50 |
+| 3 | Bronze | Amethyst | I | ×1.250 | 19,531 | 4,883 | 63 |
+| 4 | Bronze | Amethyst | II | ×1.250 | 24,414 | 6,103 | 79 |
+| 5 | Bronze | Amethyst | III | ×1.250 | 30,518 | 7,630 | 99 |
+| 6 | Bronze | Diamond | I | ×1.250 | 38,148 | 9,537 | 123 |
+| 7 | Bronze | Diamond | II | ×1.250 | 47,685 | 11,921 | 154 |
+| 8 | Bronze | Diamond | III | ×1.250 | 59,606 | 14,902 | 193 |
+| 9 | Bronze | Ruby | I | ×1.250 | 74,508 | 18,627 | 241 |
+| 10 | Bronze | Ruby | II | ×1.250 | 93,135 | 23,284 | 302 |
+| 11 | Bronze | Ruby | III | ×1.250 | 116,419 | 23,284 | 377 |
+| 12 | Silver | Emerald | I | ×1.200 | 139,703 | 23,284 | 453 |
+| 13 | Silver | Emerald | II | ×1.200 | 167,644 | 27,941 | 544 |
+| 14 | Silver | Emerald | III | ×1.200 | 201,173 | 33,529 | 653 |
+| 15 | Silver | Amethyst | I | ×1.200 | 241,408 | 40,235 | 783 |
+| 16 | Silver | Amethyst | II | ×1.200 | 289,690 | 48,282 | 940 |
+| 17 | Silver | Amethyst | III | ×1.200 | 347,628 | 57,938 | 1,128 |
+| 18 | Silver | Diamond | I | ×1.200 | 417,154 | 69,526 | 1,354 |
+| 19 | Silver | Diamond | II | ×1.200 | 500,585 | 83,431 | 1,625 |
+| 20 | Silver | Diamond | III | ×1.200 | 600,702 | 100,117 | 1,950 |
+| 21 | Silver | Ruby | I | ×1.200 | 720,842 | 120,140 | 2,340 |
+| 22 | Silver | Ruby | II | ×1.200 | 865,010 | 144,168 | 2,808 |
+| 23 | Silver | Ruby | III | ×1.200 | 1,038,012 | 129,752 | 3,370 |
+| 24 | Gold | Emerald | I | ×1.125 | 1,167,764 | 145,970 | 3,791 |
+| 25 | Gold | Emerald | II | ×1.125 | 1,313,734 | 164,217 | 4,265 |
+| 26 | Gold | Emerald | III | ×1.125 | 1,477,951 | 184,744 | 4,798 |
+| 27 | Gold | Amethyst | I | ×1.125 | 1,662,695 | 207,837 | 5,398 |
+| 28 | Gold | Amethyst | II | ×1.125 | 1,870,532 | 233,816 | 6,073 |
+| 29 | Gold | Amethyst | III | ×1.125 | 2,104,348 | 263,044 | 6,832 |
+| 30 | Gold | Diamond | I | ×1.125 | 2,367,392 | 295,924 | 7,686 |
+| 31 | Gold | Diamond | II | ×1.125 | 2,663,316 | 332,914 | 8,647 |
+| 32 | Gold | Diamond | III | ×1.125 | 2,996,230 | 374,529 | 9,728 |
+| 33 | Gold | Ruby | I | ×1.125 | 3,370,759 | 421,345 | 10,944 |
+| 34 | Gold | Ruby | II | ×1.125 | 3,792,104 | 474,013 | 12,312 |
+| 35 | Gold | Ruby | III | ×1.125 | 4,266,117 | — | 13,851 |
+
+### Threshold Implementation
+
+```java
+public static final long FIRST_RANK_XP = 10_000;
+public static final double RANK_MULTIPLIER = 1.25;
+public static final double[] PRESTIGE_NERFS = { 1.0, 0.8, 0.5 };
+
+public static long getRankThreshold(int rankIndex) {
+    if (rankIndex < 0) return 0;
+    if (rankIndex < 12) {
+        return (long) (FIRST_RANK_XP * Math.pow(RANK_MULTIPLIER, rankIndex));
+    }
+    int prestige = rankIndex / 12;
+    int offset = rankIndex % 12;
+    long base = getRankThreshold(prestige * 12 - 1);
+    double effMultiplier = 1 + (RANK_MULTIPLIER - 1) * PRESTIGE_NERFS[prestige];
+    return (long) (base * Math.pow(effMultiplier, offset + 1));
+}
+
+public static double getEffectiveMultiplier(int rankIndex) {
+    if (rankIndex < 12) return RANK_MULTIPLIER;
+    int prestige = rankIndex / 12;
+    return 1 + (RANK_MULTIPLIER - 1) * PRESTIGE_NERFS[prestige];
+}
+
+public static int getRankIndex(long totalXP) {
+    if (totalXP < FIRST_RANK_XP) return -1;
+    int rank = 0;
+    while (rank < 35 && getRankThreshold(rank + 1) <= totalXP) rank++;
+    return rank;
+}
+```
+
+### Spritesheet & Rank-up Details
+
+**CraftEngine spritesheet loading:**
+```java
+private static String[] rankMiniMessageTags = new String[36];
+private static boolean ranksLoaded = false;
+
+public static void loadRankImages() {
+    Image image = CraftEngineImages.byId(Key.of("tland:level_ranks"));
+    if (!(image instanceof BitmapImage bitmap)) return;
+    int i = 0;
+    for (int row = 0; row < bitmap.rows(); row++)
+        for (int col = 0; col < bitmap.columns(); col++)
+            rankMiniMessageTags[i++] = bitmap.miniMessageAt(row, col);
+    ranksLoaded = true;
+}
+```
+
+Call `loadRankImages()` on plugin enable (lazy, safe to retry if not yet available).
+
+**Rank-up detection in `addXP`:**
+
+```java
+public void addXP(long xp) {
+    int oldPrestige = this.rankIndex / 12;
+    this.totalXP += xp;
+    int newRank = getRankIndex(this.totalXP);
+    if (newRank > this.rankIndex) {
+        this.rankIndex = newRank;
+        int newPrestige = rankIndex / 12;
+        if (newPrestige > oldPrestige) {
+            // Fire prestige crossover celebration
+        } else {
+            // Fire normal rank-up sound
+        }
+    }
+}
+```
+
+**Prestige crossover celebration:**
+When a player crosses a prestige boundary (rank 11→12 Bronze→Silver, or rank 23→24 Silver→Gold), fire a distinct celebration event:
+- Custom title/subtitle (e.g. `"§6✧ Prestige Argent ✧"`)
+- Unique sound different from normal rank-up
+- Broadcast a server message: `"{player} §7a atteint le prestige §e{name}§7!"`
+
+Detect in `PlayerLevelManager.addXP()`: if `getRankIndexAfter() / 12 > getRankIndexBefore() / 12`, trigger prestige celebration instead of normal rank-up sound.
+
+### XP Earning
+
+**Base XP Values (per event):**
+
+| Event | Base XP | Notes |
+|-------|---------|-------|
+| Kill | +15 | Awarded to killer |
+| Assist | +8 | Awarded per assister (≥25% of killer's damage to victim) |
+| Bed destroy | +30 | Awarded to the destroyer player |
+| Win | +200 | Awarded to every player on the winning team |
+| Loss | 0 | No XP for losing |
+| Death | 0 | No XP penalty on death |
+
+**Game Mode Coefficients** — each game awards `baseXP × coefficient`:
+
+| Teams | 1v1 | 2v2 | 3v3 | 4v4 |
+|-------|-----|-----|-----|-----|
+| 2 | 1.00 | 1.15 | 1.25 | 1.35 |
+| 3 | 1.05 | 1.20 | 1.30 | 1.40 |
+| 4 | 1.10 | 1.25 | 1.35 | 1.45 |
+
+Coefficient injected from `GameRoomConfig` via `config.getCoefficient()`:
+
+```java
+public double getCoefficient() {
+    int t = maxTeams;
+    int p = teamSize.getPlayersPerTeam();
+    if (t == 2) return switch (p) { case 1 -> 1.0; case 2 -> 1.15; case 3 -> 1.25; case 4 -> 1.35; default -> 1.0; };
+    if (t == 3) return switch (p) { case 1 -> 1.05; case 2 -> 1.20; case 3 -> 1.30; case 4 -> 1.40; default -> 1.0; };
+    if (t == 4) return switch (p) { case 1 -> 1.10; case 2 -> 1.25; case 3 -> 1.35; case 4 -> 1.45; default -> 1.0; };
+    return 1.0;
+}
+```
+
+### Files to Modify
+
+| File | Changes |
+|------|---------|
+| `PlayerLevel.java` | Rewrite entity: `rankIndex` (smallint, -1), `totalXP` (bigint, 0). Remove `currentXP`, `level`. Add `addXP(long)`, `getFormattedRank()`, threshold math, spritesheet loading via `CraftEngineImages.byId("tland:level_ranks")`. Key methods: `getFormattedRank()` (returns MiniMessage tag or `"§7Non classé"`), `getRankIndex(long)`, `getRankThreshold(int)`, `getPrestigeName(int)`, `getGemName(int)`, `getLevelInRank(int)`, `getProgressInRank()`, `getXPToNextRank()` |
+| `PlayerLevelManager.java` | Remove `maxLevel`, legacy XP multipliers, `loadConfig()` refs. `addXP()` → load, call `playerLevel.addXP(xp)`, save, detect rank-up. `resetXP()` → totalXP=0, rankIndex=-1. `getTop10ByXP()` replaces `getTop10ByLevel()` |
+| `Game.java` | Add `double coefficient = 1.0` field + setter. In `onPlayerDeath`: award 15×coef kill + 8×coef assist. In `onBedDestroyed`: award 30×coef to destroyer. In `endGame`: award 200×coef to winners only. Track `destroyedBeds` stat (currently never incremented) |
+| `GameRoom.java` | Inject coefficient: `this.game.setCoefficient(config.getCoefficient())` |
+| `ScoreboardManager.java` | Ranked: `{rankMiniMessageTag} §8[{progress}/{threshold}§8] §8[{progressBar}§8]`. Unranked: `§8Non classé §8[{progress_5K/10K}§8]`. Remove `getCurrentXP()` / `getXPForNextLevel()` calls |
+| `PlayerActivity.java` | Chat prefix: `§7[{rankTag}§7]` — MiniMessage image tag for ranked, `§8Non classé` for unranked |
+| `LeaderboardCommand.java` | `LEVEL` type queries `totalXP` desc. Display rank MiniMessage tag instead of tier icon |
+| `LevelDebugCommand.java` | `addxp`, `resetxp` (replaces `removexp`), `setrank`, `info`. Remove `recalculate`, `removexp`, `setstat` triggers |
+| `Main.java` | On enable: call `PlayerLevel.loadRankImages()` (retry next tick if CraftEngine not ready) |
+
+### Database Migration
+
+```sql
+ALTER TABLE player_levels ADD COLUMN IF NOT EXISTS rank_index smallint DEFAULT -1;
+ALTER TABLE player_levels ALTER COLUMN total_xp TYPE bigint;
+ALTER TABLE player_levels DROP COLUMN IF EXISTS current_xp;
+
+-- Recompute totalXP from lifetime stats using new formula
+UPDATE player_levels pl
+SET total_xp = (
+    SELECT COALESCE(ps.wins, 0) * 200
+         + COALESCE(ps.kills, 0) * 15
+         + COALESCE(ps.assists, 0) * 8
+         + COALESCE(ps.destroyed_beds, 0) * 30
+    FROM player_statistics ps
+    WHERE ps.uuid = pl.uuid
+);
+```
+
+### Edge Cases
+
+1. **`destroyedBeds` stat never incremented** — `Game.onBedDestroyed()` must call `stat.setCurrentDestroyedBeds(...)` on the destroyer
+2. **Remove legacy methods:** `recalculateLevelFromStats(UUID)`, `calculateTotalXP(PlayerStatistic)`, `calculateLevel(int)` — XP is awarded per-action, not derived
+3. **`totalXP` type: int → long everywhere** — `PlayerLevel.totalXP`, `addXP()` param, `PlayerLevelManager.addXP()` param. Gold Ruby III requires ~4.2M; `int` max is 2.1B but future-proofing matters
+4. **`current_xp` column orphaned** — Hibernate never drops columns; migration script must explicitly `DROP COLUMN IF EXISTS current_xp`
+5. **Existing `totalXP` doesn't map cleanly** — old rates (win=100, death=-10) vs new (win=200, death=0). Recompute from lifetime stats via migration query
+6. **Hologram leaderboard references removed methods** — `PlayerLevel.getTierIcon(lvl)` / `tierColorMiniMessage(lvl)` gone. Use rank MiniMessage tag from spritesheet
+7. **Scoreboard uses removed methods** — `getCurrentXP()` → `getProgressInRank()`, `getXPForNextLevel()` → `getXPToNextRank()`
+8. **Prestige crossover celebration** — when `rankIndexAfter / 12 > rankIndexBefore / 12`, fire distinct title/subtitle, unique sound, broadcast message
+9. **Legacy game mode coefficient default** — since legacy mode has no `GameRoomConfig`, `Game.java` must declare `private double coefficient = 1.0;` so it always defaults to 1.0 without a setter call
+
+### Implementation Order
+
+1. **`PlayerLevel.java`** — data model, threshold math, spritesheet loading
+2. **`PlayerLevelManager.java`** — XP add/reset, rank-up detection, top-10 query
+3. **`GameRoomConfig.java` + `GameRoom.java`** — coefficient lookup and injection
+4. **`Game.java`** — XP awards with coefficient, bed-destroyed stat tracking
+5. **`ScoreboardManager.java`** — rank display
+6. **`PlayerActivity.java`** — chat format
+7. **`LeaderboardCommand.java`** — rank leaderboard
+8. **`LevelDebugCommand.java`** — updated debug commands
+9. **`config.yml`** — remove old config, add rank config
+10. **`Main.java`** — init call for image loading
+
+### config.yml Changes
+
+Remove:
+```yaml
+maxLevel: 150
+xpMultipliers:
+  wins: 100
+  losses: 20
+  kills: 15
+  assists: 5
+  deaths: -10
+```
+
+Add:
+```yaml
+rank:
+  first-rank-xp: 10000
+  rank-multiplier: 1.25
+  prestige-nerfs:
+    - 1.0   # Bronze
+    - 0.8   # Silver
+    - 0.5   # Gold
+```
+
+---
+
 ## Build System & Dependencies
 
 **Build tool:** Gradle (build.gradle.kts), Java 21  
@@ -609,6 +894,37 @@ Key domain terms used throughout this document and the codebase.
 ---
 
 ## Session History
+
+### 2026-05-25 — Rank system v2 migration
+
+**Goal:** Replace the linear 1–150 level system with a 36-rank prestige system (Bronze/Silver/Gold, 3 gems × 3 levels per prestige). Uses CraftEngine `BitmapImage` spritesheet for rank rendering. Per-prestige nerf coefficients keep Gold accessible.
+
+**Key design changes:**
+- `player_levels` table: `level` → `rank_index` (smallint, -1), `current_xp` dropped, `total_xp` → bigint
+- XP awards are per-action with game-mode coefficients (1.0–1.45), not derived from stats
+- Scoreboard shows `{rankMiniMessageTag} §8[{progress}/{threshold}§8]` with progress bar
+- Chat prefix uses MiniMessage image tag for ranked players, `§8Non classé` for unranked
+- Prestige crossover (Bronze→Silver, Silver→Gold) fires distinct celebration
+
+**Document changes:**
+| File | What |
+|---|---|
+| `CLAUDE.md` | Updated Progression > Leveling, added Rank System v2 section, updated Balance Numbers, Scoreboard, Chat Format |
+
+**Planned code changes:**
+| File | What |
+|---|---|
+| `PlayerLevel.java` | Rewritten entity — `rankIndex`/`totalXP` fields, threshold math, spritesheet loading |
+| `PlayerLevelManager.java` | Removed legacy multipliers, `addXP()`/`resetXP()`/`getTop10ByXP()` |
+| `GameRoomConfig.java` | Added `getCoefficient()` |
+| `GameRoom.java` | Inject coefficient: `game.setCoefficient(config.getCoefficient())` |
+| `Game.java` | XP awards with coefficient, bed-destroyed stat tracking |
+| `ScoreboardManager.java` | Rank display with MiniMessage tag + progress bar |
+| `PlayerActivity.java` | Chat prefix with rank tag |
+| `LeaderboardCommand.java` | `LEVEL` queries `totalXP` desc, rank MiniMessage tag |
+| `LevelDebugCommand.java` | `addxp`, `resetxp`, `setrank`, `info` only |
+| `config.yml` | Removed `maxLevel`/`xpMultipliers`, added `rank.*` section |
+| `Main.java` | `PlayerLevel.loadRankImages()` on enable |
 
 ### 2025-05-20 — Speed merchant GUI (CraftEngine PagedGui)
 

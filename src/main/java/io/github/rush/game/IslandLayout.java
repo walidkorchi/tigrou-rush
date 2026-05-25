@@ -7,7 +7,7 @@ public final class IslandLayout {
     private IslandLayout() {
     }
 
-    /** Outward direction vectors per island index: N→-z, E→+x, S→+z, W→-x */
+    /** Outward direction from center vectors per island index: N→-z, E→+x, S→+z, W→-x */
     public static final int[][] ISLAND_DIRECTIONS = { { 0, -1 }, { 1, 0 }, { 0, 1 }, { -1, 0 } };
 
     /**
@@ -18,6 +18,9 @@ public final class IslandLayout {
 
     /** Merchant spread distances (blocks from center) for the ±1 offset pair. */
     public static final List<Integer> MERCHANT_SPREADS = List.of(5, 7);
+
+    // Yaw values facing inward (toward center): N→South=0°, E→West=90°, S→North=180°, W→East=-90°
+    public static final float[] YAW_VALUES = { 0f, 90f, 180f, -90f };
 
     public record IslandPosition(int x, int z, int rotation) {
     }

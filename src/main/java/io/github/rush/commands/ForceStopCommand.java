@@ -40,15 +40,7 @@ public class ForceStopCommand {
 
             Game game = gameManager.getGameForPlayer(player);
             if (game != null && game.getState() == GameState.RUNNING) {
-                if (game.isGameRoomMode()) {
-                    gameManager.removeGameRoom(game.getGameRoom().getId());
-                } else {
-                    game.forceStop();
-                    plugin.clearGame();
-                    for (var p : plugin.getServer().getOnlinePlayers()) {
-                        p.sendMessage(Component.translatable("rush.force_stop_broadcast"));
-                    }
-                }
+                gameManager.removeGameRoom(game.getGameRoom().getId());
                 ctx.getSource().getSender().sendMessage(Component.translatable("rush.game_force_stopped"));
                 return Command.SINGLE_SUCCESS;
             }

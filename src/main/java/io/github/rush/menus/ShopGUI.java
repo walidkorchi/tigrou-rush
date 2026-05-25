@@ -3,6 +3,8 @@ package io.github.rush.menus;
 import io.github.rush.Main;
 import io.github.rush.entities.Merchant;
 import io.github.rush.entities.MerchantType;
+import io.papermc.paper.datacomponent.DataComponentTypes;
+import io.papermc.paper.datacomponent.item.TooltipDisplay;
 import net.momirealms.craftengine.core.item.Item;
 import net.momirealms.craftengine.core.item.ItemManager;
 import net.momirealms.craftengine.core.plugin.context.PlayerOptionalContext;
@@ -16,13 +18,12 @@ import net.momirealms.craftengine.core.plugin.gui.PagedGui;
 import net.momirealms.craftengine.core.util.AdventureHelper;
 import net.momirealms.craftengine.libraries.adventure.text.minimessage.tag.resolver.TagResolver;
 import net.kyori.adventure.text.Component;
-import io.papermc.paper.datacomponent.DataComponentTypes;
-import io.papermc.paper.datacomponent.item.TooltipDisplay;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.MenuType;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -54,15 +55,10 @@ public class ShopGUI {
     }
 
     private static GuiElement createFillerElement() {
-        // Try CraftEngine custom item first
-        Item item = itemManager().createCustomWrappedItem(Key.of("tland:empty_slot"), null);
-        if (item == null || item.isEmpty()) {
-            // Fallback: gray stained glass pane
-            final ItemStack bukkitStack = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
-            bukkitStack.setData(DataComponentTypes.ITEM_NAME, Component.text(" "));
-            bukkitStack.setData(DataComponentTypes.TOOLTIP_DISPLAY,
+        final Item item = itemManager().createCustomWrappedItem(Key.of("tland:empty_slot"), null);
+        if (item.platformItem() instanceof ItemStack itemStack) {
+            itemStack.setData(DataComponentTypes.TOOLTIP_DISPLAY,
                     TooltipDisplay.tooltipDisplay().hideTooltip(true).build());
-            item = itemManager().wrap(bukkitStack);
         }
         return GuiElement.constant(item, (element, click) -> click.cancel());
     }
@@ -139,7 +135,11 @@ public class ShopGUI {
             final org.bukkit.inventory.Merchant merchant = Merchant.createBukkitMerchant(merchantType);
 
             Bukkit.getScheduler().runTask(Main.getInstance(), () -> {
-                bukkitPlayer.openMerchant(merchant, true);
+                bukkitPlayer.openInventory(MenuType.MERCHANT
+                        .builder()
+                        .title(Component.translatable(Merchant.typeKey(merchantType)))
+                        .merchant(merchant)
+                        .build(bukkitPlayer));
             });
         });
     }

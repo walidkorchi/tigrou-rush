@@ -6,7 +6,6 @@ import java.text.DecimalFormat;
 import java.util.Iterator;
 import java.util.List;
 
-import org.bukkit.DyeColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
@@ -33,6 +32,7 @@ import org.bukkit.util.Vector;
 
 import io.github.rush.Main;
 import io.github.rush.game.Game;
+import io.github.rush.game.GamePlayer;
 import io.github.rush.game.GameRoom;
 import io.github.rush.game.Team;
 import io.github.rush.game.TeamColor;
@@ -177,7 +177,7 @@ public class TNT implements Listener {
         }
 
         if (tntSource != null) {
-            Team sourceTeam = game.getPlayerTeam(tntSource);
+            Team sourceTeam = game.getPlayerTeam(new GamePlayer(tntSource));
             if (sourceTeam != null && sourceTeam == team) {
                 return;
             }
@@ -204,21 +204,11 @@ public class TNT implements Listener {
     }
 
     private TeamColor getTeamColorFromBed(Bed bed) {
-        DyeColor dyeColor = bed.getColor();
-
-        return switch (dyeColor) {
-            case RED -> TeamColor.RED;
-            case BLUE -> TeamColor.BLUE;
-            case LIGHT_BLUE -> TeamColor.BLUE;
-            case GREEN -> TeamColor.GREEN;
-            case LIME -> TeamColor.GREEN;
-            case YELLOW -> TeamColor.YELLOW;
-            case WHITE -> TeamColor.WHITE;
-            case BLACK -> TeamColor.BLACK;
-            case PINK -> TeamColor.LIGHT_PURPLE;
-            case CYAN -> TeamColor.AQUA;
-            default -> null;
-        };
+        try {
+            return TeamColor.valueOf(bed.getColor().name());
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     public TNTPrimed spawnTNT(Location location, Entity source) {
