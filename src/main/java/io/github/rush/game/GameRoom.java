@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import dz.jtsgen.annotations.TypeScript;
 import net.kyori.adventure.text.Component;
 
 /**
@@ -59,6 +60,7 @@ public class GameRoom {
 
     private int islandY = 0;
 
+    @TypeScript
     public enum IslandType {
         FOUR_ISLANDS(4, "4 Îles"),
         EIGHT_ISLANDS(8, "8 Îles (À venir)");
@@ -75,6 +77,7 @@ public class GameRoom {
 
     }
 
+    @TypeScript
     public enum TeamSize {
         VS1(1, "1 vs 1"),
         VS2(2, "2 vs 2"),

@@ -15,10 +15,23 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '21'
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
-      - name: Run checkstyle
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Cache plugin JARs
+        id: cache-plugins
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/../server/plugins
+          key: server-plugins-fawe-1318-hologram-1.8.3
+      - name: Download plugin dependencies
+        if: steps.cache-plugins.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "${{ github.workspace }}/../server/plugins"
+          curl -fL -o "${{ github.workspace }}/../server/plugins/FastAsyncWorldEdit-Paper-2.15.2-SNAPSHOT-1318.jar" \
+            "https://ci.athion.net/job/FastAsyncWorldEdit/1318/artifact/artifacts/FastAsyncWorldEdit-Paper-2.15.2-SNAPSHOT-1318.jar"
+          curl -fL -o "${{ github.workspace }}/../server/plugins/HologramLib-1.8.3.jar" \
+            "https://cdn.modrinth.com/data/bDTfffy3/versions/tsVLZHgE/HologramLib-1.8.3.jar"
+      - name: Run Checkstyle
         run: ./gradlew checkstyleMain
 
   spotbugs:
@@ -29,9 +42,22 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '21'
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Cache plugin JARs
+        id: cache-plugins
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/../server/plugins
+          key: server-plugins-fawe-1318-hologram-1.8.3
+      - name: Download plugin dependencies
+        if: steps.cache-plugins.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "${{ github.workspace }}/../server/plugins"
+          curl -fL -o "${{ github.workspace }}/../server/plugins/FastAsyncWorldEdit-Paper-2.15.2-SNAPSHOT-1318.jar" \
+            "https://ci.athion.net/job/FastAsyncWorldEdit/1318/artifact/artifacts/FastAsyncWorldEdit-Paper-2.15.2-SNAPSHOT-1318.jar"
+          curl -fL -o "${{ github.workspace }}/../server/plugins/HologramLib-1.8.3.jar" \
+            "https://cdn.modrinth.com/data/bDTfffy3/versions/tsVLZHgE/HologramLib-1.8.3.jar"
       - name: Run SpotBugs
         run: ./gradlew spotbugsMain
 
@@ -43,8 +69,21 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '21'
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Cache plugin JARs
+        id: cache-plugins
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/../server/plugins
+          key: server-plugins-fawe-1318-hologram-1.8.3
+      - name: Download plugin dependencies
+        if: steps.cache-plugins.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "${{ github.workspace }}/../server/plugins"
+          curl -fL -o "${{ github.workspace }}/../server/plugins/FastAsyncWorldEdit-Paper-2.15.2-SNAPSHOT-1318.jar" \
+            "https://ci.athion.net/job/FastAsyncWorldEdit/1318/artifact/artifacts/FastAsyncWorldEdit-Paper-2.15.2-SNAPSHOT-1318.jar"
+          curl -fL -o "${{ github.workspace }}/../server/plugins/HologramLib-1.8.3.jar" \
+            "https://cdn.modrinth.com/data/bDTfffy3/versions/tsVLZHgE/HologramLib-1.8.3.jar"
       - name: Build
-        run: ./gradlew build
+        run: ./gradlew shadowJar

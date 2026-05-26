@@ -40,6 +40,8 @@ repositories {
 
 dependencies {
     annotationProcessor("org.projectlombok:lombok:1.18.46")
+    annotationProcessor("com.github.dzuvic:jtsgen-processor:0.5.0")
+    compileOnly("com.github.dzuvic:jtsgen-annotations:0.5.0")
 
     implementation("fr.mrmicky:fastboard:2.1.5")
     implementation("net.jthink:jaudiotagger:3.0.1")
@@ -90,6 +92,15 @@ tasks.register<Copy>("copyToPlugins") {
     into(file("../server/plugins"))
 }
 
+tasks.register<Copy>("copyAiTypes") {
+    dependsOn("compileJava")
+    from(layout.buildDirectory.dir("generated/sources/annotationProcessor/java/main/rush"))
+    into(file("ai"))
+    include("rush.d.ts")
+}
+
 tasks.build {
     dependsOn("copyToPlugins")
+    dependsOn("copyAiTypes")
 }
+

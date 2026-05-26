@@ -1,5 +1,6 @@
 package io.github.rush.abstracts;
 
+import dz.jtsgen.annotations.TypeScript;
 import io.github.rush.game.GameManager;
 import io.github.rush.objects.Island;
 import io.github.rush.entities.GameCombatant;
@@ -19,6 +20,7 @@ import java.util.List;
 
 public class Team {
 
+    @TypeScript
     public enum Color {
         // Order matches Minecraft's DyeColor enum.
         // Color is derived from DyeColor.getFireworkColor(), which holds the exact wool block colour.

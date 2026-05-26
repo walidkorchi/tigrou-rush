@@ -1,4 +1,5 @@
 import { createBot } from "mineflayer";
+import { RoomStateItem, Slots } from "./rush-types";
 
 const bot = createBot({
   host: "localhost",
@@ -54,7 +55,7 @@ bot.on("windowOpen", (window) => {
       const name = item.name ?? "";
       console.log(`  [${i}] ${name}`);
       // Prefer yellow_wool (waiting with free slots)
-      if (name === "yellow_wool" || name === "minecraft:yellow_wool") {
+      if (name.replace(/^minecraft:/, "") === RoomStateItem.WAITING_AVAILABLE) {
         console.log(`→ clicking room at slot ${i}`);
         step = "joining_room";
         bot.clickWindow(i, 0, 0);
@@ -70,7 +71,7 @@ bot.on("windowOpen", (window) => {
   // ── Team selection (2-row chest GUI) ──
   if (step === "opening_teams") {
     // Middle row (slots 9-17) has team wool items
-    for (let i = 9; i <= 17 && i < cs; i++) {
+    for (let i = Slots.teamSelection.first; i <= Slots.teamSelection.last && i < cs; i++) {
       const item = window.slots[i];
       if (item) {
         console.log(`→ clicking team slot ${i}: ${item.name}`);
