@@ -5,9 +5,9 @@ import org.jspecify.annotations.Nullable;
 import java.util.List;
 import java.util.UUID;
 
-public final class CompassTracker {
+public final class GameCompassTracker {
 
-    private CompassTracker() {}
+    private GameCompassTracker() {}
 
     public record Candidate(UUID teamId, double x, double y, double z) {}
 

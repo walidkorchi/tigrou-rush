@@ -81,7 +81,9 @@ public class Merchant {
     }
 
     static MerchantRecipe toMerchantRecipe(Trade trade) {
-        final ItemStack result = new ItemStack(trade.result(), trade.resultAmount());
+        final ItemStack result = trade.resultItem() != null
+                ? trade.resultItem().clone()
+                : new ItemStack(trade.result(), trade.resultAmount());
 
         if (trade.enchantments() != null && !trade.enchantments().isEmpty()) {
             result.addEnchantments(trade.enchantments());

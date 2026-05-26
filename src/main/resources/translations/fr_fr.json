@@ -228,5 +228,45 @@
   "rush.game_winner": "§6§lVICTOIRE! §f{0}",
   "rush.archive_expired": "Il n'est plus possible de rechoisir l'archivage de la game.",
   "rush.archive_saved": "La partie a été archivée et pourra être revisitée ultérieurement.",
-  "rush.archive_skipped": "Cette partie ne sera pas archivée, et donc ne pourra pas être revisitée."
+  "rush.archive_skipped": "Cette partie ne sera pas archivée, et donc ne pourra pas être revisitée.",
+
+  "internal.main.hologram_init_failed": "Failed to initialize HologramLib manager.",
+  "internal.main.i18n_registered": "Registered i18n translations",
+  "internal.main.i18n_register_failed": "Failed to register translations: {0}",
+  "internal.main.shutdown_start": "Shutting down Rush plugin...",
+  "internal.main.shutdown_tasks_cancelled": "Cancelled all scheduled tasks.",
+  "internal.main.shutdown_rooms_cleaned": "Cleaned up all game rooms.",
+  "internal.main.shutdown_scoreboards_removed": "Removed all scoreboards.",
+  "internal.main.shutdown_author_holograms_cleaned": "Cleaned up author holograms.",
+  "internal.main.shutdown_leaderboard_holograms_cleaned": "Cleaned up leaderboard holograms.",
+  "internal.main.shutdown_complete": "Rush plugin shutdown complete.",
+
+  "internal.game_manager.music_duration_fallback": "Could not read gameendmusic.ogg duration, using 27s default",
+  "internal.game_manager.music_duration_detected": "Detected gameendmusic.ogg duration: {0}s",
+  "internal.game_manager.world_create_failed": "Error creating game world: {0}",
+  "internal.game_manager.schematic_not_found": "Schematic not found: {0}",
+  "internal.game_manager.schematic_unknown_format": "Unknown schematic format: {0}",
+  "internal.game_manager.schematic_pasted": "Pasted schematic at {0}",
+  "internal.game_manager.schematic_paste_failed": "Error pasting schematic: {0}",
+  "internal.game_manager.world_unloaded": "Unloaded world: {0}",
+  "internal.game_manager.world_folder_deleted": "Deleted world folder: {0}",
+  "internal.game_manager.replay_world_create_failed": "Failed to create replay world for session: {0}",
+  "internal.game_manager.replay_world_no_schematic": "Replay world for session {0} loaded without islands — schematic ''{1}'' not found.",
+  "internal.game_manager.game_started": "Game started in room: {0}",
+  "internal.game_manager.game_ended": "Game ended in room: {0}",
+
+  "internal.storage.player_settings.save_failed": "Failed to save player settings: {0}",
+  "internal.storage.player_level.save_failed": "Failed to save player level: {0}",
+  "internal.storage.player_statistic.save_failed": "Failed to save statistic: {0}",
+  "internal.storage.config.save_failed": "Failed to save config.yml: {0}",
+
+  "internal.sound.registered": "Registered custom sound: {0}",
+  "internal.sound.all_registered": "Registered {0} custom sounds with Minecraft registry",
+  "internal.sound.register_failed": "Failed to register custom sounds: {0}: {1}",
+
+  "internal.command.leaderboard.restored": "Restored {0} leaderboard hologram(s).",
+  "internal.command.leaderboard.query_failed": "Leaderboard query failed: {0}",
+
+  "internal.command.author.restored": "Restored author display with particles.",
+  "internal.command.author.restored_scanned": "Restored author display with particles (scanned)."
 }

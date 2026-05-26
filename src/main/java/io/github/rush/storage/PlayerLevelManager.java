@@ -1,6 +1,7 @@
 package io.github.rush.storage;
 
 import io.github.rush.Main;
+import io.github.rush.utils.i18n;
 import io.github.rush.commands.LeaderboardCommand;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -277,7 +278,7 @@ public class PlayerLevelManager {
             em.merge(playerLevel);
             em.getTransaction().commit();
         } catch (Exception e) {
-            Main.getInstance().getLogger().severe("Failed to save player level: " + e.getMessage());
+            Main.getInstance().getLogger().severe(i18n.log("internal.storage.player_level.save_failed", e.getMessage()));
             if (em.getTransaction().isActive()) {
                 em.getTransaction().rollback();
             }

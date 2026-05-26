@@ -13,6 +13,7 @@ import org.bukkit.entity.Player;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Predicate;
 
 import dz.jtsgen.annotations.TypeScript;
 import net.kyori.adventure.text.Component;
@@ -158,5 +159,14 @@ public class GameRoom {
 
     public void removePlayer(Player player) {
         game.removePlayer(new GamePlayer(player));
+    }
+
+    public static UUID nextHost(List<UUID> joinOrder, UUID disconnected, Predicate<UUID> isOnline) {
+        for (UUID candidate : joinOrder) {
+            if (!candidate.equals(disconnected) && isOnline.test(candidate)) {
+                return candidate;
+            }
+        }
+        return null;
     }
 }

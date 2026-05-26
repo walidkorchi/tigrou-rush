@@ -1,13 +1,12 @@
 package io.github.rush.game;
 
+import io.github.rush.Main;
 import org.bukkit.entity.Player;
 
 import java.util.*;
 
-public class KillTracker {
+public class GameKillTracker {
 
-    private static final double ASSIST_THRESHOLD = 0.25;
-    private static final long LAST_HIT_EXPIRY_MS = 10_000;
 
     private final Map<UUID, Map<UUID, Double>> damageDealt = new HashMap<>();
     private final Map<UUID, LastHitRecord> lastHitBy = new HashMap<>();
@@ -28,7 +27,7 @@ public class KillTracker {
         if (killer == null) {
             final LastHitRecord record = lastHitBy.get(victimId);
 
-            if (record != null && System.currentTimeMillis() - record.timestamp <= LAST_HIT_EXPIRY_MS) {
+            if (record != null && System.currentTimeMillis() - record.timestamp <= Main.getInstance().getConfig().getLong("kill-tracker.last-hit-expiry-ms")) {
                 killer = victim.getServer().getPlayer(record.attackerId);
             }
         }
@@ -45,13 +44,14 @@ public class KillTracker {
         final List<Player> assists = new ArrayList<>();
 
         if (killerDamage > 0) {
-            final double threshold = killerDamage * ASSIST_THRESHOLD;
+            final double threshold = killerDamage * Main.getInstance().getConfig().getDouble("kill-tracker.assist-threshold");
 
             for (Map.Entry<UUID, Double> entry : victimDamageMap.entrySet()) {
                 if (entry.getKey().equals(killerId))
                     continue;
                 if (entry.getValue() >= threshold) {
                     final Player assistPlayer = victim.getServer().getPlayer(entry.getKey());
+
 
                     if (assistPlayer != null) {
                         assists.add(assistPlayer);

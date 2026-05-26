@@ -60,6 +60,12 @@ public final class i18n {
         return entries != null ? entries.get(key) : null;
     }
 
+    /** Returns the resolved translation string for logger/internal messages, falling back to the key itself. */
+    public static String log(String key, Object... args) {
+        String resolved = resolve(key, args);
+        return resolved != null ? resolved : key;
+    }
+
     private static String resolve(String key, Object... args) {
         String pattern = entries != null ? entries.get(key) : null;
         if (pattern == null) return null;

@@ -86,7 +86,7 @@ public class Game {
     private final Set<UUID> mannequinsBeingRescued = new HashSet<>();
 
     @Getter
-    private final KillTracker killTracker = new KillTracker();
+    private final GameKillTracker killTracker = new GameKillTracker();
 
     @Getter
     private int gameTime = 0;
@@ -283,7 +283,8 @@ public class Game {
             playersReady.remove(gamePlayer);
         }
 
-        applySpectatorMode(gamePlayer.player());
+        gamePlayer.player().setGameMode(GameMode.SPECTATOR);
+        gamePlayer.player().getInventory().clear();
 
         final String compassName = isObserver ? "§cQuitter la partie" : "§cQuitter le spectator";
 
@@ -307,16 +308,12 @@ public class Game {
 
     public void removeSpectator(GamePlayer gamePlayer) {
         spectators.remove(gamePlayer);
+
         Player player = gamePlayer.player();
-        player.setGameMode(GameMode.ADVENTURE);
-        player.setAllowFlight(false);
-        player.setFlying(false);
+
         showToGameWorld(player);
-        player.getInventory().clear();
-        Location lobbyLoc = Main.getInstance().getMainLobby();
-        if (lobbyLoc != null) {
-            player.teleport(lobbyLoc);
-        }
+        Main.getInstance().getGameManager().resetPlayerHubState(player);
+
         player.sendMessage(Component.translatable("rush.spectatorModeQuit"));
     }
 
@@ -402,13 +399,6 @@ public class Game {
         }
     }
 
-    private void applySpectatorMode(Player player) {
-        player.setGameMode(GameMode.SPECTATOR);
-        player.setAllowFlight(true);
-        player.setFlying(true);
-        player.getInventory().clear();
-    }
-
     private void hideFromGameWorld(Player player) {
         for (Player online : Bukkit.getOnlinePlayers()) {
             online.hidePlayer(Main.getInstance(), player);
@@ -432,10 +422,14 @@ public class Game {
 
     public static void resetPlayerHealth(Player player) {
         AttributeInstance maxHealth = player.getAttribute(Attribute.MAX_HEALTH);
+
         if (maxHealth != null) {
             maxHealth.removeModifier(NamespacedKey.minecraft("extra_hearts"));
         }
+
         player.setHealth(20.0);
+        player.setFoodLevel(20);
+        player.setSaturation(20f);
     }
 
     public void setPlayerReady(GameCombatant participant, boolean ready) {
@@ -972,7 +966,7 @@ public class Game {
             Player player = gp.player();
             player.setRespawnLocation(respawnLocation);
 
-            KillTracker.KillResult result = killTracker.resolveKill(player, bukkitKiller);
+            GameKillTracker.KillResult result = killTracker.resolveKill(player, bukkitKiller);
             killer = result.killer();
             assists = result.assists();
 
@@ -1315,12 +1309,12 @@ public class Game {
 
     private void startCompassTracker() {
         BukkitTask task = Bukkit.getScheduler().runTaskTimer(Main.getInstance(), () -> {
-            List<CompassTracker.Candidate> candidates = teams.values().stream()
+            List<GameCompassTracker.Candidate> candidates = teams.values().stream()
                     .flatMap(t -> t.getPlayers().stream()
                             .filter(GamePlayer.class::isInstance)
                             .map(e -> {
                                 Player p = ((GamePlayer) e).player();
-                                return new CompassTracker.Candidate(
+                                return new GameCompassTracker.Candidate(
                                         UUID.nameUUIDFromBytes(t.getColor().name().getBytes()),
                                         p.getLocation().getX(),
                                         p.getLocation().getY(),
@@ -1337,7 +1331,7 @@ public class Game {
                     if (holder.getInventory().getItemInMainHand().getType() != Material.COMPASS)
                         continue;
 
-                    CompassTracker.Candidate nearest = CompassTracker.findNearestEnemy(
+                    GameCompassTracker.Candidate nearest = GameCompassTracker.findNearestEnemy(
                             holder.getLocation().getX(),
                             holder.getLocation().getY(),
                             holder.getLocation().getZ(),

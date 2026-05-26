@@ -15,7 +15,8 @@ public final class CustomSoundRegistrar {
             "tland:music.global.overtime_intro_music",
             "tland:music.global.overtime_loop_music",
             "tland:music.global.gameendmusic",
-            "tland:game.global.win_celebrate");
+            "tland:game.global.win_celebrate",
+            "tland:music.global.lobby");
 
     private CustomSoundRegistrar() {
     }
@@ -39,20 +40,20 @@ public final class CustomSoundRegistrar {
                 Key ceKey = Key.of(soundKey);
                 Object soundEvent = SoundUtils.createSoundEvent(ceKey);
                 registerMethod.invoke(null, soundEventRegistry, soundKey, soundEvent);
-                plugin.getLogger().info("Registered custom sound: " + soundKey);
+                plugin.getLogger().info(i18n.log("internal.sound.registered", soundKey));
             }
 
             frozenField.setBoolean(soundEventRegistry, true);
-            plugin.getLogger().info("Registered " + SOUNDS.size() + " custom sounds with Minecraft registry");
+            plugin.getLogger().info(i18n.log("internal.sound.all_registered", SOUNDS.size()));
         } catch (InvocationTargetException e) {
-            plugin.getLogger().warning("Failed to register customs sounds: " + e.getCause().getClass().getName() + ": "
-                    + e.getCause().getMessage());
+            plugin.getLogger().warning(i18n.log("internal.sound.register_failed",
+                    e.getCause().getClass().getName(), e.getCause().getMessage()));
             for (StackTraceElement ste : e.getCause().getStackTrace()) {
                 plugin.getLogger().warning("  at " + ste.toString());
             }
         } catch (Exception e) {
-            plugin.getLogger()
-                    .warning("Failed to register customs sounds: " + e.getClass().getName() + ": " + e.getMessage());
+            plugin.getLogger().warning(i18n.log("internal.sound.register_failed",
+                    e.getClass().getName(), e.getMessage()));
             for (StackTraceElement ste : e.getStackTrace()) {
                 plugin.getLogger().warning("  at " + ste.toString());
             }

@@ -86,6 +86,7 @@ public enum MerchantType {
     @SuppressWarnings("unchecked")
     private static @Nullable Trade parseTrade(Map<?, ?> entry) {
         Material result = null;
+        ItemStack potionStack = null;
         Map<String, Object> enchantMap = null;
         Integer durability = null;
         int resultAmount = 1;
@@ -93,9 +94,9 @@ public enum MerchantType {
         if (entry.containsKey("potion")) {
             final PotionType potionType = parsePotionType((String) entry.get("potion"));
             final boolean upgrade = String.valueOf(entry.get("upgrade")).equals("true");
-            final ItemStack potion = buildPotionStack(potionType, upgrade);
+            potionStack = buildPotionStack(potionType, upgrade);
 
-            result = potion.getType();
+            result = potionStack.getType();
         } else if (entry.containsKey("result")) {
             result = Material.getMaterial((String) entry.get("result"));
         }
@@ -128,7 +129,7 @@ public enum MerchantType {
             return null;
 
         Trade trade = new Trade(result, currency, costAmount, resultAmount, null,
-                parseEnchantments(enchantMap), durability);
+                parseEnchantments(enchantMap), durability, potionStack);
 
         if (costs.size() >= 2) {
             final Map<String, Object> second = costs.get(1);

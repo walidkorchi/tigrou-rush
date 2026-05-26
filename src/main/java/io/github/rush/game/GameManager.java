@@ -19,6 +19,7 @@ import com.sk89q.worldedit.math.transform.AffineTransform;
 import com.sk89q.worldedit.session.ClipboardHolder;
 
 import io.github.rush.Main;
+import io.github.rush.storage.ConfigManager;
 import io.github.rush.utils.i18n;
 import io.github.rush.guis.GUI;
 import io.github.rush.guis.HostConfigGUI;
@@ -56,11 +57,6 @@ import io.github.rush.replay.ReplayPlayback;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipFile;
-import org.jaudiotagger.audio.AudioFileIO;
-import org.jaudiotagger.audio.AudioHeader;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -122,38 +118,15 @@ public class GameManager {
             return gameEndMusicDurationMs;
         File mergeZip = new File(plugin.getDataFolder().getParentFile(),
                 "CraftEngine/generated/sounds_merge.zip");
-        long duration = readOggDurationFromZip(mergeZip, "assets/minecraft/sounds/music/global/gameendmusic.ogg");
+        long duration = ConfigManager.readOggDurationFromZip(mergeZip, "assets/minecraft/sounds/music/global/gameendmusic.ogg");
         if (duration <= 0) {
-            plugin.getLogger().warning("Could not read gameendmusic.ogg duration, using 27s default");
+            plugin.getLogger().warning(i18n.log("internal.game_manager.music_duration_fallback"));
             duration = 27_000L;
         } else {
-            plugin.getLogger().info("Detected gameendmusic.ogg duration: " + (duration / 1000) + "s");
+            plugin.getLogger().info(i18n.log("internal.game_manager.music_duration_detected", duration / 1000));
         }
         gameEndMusicDurationMs = duration;
         return duration;
-    }
-
-    private long readOggDurationFromZip(File zipFile, String entryPath) {
-        if (!zipFile.exists())
-            return -1;
-        File temp = null;
-        try (ZipFile zip = new ZipFile(zipFile)) {
-            ZipEntry entry = zip.getEntry(entryPath);
-            if (entry == null)
-                return -1;
-            temp = File.createTempFile("rush_ogg_", ".ogg");
-            try (InputStream in = zip.getInputStream(entry);
-                    java.io.FileOutputStream out = new java.io.FileOutputStream(temp)) {
-                in.transferTo(out);
-            }
-            AudioHeader header = AudioFileIO.read(temp).getAudioHeader();
-            return (long) (header.getPreciseTrackLength() * 1000);
-        } catch (Exception e) {
-            return -1;
-        } finally {
-            if (temp != null)
-                temp.delete();
-        }
     }
 
     /**
@@ -203,11 +176,11 @@ public class GameManager {
                 Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
                     currentLabel.set("Génération du lobby d'attente");
                     currentStep.set(2);
-                    File waitingRoomFile = getSchematicFile("waiting_room.schem");
+                    File waitingRoomFile = plugin.getConfigManager().getSchematicFile("waiting_room.schem");
 
                     currentLabel.set("Génération des îles");
                     currentStep.set(3);
-                    File islandFile = getSchematicFile(config.mapType().schematicName());
+                    File islandFile = plugin.getConfigManager().getSchematicFile(config.mapType().schematicName());
 
                     currentLabel.set("Construction du monde");
                     currentStep.set(4);
@@ -263,7 +236,7 @@ public class GameManager {
 
             } catch (Exception e) {
                 barTask[0].cancel();
-                plugin.getLogger().severe("Error creating game world: " + e.getMessage());
+                plugin.getLogger().severe(i18n.log("internal.game_manager.world_create_failed", e.getMessage()));
                 e.printStackTrace();
                 host.sendMessage(Component.translatable("rush.room_create_failed"));
             }
@@ -277,25 +250,15 @@ public class GameManager {
             Bukkit.unloadWorld(world, false);
             File worldFolder = new File(Bukkit.getWorldContainer(), world.getName());
             if (worldFolder.exists()) {
-                Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> deleteDirectory(worldFolder));
+                Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> ConfigManager.deleteDirectory(worldFolder));
             }
         }
-    }
-
-    private File getSchematicFile(String filename) {
-        File schematicFile = new File(plugin.getDataFolder().getParentFile(),
-                "FastAsyncWorldEdit/schematics/" + filename);
-        if (!schematicFile.exists()) {
-            plugin.getLogger().warning("Schematic not found: " + schematicFile.getPath());
-            return null;
-        }
-        return schematicFile;
     }
 
     private void pasteSchematicFile(World world, File schematicFile, BlockVector3 target, int rotation) {
         ClipboardFormat format = ClipboardFormats.findByFile(schematicFile);
         if (format == null) {
-            plugin.getLogger().severe("Unknown schematic format: " + schematicFile.getPath());
+            plugin.getLogger().severe(i18n.log("internal.game_manager.schematic_unknown_format", schematicFile.getPath()));
             return;
         }
         // Must be called from an async thread. Load and paste happen here on the same
@@ -310,9 +273,9 @@ public class GameManager {
             }
             Operation operation = holder.createPaste(editSession).to(target).ignoreAirBlocks(false).build();
             Operations.complete(operation);
-            plugin.getLogger().info("Pasted schematic at " + target);
+            plugin.getLogger().info(i18n.log("internal.game_manager.schematic_pasted", target));
         } catch (IOException | WorldEditException e) {
-            plugin.getLogger().severe("Error pasting schematic: " + e.getMessage());
+            plugin.getLogger().severe(i18n.log("internal.game_manager.schematic_paste_failed", e.getMessage()));
         }
     }
 
@@ -440,65 +403,24 @@ public class GameManager {
 
             final World world = room.getWorld();
 
-            if (world != null) {
-                // teleport all players out of the world first
-                Location fallback = plugin.getMainLobby();
-
-                if (fallback == null || fallback.getWorld() == null) {
-                    fallback = Bukkit.getWorlds().get(0).getSpawnLocation();
-                }
-
-                for (Player player : new ArrayList<>(world.getPlayers())) {
-                    resetPlayerHubState(player);
-                }
-
-                if (room.getGame() != null) {
-                    room.getGame().stop();
-                }
-
-                // unload the world without saving (since it was autoSave=false)
-                final boolean unloaded = Bukkit.unloadWorld(world, false);
-
-                if (!unloaded) {
-                    plugin.getLogger().warning("Failed to unload world: " + world.getName());
-                } else {
-                    plugin.getLogger().info("Unloaded world: " + world.getName());
-                }
-
-                // delete world folder asynchronously to avoid blocking the main thread
-                final File worldFolder = new File(Bukkit.getWorldContainer(), world.getName());
-
-                if (worldFolder.exists()) {
-                    Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-                        deleteDirectory(worldFolder);
-                        plugin.getLogger().info("Deleted world folder: " + worldFolder.getAbsolutePath());
-                    });
-                }
+            for (Player player : new ArrayList<>(world.getPlayers())) {
+                resetPlayerHubState(player);
             }
-        }
-    }
 
-    /**
-     * Recursively deletes a directory and all its contents.
-     */
-    private void deleteDirectory(File directory) {
-        if (!directory.exists()) {
-            return;
-        }
-
-        final File[] files = directory.listFiles();
-
-        if (files != null) {
-            for (File file : files) {
-                if (file.isDirectory()) {
-                    deleteDirectory(file);
-                } else {
-                    file.delete();
-                }
+            if (room.getGame() != null) {
+                room.getGame().stop();
             }
-        }
 
-        directory.delete();
+            Bukkit.unloadWorld(world, false);
+            plugin.getLogger().info(i18n.log("internal.game_manager.world_unloaded", world.getName()));
+
+            final File worldFolder = new File(Bukkit.getWorldContainer(), world.getName());
+
+            Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+                ConfigManager.deleteDirectory(worldFolder);
+                plugin.getLogger().info(i18n.log("internal.game_manager.world_folder_deleted", worldFolder.getAbsolutePath()));
+            });
+        }
     }
 
     /**
@@ -647,13 +569,12 @@ public class GameManager {
     }
 
     public void resetPlayerHubState(Player player) {
-        player.teleport(plugin.getMainLobby());
+        player.teleport(Main.getInstance().getMainLobby());
         player.setAllowFlight(false);
         player.setFallDistance(0);
         player.setGameMode(GameMode.ADVENTURE);
-        player.setFoodLevel(20);
         Game.resetPlayerHealth(player);
-        plugin.getGameManager().restoreHubInventory(player);
+        restoreHubInventory(player);
     }
 
     public void restoreHubInventory(Player player) {
@@ -897,7 +818,7 @@ public class GameManager {
         final World world = createVoidWorld(REPLAY_WORLD_PREFIX + sessionId);
 
         if (world == null) {
-            plugin.getLogger().severe("Failed to create replay world for session: " + sessionId);
+            plugin.getLogger().severe(i18n.log("internal.game_manager.replay_world_create_failed", sessionId));
             return;
         }
 
@@ -924,7 +845,7 @@ public class GameManager {
 
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             File islandFile = resolvedMapType != null
-                    ? getSchematicFile(resolvedMapType.schematicName())
+                    ? plugin.getConfigManager().getSchematicFile(resolvedMapType.schematicName())
                     : null;
 
             if (islandFile != null) {
@@ -934,9 +855,8 @@ public class GameManager {
                             island.getRotation());
                 }
             } else {
-                plugin.getLogger().warning("Replay world for session " + sessionId
-                        + " loaded without islands — schematic '"
-                        + (resolvedMapType != null ? resolvedMapType.schematicName() : "none") + "' not found.");
+                plugin.getLogger().warning(i18n.log("internal.game_manager.replay_world_no_schematic",
+                        sessionId, resolvedMapType != null ? resolvedMapType.schematicName() : "none"));
             }
 
             Bukkit.getScheduler().runTask(plugin, () -> {
@@ -1007,7 +927,7 @@ public class GameManager {
         File worldFolder = new File(Bukkit.getWorldContainer(), world.getName());
         if (worldFolder.exists()) {
             Bukkit.getScheduler().runTaskAsynchronously(plugin,
-                    () -> deleteDirectory(worldFolder));
+                    () -> ConfigManager.deleteDirectory(worldFolder));
         }
     }
 
@@ -1015,7 +935,7 @@ public class GameManager {
      * Called when a GameRoom's game starts.
      */
     public void onGameRoomStarted(GameRoom room) {
-        plugin.getLogger().info("Game started in room: " + room.getId());
+        plugin.getLogger().info(i18n.log("internal.game_manager.game_started", room.getId()));
         // TODO: Additional logic when game starts (statistics, notifications, etc.)
     }
 
@@ -1023,7 +943,7 @@ public class GameManager {
      * Called when a GameRoom's game ends.
      */
     public void onGameRoomEnded(GameRoom room) {
-        plugin.getLogger().info("Game ended in room: " + room.getId());
+        plugin.getLogger().info(i18n.log("internal.game_manager.game_ended", room.getId()));
 
         final Location mainLobby = plugin.getMainLobby();
         long musicDurationMs = getGameEndMusicDurationMs();

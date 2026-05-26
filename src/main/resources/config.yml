@@ -37,6 +37,13 @@ villagerRegularOffset: 12
 villagerSpreadDistance: 5,7
 
 
+# --- Kill Tracker Configuration ---
+
+kill-tracker:
+  assist-threshold: 0.25                      # Fraction of killer's damage another player must deal to count as an assist
+  last-hit-expiry-ms: 10000                   # Milliseconds after the last hit within which an indirect kill is still credited
+
+
 # --- Game Configuration ---
 
 max-replays: 20                               # Max replay files retained (oldest deleted on save)

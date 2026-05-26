@@ -12,7 +12,6 @@ import io.github.rush.replay.ReplayViewerMenuGUI;
 import io.github.rush.game.GameManager;
 import io.github.rush.game.GameRoom;
 import io.github.rush.game.GameState;
-import io.github.rush.game.HostTransfer;
 import io.github.rush.abstracts.Team;
 import io.github.rush.guis.HostPanelGUI;
 import java.util.UUID;
@@ -60,6 +59,7 @@ import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Sound;
+import org.bukkit.SoundCategory;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.BoundingBox;
@@ -73,10 +73,7 @@ public class PlayerActivity implements Listener {
 
     public PlayerActivity(Main plugin) {
         this.plugin = plugin;
-        startActionBarTask();
-    }
 
-    private void startActionBarTask() {
         plugin.getServer().getScheduler().runTaskTimer(plugin, this::sendActionBarToAll, 0L, 40L);
     }
 
@@ -85,14 +82,14 @@ public class PlayerActivity implements Listener {
             if (room.getGame().getState() != GameState.WAITING)
                 continue;
 
-            long readyCount = room.getGame().getPlayersReadyCount();
-            int maxPlayers = room.getMaxPlayers();
+            final long readyCount = room.getGame().getPlayersReadyCount();
+            final int maxPlayers = room.getMaxPlayers();
 
-            NamedTextColor countColor = readyCount >= maxPlayers ? NamedTextColor.GREEN : NamedTextColor.RED;
-            Component message = Component.text()
+            final Component message = Component.text()
                     .content("Joueurs prêts (")
                     .color(NamedTextColor.WHITE)
-                    .append(Component.text(readyCount + "/" + maxPlayers).color(countColor))
+                    .append(Component.text(readyCount + "/" + maxPlayers)
+                            .color(readyCount >= maxPlayers ? NamedTextColor.GREEN : NamedTextColor.RED))
                     .append(Component.text(")").color(NamedTextColor.WHITE))
                     .build();
 
@@ -104,31 +101,30 @@ public class PlayerActivity implements Listener {
 
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
-        Player player = event.getPlayer();
+        final Player player = event.getPlayer();
 
         event.joinMessage(Component.translatable("rush.chat_join", Component.text(player.getName())));
+        plugin.getTablistManager().onPlayerJoin(player);
 
-        if (plugin.getTablistManager() != null) {
-            plugin.getTablistManager().onPlayerJoin(player);
-        }
+        // edge case > player reconnecting when disconnecting in the middle of a running game room
+        final GameManager.ReconnectData reconnectData = plugin.getGameManager().consumeReconnectData(player.getUniqueId());
 
-        // Check if the player was in a running game room before disconnecting
-        GameManager.ReconnectData reconnectData = plugin.getGameManager().consumeReconnectData(player.getUniqueId());
         if (reconnectData != null) {
-            GameRoom room = plugin.getGameManager().getGameRoom(reconnectData.roomId());
+            final GameRoom room = plugin.getGameManager().getGameRoom(reconnectData.roomId());
+
             if (room != null && room.isRunning()) {
                 plugin.getGameManager().addPlayerToGameRoom(player, room);
                 plugin.getServer().getScheduler().runTask(plugin,
                         () -> plugin.getGameManager().handleReconnect(player, room, reconnectData));
             } else {
-                // Game ended while offline
+                // edge case > game ended while offline
                 plugin.getGameManager().resetPlayerHubState(player);
             }
         } else {
             plugin.getGameManager().resetPlayerHubState(player);
         }
 
-        // TODO: play lobby custom music
+        player.playSound(player.getLocation(), "tland:music.global.lobby", SoundCategory.MUSIC, 1.0f, 1.0f)
     }
 
     @EventHandler
@@ -169,7 +165,7 @@ public class PlayerActivity implements Listener {
                             && player.getUniqueId().equals(r.getHostUUID()))
                     .findFirst()
                     .ifPresent(r -> {
-                        final UUID nextHostUUID = HostTransfer.nextHost(
+                        final UUID nextHostUUID = GameRoom.nextHost(
                                 r.getJoinOrder(),
                                 player.getUniqueId(),
                                 uuid -> Bukkit.getPlayer(uuid) != null);
@@ -255,10 +251,9 @@ public class PlayerActivity implements Listener {
                     }
 
                     final Team entityTeam = game.getPlayerTeam(
-                        entity instanceof Player p
-                            ? new GamePlayer(p)
-                            : new GameMannequin((Mannequin) entity)
-                    );
+                            entity instanceof Player p
+                                    ? new GamePlayer(p)
+                                    : new GameMannequin((Mannequin) entity));
 
                     if (breakerTeam != null && entityTeam != null && breakerTeam.equals(entityTeam)) {
                         event.setCancelled(true);
@@ -473,7 +468,8 @@ public class PlayerActivity implements Listener {
                 int slot = player.getInventory().getHeldItemSlot();
                 if (ReplayViewerInventory.isPauseResumeDye(item)) {
                     playback.togglePause();
-                    player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1.0f, playback.isPaused() ? 0.8f : 1.2f);
+                    player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1.0f,
+                            playback.isPaused() ? 0.8f : 1.2f);
                 } else if (item != null && item.getType() == Material.COMPASS) {
                     if (playback.getFollowTarget(player.getUniqueId()) != null) {
                         playback.clearFollowTarget(player.getUniqueId());
@@ -787,10 +783,9 @@ public class PlayerActivity implements Listener {
         }
 
         Team victimTeam = game.getPlayerTeam(
-            victim instanceof Player p
-                ? new GamePlayer(p)
-                : new GameMannequin((Mannequin) victim)
-        );
+                victim instanceof Player p
+                        ? new GamePlayer(p)
+                        : new GameMannequin((Mannequin) victim));
         Team attackerTeam = game.getPlayerTeam(new GamePlayer(attacker));
 
         if (victimTeam != null && victimTeam.equals(attackerTeam)) {

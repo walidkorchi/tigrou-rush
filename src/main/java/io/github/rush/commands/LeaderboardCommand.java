@@ -1,6 +1,7 @@
 package io.github.rush.commands;
 
 import io.github.rush.Main;
+import io.github.rush.utils.i18n;
 import io.papermc.paper.command.brigadier.Commands;
 import lombok.Getter;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
@@ -217,7 +218,7 @@ public class LeaderboardCommand {
                 configManager.saveConfig();
             }
 
-            Main.getInstance().getLogger().info("Restored " + holograms.size() + " leaderboard hologram(s).");
+            Main.getInstance().getLogger().info(i18n.log("internal.command.leaderboard.restored", holograms.size()));
         }, 1L);
     }
 
@@ -332,7 +333,7 @@ public class LeaderboardCommand {
                     case LEVEL -> levelManager.getTop10ByXP();
                 };
             } catch (Exception e) {
-                Main.getInstance().getLogger().warning("Leaderboard query failed: " + e.getMessage());
+                Main.getInstance().getLogger().warning(i18n.log("internal.command.leaderboard.query_failed", e.getMessage()));
                 return List.of();
             }
         }
