@@ -8,13 +8,7 @@ import io.github.rush.game.GameManager;
 import io.github.rush.game.GameRoom;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
-import org.bukkit.GameMode;
-import org.bukkit.Location;
-import org.bukkit.attribute.Attribute;
-import org.bukkit.attribute.AttributeInstance;
 import org.jspecify.annotations.NullMarked;
-
-import net.kyori.adventure.text.Component;
 
 @NullMarked
 public class HubCommand {
@@ -48,29 +42,7 @@ public class HubCommand {
                 }
             }
 
-            final Location lobby = plugin.getMainLobby();
-
-            if (lobby == null || lobby.getWorld() == null) {
-                player.sendMessage(Component.translatable("rush.no_lobby_spawn"));
-                return Command.SINGLE_SUCCESS;
-            }
-
-            player.setGameMode(GameMode.SURVIVAL);
-
-            final AttributeInstance maxHealth = player.getAttribute(Attribute.MAX_HEALTH);
-
-            if (maxHealth != null) {
-                player.setHealth(maxHealth.getValue());
-            }
-
-            player.setFoodLevel(20);
-            player.setSaturation(20f);
-            player.setFallDistance(0);
-            player.teleport(lobby);
-
-            if (gameManager != null) {
-                gameManager.restoreHubInventory(player);
-            }
+            gameManager.resetPlayerHubState(player);
 
             return Command.SINGLE_SUCCESS;
         });

@@ -25,7 +25,7 @@ import org.bukkit.Bukkit;
 import io.github.rush.game.Game;
 import io.github.rush.game.GameRoom;
 import io.github.rush.game.GameState;
-import io.github.rush.menus.ShopGUI;
+import io.github.rush.guis.ShopGUI;
 
 import java.util.Set;
 import java.util.function.Predicate;

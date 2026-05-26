@@ -1,6 +1,6 @@
 package io.github.rush.replay;
 
-import io.github.rush.TranslationLoader;
+import io.github.rush.utils.i18n;
 import io.github.rush.utils.ItemBuilder;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -36,49 +36,49 @@ public final class ReplayViewerInventory {
 
     public static ItemStack buildPauseResume(boolean isPaused) {
         return ItemBuilder.of(isPaused ? Material.GRAY_DYE : Material.LIME_DYE)
-                .name(TranslationLoader.txt(isPaused ? "gui.replay_viewer.resume" : "gui.replay_viewer.pause"))
+                .name(i18n.txt(isPaused ? "gui.replay_viewer.resume" : "gui.replay_viewer.pause"))
                 .build();
     }
 
     private static ItemStack buildCompass() {
         return ItemBuilder.of(Material.COMPASS)
-                .name(TranslationLoader.txt("gui.replay_viewer.compass"))
-                .lore(TranslationLoader.txt("gui.replay_viewer.compass_lore"))
+                .name(i18n.txt("gui.replay_viewer.compass"))
+                .lore(i18n.txt("gui.replay_viewer.compass_lore"))
                 .build();
     }
 
     public static ItemStack buildSpeedDown(double currentSpeed) {
         return ItemBuilder.of(Material.PLAYER_HEAD)
-                .name(TranslationLoader.txt("gui.replay_viewer.speed_down",
+                .name(i18n.txt("gui.replay_viewer.speed_down",
                         formatSpeed(currentSpeed)))
-                .lore(TranslationLoader.txt("gui.replay_viewer.speed_down_lore"))
+                .lore(i18n.txt("gui.replay_viewer.speed_down_lore"))
                 .build();
     }
 
     private static ItemStack buildRewind() {
         return ItemBuilder.of(Material.PLAYER_HEAD)
-                .name(TranslationLoader.txt("gui.replay_viewer.rewind"))
+                .name(i18n.txt("gui.replay_viewer.rewind"))
                 .build();
     }
 
     private static ItemStack buildForward() {
         return ItemBuilder.of(Material.PLAYER_HEAD)
-                .name(TranslationLoader.txt("gui.replay_viewer.forward"))
+                .name(i18n.txt("gui.replay_viewer.forward"))
                 .build();
     }
 
     public static ItemStack buildSpeedUp(double currentSpeed) {
         return ItemBuilder.of(Material.PLAYER_HEAD)
-                .name(TranslationLoader.txt("gui.replay_viewer.speed_up",
+                .name(i18n.txt("gui.replay_viewer.speed_up",
                         formatSpeed(currentSpeed)))
-                .lore(TranslationLoader.txt("gui.replay_viewer.speed_up_lore"))
+                .lore(i18n.txt("gui.replay_viewer.speed_up_lore"))
                 .build();
     }
 
     private static ItemStack buildMenu() {
         return ItemBuilder.of(Material.NETHER_STAR)
-                .name(TranslationLoader.txt("gui.replay_viewer.menu"))
-                .lore(TranslationLoader.txt("gui.replay_viewer.menu_lore"))
+                .name(i18n.txt("gui.replay_viewer.menu"))
+                .lore(i18n.txt("gui.replay_viewer.menu_lore"))
                 .build();
     }
 

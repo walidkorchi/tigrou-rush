@@ -1,7 +1,7 @@
 package io.github.rush.commands;
 
 import io.github.rush.Main;
-import io.github.rush.config.ConfigManager;
+import io.github.rush.storage.ConfigManager;
 import io.papermc.paper.command.brigadier.Commands;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 
@@ -32,6 +32,7 @@ import lombok.Getter;
 import org.jspecify.annotations.NullMarked;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -64,7 +65,7 @@ public class AuthorCommand {
      * Gets the author name from plugin description (paper-plugin.yml).
      */
     private String getAuthorName() {
-        var authors = plugin.getPluginMeta().getAuthors();
+        List<String> authors = plugin.getPluginMeta().getAuthors();
         return authors.isEmpty() ? "Unknown" : authors.get(0);
     }
 

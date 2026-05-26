@@ -225,5 +225,8 @@
   "rush.prestige_subtitle": "§7Félicitations!",
   "rush.prestige_broadcast": "{0} §7a atteint le prestige §e{1}§7!",
   "rush.game_end_summary": "§6§l――――――――――――――――――",
-  "rush.game_winner": "§6§lVICTOIRE! §f{0}"
+  "rush.game_winner": "§6§lVICTOIRE! §f{0}",
+  "rush.archive_expired": "Il n'est plus possible de rechoisir l'archivage de la game.",
+  "rush.archive_saved": "La partie a été archivée et pourra être revisitée ultérieurement.",
+  "rush.archive_skipped": "Cette partie ne sera pas archivée, et donc ne pourra pas être revisitée."
 }

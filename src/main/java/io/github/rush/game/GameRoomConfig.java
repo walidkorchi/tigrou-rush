@@ -1,13 +1,16 @@
 package io.github.rush.game;
 
+import io.github.rush.objects.Island;
 import lombok.Getter;
 import lombok.experimental.Accessors;
+
+import java.util.List;
 
 public record GameRoomConfig(
         GameRoom.IslandType islandType,
         int maxTeams,
         GameRoom.TeamSize teamSize,
-        MapType mapType,
+        Island.Type mapType,
         boolean extraHearts,
         boolean overtimeStart,
         int overtimeDuration) {
@@ -29,7 +32,7 @@ public record GameRoomConfig(
         private GameRoom.IslandType islandType = GameRoom.IslandType.FOUR_ISLANDS;
         private int maxTeams = 2;
         private GameRoom.TeamSize teamSize = GameRoom.TeamSize.VS2;
-        private MapType mapType = MapType.NORMAL;
+        private Island.Type mapType = Island.Type.all().isEmpty() ? null : Island.Type.all().get(0);
         private boolean extraHearts = false;
         private boolean overtimeStart = false;
         private int overtimeDuration = io.github.rush.Main.getInstance().getConfig().getInt("overtime-duration", 30);
@@ -53,8 +56,10 @@ public record GameRoomConfig(
         }
 
         public Builder cycleMapType() {
-            MapType[] values = MapType.values();
-            mapType = values[(mapType.ordinal() + 1) % values.length];
+            List<Island.Type> types = Island.Type.all();
+            if (types.isEmpty()) return this;
+            int idx = mapType == null ? -1 : types.indexOf(mapType);
+            mapType = types.get((idx + 1) % types.size());
             return this;
         }
 
@@ -112,7 +117,8 @@ public record GameRoomConfig(
     public String formatDisplayName() {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < maxTeams; i++) {
-            if (i > 0) sb.append("vs");
+            if (i > 0)
+                sb.append("vs");
             sb.append(teamSize.getPlayersPerTeam());
         }
         return sb.toString();

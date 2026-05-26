@@ -32,10 +32,9 @@ import org.bukkit.util.Vector;
 
 import io.github.rush.Main;
 import io.github.rush.game.Game;
-import io.github.rush.game.GamePlayer;
+import io.github.rush.entities.GamePlayer;
 import io.github.rush.game.GameRoom;
-import io.github.rush.game.Team;
-import io.github.rush.game.TeamColor;
+import io.github.rush.abstracts.Team;
 import net.kyori.adventure.text.Component;
 
 public class TNT implements Listener {
@@ -151,7 +150,7 @@ public class TNT implements Listener {
             return;
         }
 
-        TeamColor bedColor = getTeamColorFromBed(bed);
+        Team.Color bedColor = getTeamColorFromBed(bed);
 
         if (bedColor == null) {
             return;
@@ -215,9 +214,9 @@ public class TNT implements Listener {
         return null;
     }
 
-    private TeamColor getTeamColorFromBed(Bed bed) {
+    private Team.Color getTeamColorFromBed(Bed bed) {
         try {
-            return TeamColor.valueOf(bed.getColor().name());
+            return Team.Color.valueOf(bed.getColor().name());
         } catch (IllegalArgumentException e) {
             return null;
         }

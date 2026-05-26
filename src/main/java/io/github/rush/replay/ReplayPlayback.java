@@ -1,8 +1,11 @@
 package io.github.rush.replay;
 
+import io.github.rush.utils.ReplayUtils.BlockRestore;
+import io.github.rush.utils.ReplayUtils.ReplayFile;
+
 import io.github.rush.Main;
-import io.github.rush.game.TeamColor;
 import io.github.rush.objects.TNT;
+import io.github.rush.abstracts.Team;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.title.Title;
 import org.bukkit.Bukkit;
@@ -123,7 +126,7 @@ public final class ReplayPlayback {
         if (teamColorName == null)
             return Color.WHITE;
         try {
-            return TeamColor.valueOf(teamColorName).getColor();
+            return Team.Color.valueOf(teamColorName).getColor();
         } catch (IllegalArgumentException e) {
             return Color.WHITE;
         }
@@ -482,7 +485,7 @@ public final class ReplayPlayback {
         player.setAllowFlight(true);
         player.setFlying(true);
         player.setInvulnerable(true);
-        int islandY = world.getMaxHeight() - 12;
+        int islandY = world.getMaxHeight() - Main.getInstance().getConfig().getInt("distance-height-limit", 12);
         player.teleport(new Location(world, 0.5, islandY + 10, 0.5, 0f, -30f));
         ReplayViewerInventory.give(player, isPaused, speedMultiplier);
         player.sendMessage(Component.translatable("rush.replay_watching_full",

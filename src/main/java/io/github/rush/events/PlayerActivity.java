@@ -3,8 +3,8 @@ package io.github.rush.events;
 import io.github.rush.Main;
 import io.github.rush.commands.AuthorCommand;
 import io.github.rush.game.Game;
-import io.github.rush.game.GameMannequin;
-import io.github.rush.game.GamePlayer;
+import io.github.rush.entities.GameMannequin;
+import io.github.rush.entities.GamePlayer;
 import io.github.rush.replay.ReplayFollowGUI;
 import io.github.rush.replay.ReplayPlayback;
 import io.github.rush.replay.ReplayViewerInventory;
@@ -13,15 +13,14 @@ import io.github.rush.game.GameManager;
 import io.github.rush.game.GameRoom;
 import io.github.rush.game.GameState;
 import io.github.rush.game.HostTransfer;
-import io.github.rush.game.Team;
-import io.github.rush.game.TeamColor;
-import io.github.rush.menus.HostPanelGUI;
+import io.github.rush.abstracts.Team;
+import io.github.rush.guis.HostPanelGUI;
 import java.util.UUID;
-import io.github.rush.menus.GUI;
-import io.github.rush.menus.PlayerSettingsGUI;
-import io.github.rush.menus.TeamSelectionGUI;
-import io.github.rush.statistics.PlayerLevel;
-import io.github.rush.statistics.PlayerLevelManager;
+import io.github.rush.guis.GUI;
+import io.github.rush.guis.PlayerSettingsGUI;
+import io.github.rush.guis.TeamSelectionGUI;
+import io.github.rush.storage.PlayerLevelManager;
+import io.github.rush.storage.PlayerLevelManager.PlayerLevel;
 import io.papermc.paper.event.player.AsyncChatEvent;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -60,6 +59,7 @@ import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
+import org.bukkit.Sound;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.BoundingBox;
@@ -122,27 +122,13 @@ public class PlayerActivity implements Listener {
                         () -> plugin.getGameManager().handleReconnect(player, room, reconnectData));
             } else {
                 // Game ended while offline
-                applyHubLobbyState(player);
+                plugin.getGameManager().resetPlayerHubState(player);
             }
         } else {
-            applyHubLobbyState(player);
+            plugin.getGameManager().resetPlayerHubState(player);
         }
 
         // TODO: play lobby custom music
-    }
-
-    private void applyHubLobbyState(Player player) {
-        player.setGameMode(GameMode.SURVIVAL);
-        player.setHealth(player.getAttribute(Attribute.MAX_HEALTH).getValue());
-        player.setFoodLevel(20);
-        player.setSaturation(20f);
-        plugin.getGameManager().restoreHubInventory(player);
-
-        final Location mainLobby = Main.getInstance().getMainLobby();
-
-        if (mainLobby != null && mainLobby.getWorld() != null) {
-            player.teleport(mainLobby);
-        }
     }
 
     @EventHandler
@@ -394,6 +380,7 @@ public class PlayerActivity implements Listener {
         pd.setDroppedExp(0);
         pd.deathMessage(null);
 
+        // TODO: use in resetPlayerHealth
         player.setHealth(player.getAttribute(Attribute.MAX_HEALTH).getValue());
         player.setFoodLevel(20);
         player.setSaturation(20f);
@@ -486,6 +473,7 @@ public class PlayerActivity implements Listener {
                 int slot = player.getInventory().getHeldItemSlot();
                 if (ReplayViewerInventory.isPauseResumeDye(item)) {
                     playback.togglePause();
+                    player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1.0f, playback.isPaused() ? 0.8f : 1.2f);
                 } else if (item != null && item.getType() == Material.COMPASS) {
                     if (playback.getFollowTarget(player.getUniqueId()) != null) {
                         playback.clearFollowTarget(player.getUniqueId());
@@ -495,12 +483,16 @@ public class PlayerActivity implements Listener {
                 } else if (item != null && item.getType() == Material.PLAYER_HEAD) {
                     if (slot == ReplayViewerInventory.SLOT_REWIND) {
                         playback.seek(Math.max(0, playback.getPlayheadMs() - 5000));
+                        player.playSound(player.getLocation(), Sound.ITEM_BOOK_PAGE_TURN, 1.0f, 0.7f);
                     } else if (slot == ReplayViewerInventory.SLOT_FORWARD) {
                         playback.seek(Math.min(playback.getDurationMs(), playback.getPlayheadMs() + 5000));
+                        player.playSound(player.getLocation(), Sound.ITEM_BOOK_PAGE_TURN, 1.0f, 1.3f);
                     } else if (slot == ReplayViewerInventory.SLOT_SPEED_DOWN) {
                         playback.stepSpeedDown();
+                        player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1.0f, 0.8f);
                     } else if (slot == ReplayViewerInventory.SLOT_SPEED_UP) {
                         playback.stepSpeedUp();
+                        player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1.0f, 1.4f);
                     }
                 } else if (item != null && item.getType() == Material.NETHER_STAR) {
                     ReplayViewerMenuGUI.open(player, playback);
@@ -852,7 +844,7 @@ public class PlayerActivity implements Listener {
                     : null;
 
             if (team != null) {
-                TeamColor color = team.getColor();
+                Team.Color color = team.getColor();
 
                 formatComponent = rankBadge
                         .append(Component.text(" [", NamedTextColor.GRAY))

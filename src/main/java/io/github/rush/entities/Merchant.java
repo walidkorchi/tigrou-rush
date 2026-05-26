@@ -1,6 +1,7 @@
 package io.github.rush.entities;
 
 import io.github.rush.Main;
+import io.github.rush.abstracts.Trade;
 import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Villager;

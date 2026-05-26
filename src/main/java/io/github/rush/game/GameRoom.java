@@ -1,5 +1,7 @@
 package io.github.rush.game;
 
+import io.github.rush.entities.GamePlayer;
+
 import io.github.rush.Main;
 import io.github.rush.objects.Island;
 import lombok.Getter;
@@ -110,7 +112,7 @@ public class GameRoom {
 
     private List<Island> createIslands() {
         final int islandOffset = Main.getInstance().getConfig().getInt("islandOffset");
-        return IslandLayout.positionsFor(config.islandType(), islandOffset)
+        return Island.Layout.positionsFor(config.islandType(), islandOffset)
                 .stream()
                 .map(p -> new Island(p.x(), p.z(), p.rotation()))
                 .toList();

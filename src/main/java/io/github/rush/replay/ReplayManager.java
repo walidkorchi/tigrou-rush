@@ -1,5 +1,8 @@
 package io.github.rush.replay;
 
+import io.github.rush.utils.ReplayUtils.ReplayFile;
+import io.github.rush.utils.ReplayUtils.ReplayHeader;
+
 import io.github.rush.Main;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;

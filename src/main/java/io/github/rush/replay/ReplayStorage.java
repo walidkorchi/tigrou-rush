@@ -1,5 +1,9 @@
 package io.github.rush.replay;
 
+import io.github.rush.Main;
+import io.github.rush.utils.ReplayUtils.ReplayFile;
+import io.github.rush.utils.ReplayUtils.ReplayHeader;
+
 import com.google.gson.Gson;
 import com.google.gson.JsonParseException;
 
@@ -23,7 +27,7 @@ public final class ReplayStorage {
 
     public ReplayStorage(Path replaysDir) {
         this.replaysDir = replaysDir;
-        this.maxReplays = io.github.rush.Main.getInstance().getConfig().getInt("max-replays", 20);
+        this.maxReplays = Main.getInstance().getConfig().getInt("max-replays", 20);
     }
 
     public void save(ReplayFile file) {
@@ -56,7 +60,8 @@ public final class ReplayStorage {
 
     public Optional<ReplayFile> load(String sessionId) {
         final Path target = replaysDir.resolve(sessionId + ".json");
-        if (!Files.exists(target)) return Optional.empty();
+        if (!Files.exists(target))
+            return Optional.empty();
 
         try (Reader r = Files.newBufferedReader(target)) {
             return Optional.of(GSON.fromJson(r, ReplayFile.class));

@@ -4,11 +4,10 @@ import com.mojang.brigadier.Command;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import io.github.rush.Main;
-import io.github.rush.replay.ReplayFile;
+import io.github.rush.utils.ReplayUtils.ReplayFile;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import org.jspecify.annotations.NullMarked;
 
 @NullMarked
@@ -28,22 +27,21 @@ public class ArchiveCommand {
 
     private int handleChoice(CommandContext<CommandSourceStack> ctx, boolean archive) {
         return CommandManager.requirePlayer(ctx, player -> {
-            ReplayFile replayFile = plugin.getGameManager().consumePendingArchive(player.getUniqueId());
+            final ReplayFile replayFile = plugin.getGameManager().consumePendingArchive(player.getUniqueId());
+
             if (replayFile == null) {
-                player.sendMessage(Component.text("Il n'est plus possible de rechoisir l'archivage de la game.")
-                        .color(NamedTextColor.RED));
+                player.sendMessage(Component.translatable("rush.archive_expired"));
                 return Command.SINGLE_SUCCESS;
             }
+
             if (archive) {
                 plugin.getServer().getScheduler().runTaskAsynchronously(plugin,
                         () -> plugin.getReplayStorage().save(replayFile));
-                player.sendMessage(Component.text("La partie a été archivée et pourra être revisitée ultérieurement.")
-                        .color(NamedTextColor.GREEN));
+                player.sendMessage(Component.translatable("rush.archive_saved"));
             } else {
-                player.sendMessage(
-                        Component.text("Cette partie ne sera pas archivée, et donc ne pourra pas être revisitée.")
-                                .color(NamedTextColor.GRAY));
+                player.sendMessage(Component.translatable("rush.archive_skipped"));
             }
+
             return Command.SINGLE_SUCCESS;
         });
     }

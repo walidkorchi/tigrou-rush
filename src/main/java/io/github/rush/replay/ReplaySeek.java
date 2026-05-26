@@ -1,5 +1,7 @@
 package io.github.rush.replay;
 
+import io.github.rush.utils.ReplayUtils.BlockRestore;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;

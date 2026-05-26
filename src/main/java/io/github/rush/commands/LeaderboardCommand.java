@@ -16,9 +16,10 @@ import org.bukkit.World;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Display.Billboard;
 import org.bukkit.entity.TextDisplay.TextAlignment;
-import io.github.rush.config.ConfigManager;
-import io.github.rush.statistics.PlayerLevelManager;
-import io.github.rush.statistics.PlayerStatisticManager;
+import io.github.rush.storage.ConfigManager;
+import io.github.rush.storage.PlayerLevelManager;
+import io.github.rush.storage.PlayerLevelManager.PlayerLevel;
+import io.github.rush.storage.PlayerStatisticManager;
 import org.jspecify.annotations.NullMarked;
 
 import com.maximde.hologramlib.hologram.TextHologram;
@@ -294,7 +295,7 @@ public class LeaderboardCommand {
 
                 if (type == LeaderboardType.LEVEL) {
                     int rankIndex = entry.getValue();
-                    String rankTag = io.github.rush.statistics.PlayerLevel.getRankTag(rankIndex);
+                    String rankTag = PlayerLevel.getRankTag(rankIndex);
                     sb.append(medal)
                             .append("<white>").append(entry.getKey()).append("</white>")
                             .append(" <dark_gray>-</dark_gray> ")

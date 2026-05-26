@@ -1,5 +1,10 @@
 package io.github.rush.game;
 
+import io.github.rush.abstracts.Team;
+
+import io.github.rush.entities.GameCombatant;
+import io.github.rush.entities.GamePlayer;
+
 import com.sk89q.worldedit.EditSession;
 import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.WorldEditException;
@@ -14,14 +19,14 @@ import com.sk89q.worldedit.math.transform.AffineTransform;
 import com.sk89q.worldedit.session.ClipboardHolder;
 
 import io.github.rush.Main;
-import io.github.rush.TranslationLoader;
-import io.github.rush.menus.GUI;
-import io.github.rush.menus.HostConfigGUI;
-import io.github.rush.menus.TeamSelectionGUI;
+import io.github.rush.utils.i18n;
+import io.github.rush.guis.GUI;
+import io.github.rush.guis.HostConfigGUI;
+import io.github.rush.guis.TeamSelectionGUI;
 import io.github.rush.objects.Island;
 import io.github.rush.utils.ItemBuilder;
 
-import io.github.rush.world.VoidGenerator;
+import io.github.rush.utils.VoidWorld;
 import io.papermc.paper.datacomponent.DataComponentTypes;
 import io.papermc.paper.datacomponent.item.ItemLore;
 import net.kyori.adventure.text.Component;
@@ -44,8 +49,8 @@ import org.bukkit.inventory.meta.SkullMeta;
 
 import io.github.rush.entities.Merchant;
 import io.github.rush.entities.MerchantType;
-import io.github.rush.replay.ReplayFile;
-import io.github.rush.replay.ReplayHeader;
+import io.github.rush.utils.ReplayUtils.ReplayFile;
+import io.github.rush.utils.ReplayUtils.ReplayHeader;
 import io.github.rush.replay.ReplayPlayback;
 
 import java.io.File;
@@ -93,8 +98,14 @@ public class GameManager {
 
     private long gameEndMusicDurationMs = -1;
 
+    private int computeIslandY(World world) {
+        return world.getMaxHeight() - plugin.getConfig().getInt("distance-height-limit", 12);
+    }
+
     public GameManager(Main plugin) {
         this.plugin = plugin;
+        Island.Type.reload(new File(plugin.getDataFolder().getParentFile(),
+                "FastAsyncWorldEdit/schematics/islands"));
     }
 
     public void storePendingArchive(UUID hostUUID, ReplayFile replayFile) {
@@ -308,7 +319,7 @@ public class GameManager {
     public ItemStack createHostPanelItem() {
         ItemStack item = new ItemStack(Material.NETHER_STAR);
         ItemMeta meta = item.getItemMeta();
-        meta.displayName(TranslationLoader.txt("rush.host_panel_name"));
+        meta.displayName(i18n.txt("rush.host_panel_name"));
         item.setItemMeta(meta);
         return item;
     }
@@ -330,7 +341,7 @@ public class GameManager {
 
     private World createVoidWorld(String worldName) {
         final WorldCreator worldCreator = new WorldCreator(worldName)
-                .generator(new VoidGenerator())
+                .generator(new VoidWorld())
                 .environment(World.Environment.NORMAL);
         final World gameWorld = Bukkit.createWorld(worldCreator);
         @SuppressWarnings("removal")
@@ -438,15 +449,9 @@ public class GameManager {
                 }
 
                 for (Player player : new ArrayList<>(world.getPlayers())) {
-                    if (room.getGame() != null) {
-                        room.getGame().resetPlayerHealth(player);
-                    }
-                    player.teleport(fallback);
-                    player.setGameMode(GameMode.ADVENTURE);
-                    restoreHubInventory(player);
+                    resetPlayerHubState(player);
                 }
 
-                // stop the game if running
                 if (room.getGame() != null) {
                     room.getGame().stop();
                 }
@@ -593,7 +598,7 @@ public class GameManager {
         String winner = header.winnerTeamColorName() != null ? header.winnerTeamColorName() : "Aucun";
 
         return ItemBuilder.of(Material.ORANGE_WOOL)
-                .name(TranslationLoader.txt("rush.replay_item_name", header.hostName()))
+                .name(i18n.txt("rush.replay_item_name", header.hostName()))
                 .lore(
                         Component.translatable("rush.replay_item_host", Component.text(header.hostName())),
                         Component.translatable("rush.replay_item_date", Component.text(date)),
@@ -612,7 +617,7 @@ public class GameManager {
         gui.addItem(13, createGameRoomItem(room, false));
 
         final ItemStack confirmItem = ItemBuilder.of(Material.BARRIER)
-                .name(TranslationLoader.txt("rush.delete_confirm_name"))
+                .name(i18n.txt("rush.delete_confirm_name"))
                 .lore(
                         Component.translatable("rush.delete_confirm_lore1"),
                         Component.translatable("rush.delete_confirm_lore2"))
@@ -631,7 +636,7 @@ public class GameManager {
         });
 
         final ItemStack cancelItem = ItemBuilder.of(Material.LIME_CONCRETE)
-                .name(TranslationLoader.txt("rush.delete_cancel"))
+                .name(i18n.txt("rush.delete_cancel"))
                 .build();
         gui.addItem(15, cancelItem, p -> {
             p.closeInventory();
@@ -639,6 +644,16 @@ public class GameManager {
         });
 
         gui.openGUI(admin);
+    }
+
+    public void resetPlayerHubState(Player player) {
+        player.teleport(plugin.getMainLobby());
+        player.setAllowFlight(false);
+        player.setFallDistance(0);
+        player.setGameMode(GameMode.ADVENTURE);
+        player.setFoodLevel(20);
+        Game.resetPlayerHealth(player);
+        plugin.getGameManager().restoreHubInventory(player);
     }
 
     public void restoreHubInventory(Player player) {
@@ -667,7 +682,7 @@ public class GameManager {
             }
             player.teleport(fallback);
             if (room.getGame() != null) {
-                room.getGame().resetPlayerHealth(player);
+                Game.resetPlayerHealth(player);
             }
             restoreHubInventory(player);
             return;
@@ -717,16 +732,16 @@ public class GameManager {
         final ItemStack skull = new ItemStack(Material.PLAYER_HEAD);
         final SkullMeta meta = (SkullMeta) skull.getItemMeta();
         meta.setOwningPlayer(player);
-        meta.displayName(TranslationLoader.txt("rush.skull_name", player.getName()));
+        meta.displayName(i18n.txt("rush.skull_name", player.getName()));
         skull.setItemMeta(meta);
         skull.setData(DataComponentTypes.LORE,
-                ItemLore.lore(List.of(TranslationLoader.txt("rush.skull_lore1"))));
+                ItemLore.lore(List.of(i18n.txt("rush.skull_lore1"))));
         return skull;
     }
 
     public ItemStack createCompassItem() {
         return ItemBuilder.of(Material.COMPASS)
-                .name(TranslationLoader.txt("rush.compass_name"))
+                .name(i18n.txt("rush.compass_name"))
                 .lore(
                         Component.translatable("rush.compass_lore1"),
                         Component.translatable("rush.compass_lore2"))
@@ -735,13 +750,13 @@ public class GameManager {
 
     public ItemStack createSettingsItem() {
         return ItemBuilder.of(Material.REPEATER)
-                .name(TranslationLoader.txt("rush.settings_name"))
+                .name(i18n.txt("rush.settings_name"))
                 .build();
     }
 
     public ItemStack createGameHostItem() {
         return ItemBuilder.of(Material.BEACON)
-                .name(TranslationLoader.txt("rush.create_game_name"))
+                .name(i18n.txt("rush.create_game_name"))
                 .lore(
                         Component.translatable("rush.create_game_lore1"),
                         Component.translatable("rush.create_game_lore2"))
@@ -770,10 +785,10 @@ public class GameManager {
         int speedOffset = Main.getInstance().getConfig().getInt("villagerSpeedOffset", 13);
         int regularOffset = Main.getInstance().getConfig().getInt("villagerRegularOffset", speedOffset - 1);
 
-        int[] dir = IslandLayout.ISLAND_DIRECTIONS[islandIndex];
+        int[] dir = Island.Layout.ISLAND_DIRECTIONS[islandIndex];
         int perpX = dir[1];
         int perpZ = -dir[0];
-        float facingYaw = IslandLayout.YAW_VALUES[islandIndex];
+        float facingYaw = Island.Layout.YAW_VALUES[islandIndex];
 
         // Spawn speed villagers (2) — one directly behind each ender chest
         for (int[] pos : speedMerchantPositions(island, dir, perpX, perpZ, speedOffset)) {
@@ -824,8 +839,8 @@ public class GameManager {
         int sign = (i < 2) ? 1 : -1;
         int idx = (i % 2 == 0) ? 0 : 1;
         return new int[] {
-                islandX + dir[0] * offset + perpX * IslandLayout.MERCHANT_SPREADS.get(idx) * sign,
-                islandZ + dir[1] * offset + perpZ * IslandLayout.MERCHANT_SPREADS.get(idx) * sign
+                islandX + dir[0] * offset + perpX * Island.Layout.MERCHANT_SPREADS.get(idx) * sign,
+                islandZ + dir[1] * offset + perpZ * Island.Layout.MERCHANT_SPREADS.get(idx) * sign
         };
     }
 
@@ -877,16 +892,8 @@ public class GameManager {
      */
     public void createReplayWorld(ReplayFile file, Consumer<ReplayPlayback> onReady) {
         final String sessionId = file.header().sessionId();
-        MapType mapType = MapType.NORMAL;
-
-        if (file.header().mapTypeName() != null) {
-            try {
-                mapType = MapType.valueOf(file.header().mapTypeName());
-            } catch (IllegalArgumentException ignored) {
-            }
-        }
-
-        final MapType resolvedMapType = mapType;
+        final Island.Type resolvedMapType = Island.Type.byName(file.header().mapTypeName())
+                .orElseGet(() -> Island.Type.all().isEmpty() ? null : Island.Type.all().get(0));
         final World world = createVoidWorld(REPLAY_WORLD_PREFIX + sessionId);
 
         if (world == null) {
@@ -895,7 +902,7 @@ public class GameManager {
         }
 
         final World finalWorld = world;
-        final int islandY = world.getMaxHeight() - 12;
+        final int islandY = computeIslandY(world);
         final int islandOffset = plugin.getConfig().getInt("islandOffset", 40);
         GameRoom.IslandType islandType = GameRoom.IslandType.FOUR_ISLANDS;
 
@@ -911,12 +918,14 @@ public class GameManager {
             maxTeams = 2;
 
         final List<Island> islands = new ArrayList<>();
-        for (IslandLayout.IslandPosition p : IslandLayout.positionsFor(islandType, islandOffset)) {
+        for (Island.Layout.IslandPosition p : Island.Layout.positionsFor(islandType, islandOffset)) {
             islands.add(new Island(p.x(), p.z(), p.rotation()));
         }
 
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            File islandFile = getSchematicFile(resolvedMapType.schematicName());
+            File islandFile = resolvedMapType != null
+                    ? getSchematicFile(resolvedMapType.schematicName())
+                    : null;
 
             if (islandFile != null) {
                 for (Island island : islands) {
@@ -927,7 +936,7 @@ public class GameManager {
             } else {
                 plugin.getLogger().warning("Replay world for session " + sessionId
                         + " loaded without islands — schematic '"
-                        + resolvedMapType.schematicName() + "' not found.");
+                        + (resolvedMapType != null ? resolvedMapType.schematicName() : "none") + "' not found.");
             }
 
             Bukkit.getScheduler().runTask(plugin, () -> {
@@ -938,7 +947,7 @@ public class GameManager {
     }
 
     private void populateReplayWorld(World world, ReplayFile file, List<Island> islands) {
-        int islandY = world.getMaxHeight() - 12;
+        int islandY = computeIslandY(world);
 
         Map<String, String> teamColors = file.header().teamColorsByPlayerUuid();
         if (teamColors == null || teamColors.isEmpty())
@@ -946,7 +955,7 @@ public class GameManager {
 
         Set<String> uniqueColors = new HashSet<>(teamColors.values());
         List<String> orderedTeams = uniqueColors.stream()
-                .sorted(Comparator.comparingInt(c -> TeamColor.valueOf(c).ordinal()))
+                .sorted(Comparator.comparingInt(c -> Team.Color.valueOf(c).ordinal()))
                 .toList();
 
         Map<Integer, String> islandToTeam = new HashMap<>();
@@ -967,26 +976,22 @@ public class GameManager {
         for (int slot = 0; slot < islands.size(); slot++) {
             final Island island = islands.get(slot);
 
-            int[] dir = IslandLayout.ISLAND_DIRECTIONS[slot];
+            int[] dir = Island.Layout.ISLAND_DIRECTIONS[slot];
             int perpX = dir[1];
             int spawnX = island.getX();
             int spawnZ = island.getZ();
 
-            int[] bedCoords = Team.bedCoords(spawnX, spawnZ, islandY, slot);
-            BlockFace bedFacing = Team.facingTowardsCenter(slot);
-
             if (islandToTeam.containsKey(slot)) {
-                Team.placeBedAt(world, bedCoords[0], bedCoords[1], bedCoords[2], bedFacing,
-                        Team.bedMaterialFor(TeamColor.valueOf(islandToTeam.get(slot))));
+                Team.placeIslandBed(world, island, slot, islandY, Team.Color.valueOf(islandToTeam.get(slot)));
             } else if (extraHearts) {
-                Team.placeBedAt(world, bedCoords[0], bedCoords[1], bedCoords[2], bedFacing,
-                        Team.bedMaterialFor(Game.EXTRA_BED_COLORS[slot % Game.EXTRA_BED_COLORS.length]));
+                Team.placeIslandBed(world, island, slot, islandY,
+                        Game.EXTRA_BED_COLORS[slot % Game.EXTRA_BED_COLORS.length]);
             }
 
             // Ender chests (2 per team island)
             int speedOffset = plugin.getConfig().getInt("villagerSpeedOffset", 13);
             int enderChestOffset = speedOffset - 1;
-            placeIslandEnderChests(world, spawnX, spawnZ, bedCoords[1], dir, perpX, enderChestOffset,
+            placeIslandEnderChests(world, spawnX, spawnZ, islandY, dir, perpX, enderChestOffset,
                     Team.facingTowardsCenter(slot), 2);
             placeIslandMerchants(world, island, slot, islandY);
         }
@@ -1026,10 +1031,10 @@ public class GameManager {
 
         // Teleport players to lobby after game-end music finishes + 3 seconds
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            for (GameParticipant participant : room.getGame().getPlayers()) {
+            for (GameCombatant participant : room.getGame().getPlayers()) {
                 if (participant instanceof GamePlayer gp) {
                     Player player = gp.player();
-                    room.getGame().resetPlayerHealth(player);
+                    Game.resetPlayerHealth(player);
                     player.teleport(mainLobby);
                     player.setGameMode(GameMode.ADVENTURE);
                     restoreHubInventory(player);
@@ -1038,7 +1043,7 @@ public class GameManager {
 
             for (GamePlayer gp : room.getGame().getSpectators()) {
                 Player player = gp.player();
-                room.getGame().resetPlayerHealth(player);
+                Game.resetPlayerHealth(player);
                 player.setGameMode(GameMode.ADVENTURE);
                 player.teleport(mainLobby);
                 restoreHubInventory(player);

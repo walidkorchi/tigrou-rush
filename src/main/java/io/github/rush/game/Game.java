@@ -1,14 +1,24 @@
 package io.github.rush.game;
 
+import io.github.rush.geometry.RingPath;
+
+import io.github.rush.geometry.ForbiddenZone;
+
+import io.github.rush.abstracts.Generator;
+import io.github.rush.abstracts.Team;
+
+import io.github.rush.entities.GameMannequin;
+import io.github.rush.entities.GameCombatant;
+import io.github.rush.entities.GamePlayer;
 import io.github.rush.Main;
-import io.github.rush.TranslationLoader;
-import io.github.rush.menus.TeamSelectionGUI;
+import io.github.rush.utils.i18n;
+import io.github.rush.guis.TeamSelectionGUI;
 import io.github.rush.utils.ItemBuilder;
 import io.github.rush.objects.Island;
-import io.github.rush.replay.ReplayFile;
+import io.github.rush.utils.ReplayUtils.ReplayFile;
 import io.github.rush.replay.ReplayRecorder;
-import io.github.rush.statistics.PlayerLevelManager;
-import io.github.rush.statistics.PlayerStatistic;
+import io.github.rush.storage.PlayerLevelManager;
+import io.github.rush.storage.PlayerStatisticManager.PlayerStatistic;
 import lombok.Getter;
 import lombok.Setter;
 import net.kyori.adventure.text.Component;
@@ -61,16 +71,16 @@ public class Game {
     private Location lobby;
     private final List<BukkitTask> runningTasks = new ArrayList<>();
     private final List<BukkitTask> spawnerTasks = new ArrayList<>();
-    private final List<ResourceSpawner> resourceSpawners = new ArrayList<>();
+    private final List<Generator> generators = new ArrayList<>();
     private BukkitTask overtimeMusicTask;
 
     @Getter
     private final Map<String, Team> teams = new HashMap<>();
 
     @Getter
-    private final List<GameParticipant> freePlayers = new ArrayList<>();
+    private final List<GameCombatant> freePlayers = new ArrayList<>();
     private final Map<Player, PlayerStatistic> playerStats = new HashMap<>();
-    private final Map<UUID, TeamColor> playerTeamColors = new HashMap<>();
+    private final Map<UUID, Team.Color> playerTeamColors = new HashMap<>();
     private final Set<GamePlayer> spectators = new HashSet<>();
     private final Set<Player> protectedPlayers = new HashSet<>();
     private final Set<UUID> mannequinsBeingRescued = new HashSet<>();
@@ -87,7 +97,7 @@ public class Game {
 
     public static List<Integer> islandSlotOrder(int islandCount) {
         List<Integer> order = new ArrayList<>();
-        for (int s : IslandLayout.PREFERRED_ISLAND_ORDER) {
+        for (int s : Island.Layout.PREFERRED_ISLAND_ORDER) {
             if (s < islandCount)
                 order.add(s);
         }
@@ -117,7 +127,7 @@ public class Game {
     @Getter
     private final String worldName;
     private GameLobbyCountdown lobbyCountdown;
-    private final Map<GameParticipant, Boolean> playersReady = new HashMap<>();
+    private final Map<GameCombatant, Boolean> playersReady = new HashMap<>();
 
     @Setter
     @Getter
@@ -146,12 +156,12 @@ public class Game {
     }
 
     private void initializeTeams(int maxTeams, int playersPerTeam) {
-        List<TeamColor> colors = List.of(
-                TeamColor.RED, TeamColor.BLUE, TeamColor.GREEN, TeamColor.YELLOW);
+        List<Team.Color> colors = List.of(
+                Team.Color.RED, Team.Color.BLUE, Team.Color.GREEN, Team.Color.YELLOW);
 
         int teamCount = Math.min(maxTeams, colors.size());
         for (int i = 0; i < teamCount; i++) {
-            TeamColor color = colors.get(i);
+            Team.Color color = colors.get(i);
             Team team = new Team(color.name(), color, playersPerTeam);
             teams.put(color.name(), team);
         }
@@ -164,7 +174,7 @@ public class Game {
     /**
      * Unsubscribe a game participant from the game room, and updates the tablist.
      */
-    public void removePlayer(GameParticipant participant) {
+    public void removePlayer(GameCombatant participant) {
         freePlayers.remove(participant);
         playersReady.remove(participant);
         spectators.remove(participant);
@@ -190,7 +200,7 @@ public class Game {
      * @param color  - the color of the team to join
      * @return boolean - evaluates if the player was successfully added to the team
      */
-    public boolean joinTeam(GameParticipant participant, TeamColor color) {
+    public boolean joinTeam(GameCombatant participant, Team.Color color) {
         final Team team = teams.get(color.name());
 
         if (team == null) {
@@ -213,7 +223,7 @@ public class Game {
         playersReady.put(participant, true);
         playerTeamColors.put(participant.uniqueId(), color);
 
-        for (GameParticipant existing : team.getPlayers()) {
+        for (GameCombatant existing : team.getPlayers()) {
             if (existing instanceof GamePlayer gp && !gp.uniqueId().equals(participant.uniqueId())) {
                 gp.player().sendMessage(Component.translatable("rush.player_joined_team",
                         Component.text(participant.name()), Component.text(color.name()))
@@ -227,7 +237,7 @@ public class Game {
         return added;
     }
 
-    public void leaveTeam(GameParticipant participant) {
+    public void leaveTeam(GameCombatant participant) {
         for (Team team : teams.values()) {
             if (team.isInTeam(participant)) {
                 team.removePlayer(participant);
@@ -246,7 +256,7 @@ public class Game {
         }
     }
 
-    public boolean isPlayerReady(GameParticipant participant) {
+    public boolean isPlayerReady(GameCombatant participant) {
         Boolean ready = playersReady.get(participant);
         return ready != null && ready;
     }
@@ -420,7 +430,7 @@ public class Game {
         killTracker.reset();
     }
 
-    public void resetPlayerHealth(Player player) {
+    public static void resetPlayerHealth(Player player) {
         AttributeInstance maxHealth = player.getAttribute(Attribute.MAX_HEALTH);
         if (maxHealth != null) {
             maxHealth.removeModifier(NamespacedKey.minecraft("extra_hearts"));
@@ -428,7 +438,7 @@ public class Game {
         player.setHealth(20.0);
     }
 
-    public void setPlayerReady(GameParticipant participant, boolean ready) {
+    public void setPlayerReady(GameCombatant participant, boolean ready) {
         playersReady.put(participant, ready);
         checkStartCondition();
     }
@@ -478,7 +488,7 @@ public class Game {
 
     public void autoStart() {
         if (state == GameState.WAITING) {
-            final List<GameParticipant> unassigned = freePlayers.stream()
+            final List<GameCombatant> unassigned = freePlayers.stream()
                     .filter(p -> teams.values().stream().noneMatch(t -> t.isInTeam(p)))
                     .collect(Collectors.toList());
 
@@ -487,7 +497,7 @@ public class Game {
                         .sorted(Comparator.comparingInt(t -> t.getPlayers().size()))
                         .collect(Collectors.toList());
 
-                for (GameParticipant participant : unassigned) {
+                for (GameCombatant participant : unassigned) {
                     Team smallestTeam = sortedTeams.get(0);
 
                     if (smallestTeam.getPlayers().size() < smallestTeam.getMaxPlayers()) {
@@ -530,14 +540,14 @@ public class Game {
             return;
         String intro = "tland:music.global.overtime_intro_music";
         String loop = "tland:music.global.overtime_loop_music";
-        for (GameParticipant participant : getPlayers()) {
+        for (GameCombatant participant : getPlayers()) {
             if (participant instanceof GamePlayer gp) {
                 Player player = gp.player();
                 player.playSound(player.getLocation(), intro, SoundCategory.MUSIC, 1.0f, 1.0f);
             }
         }
         overtimeMusicTask = Bukkit.getScheduler().runTaskTimer(Main.getInstance(), () -> {
-            for (GameParticipant participant : getPlayers()) {
+            for (GameCombatant participant : getPlayers()) {
                 if (participant instanceof GamePlayer gp) {
                     Player player = gp.player();
                     player.playSound(player.getLocation(), loop, SoundCategory.MUSIC, 1.0f, 1.0f);
@@ -617,13 +627,13 @@ public class Game {
 
         for (int islandIndex = 0; islandIndex < islands.size(); islandIndex++) {
             Island island = islands.get(islandIndex);
-            int[] dir = IslandLayout.ISLAND_DIRECTIONS[islandIndex];
+            int[] dir = Island.Layout.ISLAND_DIRECTIONS[islandIndex];
             int perpX = dir[1];
             int perpZ = -dir[0];
             int baseX = island.getX() + dir[0] * regularOffset;
             int baseZ = island.getZ() + dir[1] * regularOffset;
 
-            for (int spread : IslandLayout.MERCHANT_SPREADS) {
+            for (int spread : Island.Layout.MERCHANT_SPREADS) {
                 for (int sign : SIGNS) {
                     int regX = baseX + perpX * spread * sign;
                     int regZ = baseZ + perpZ * spread * sign;
@@ -777,7 +787,7 @@ public class Game {
                 }
             }
 
-            for (GameParticipant participant : getPlayers()) {
+            for (GameCombatant participant : getPlayers()) {
                 final Team team = getPlayerTeam(participant);
 
                 if (team != null) {
@@ -792,7 +802,7 @@ public class Game {
                 }
             }
 
-            startResourceSpawners();
+            startGenerators();
             startCompassTracker();
             startMannequinVoidCheck();
 
@@ -822,23 +832,16 @@ public class Game {
         }
     }
 
-    static final TeamColor[] EXTRA_BED_COLORS = {
-            TeamColor.WHITE, TeamColor.ORANGE, TeamColor.MAGENTA, TeamColor.LIGHT_BLUE
+    static final Team.Color[] EXTRA_BED_COLORS = {
+            Team.Color.WHITE, Team.Color.ORANGE, Team.Color.MAGENTA, Team.Color.LIGHT_BLUE
     };
 
     private void placeExtraBed(int islandIndex) {
-        if (islands == null || islandIndex >= islands.size())
-            return;
+        if (islands == null || islandIndex >= islands.size()) return;
         final World gameWorld = gameRoom.getWorld();
-        if (gameWorld == null)
-            return;
-
-        final Island island = islands.get(islandIndex);
-        int[] coords = Team.bedCoords(island.getX(), island.getZ(),
-                gameRoom.getIslandY(), islandIndex);
-        Team.placeBedAt(gameWorld, coords[0], coords[1], coords[2],
-                Team.facingTowardsCenter(islandIndex),
-                Team.bedMaterialFor(EXTRA_BED_COLORS[islandIndex % EXTRA_BED_COLORS.length]));
+        if (gameWorld == null) return;
+        Team.placeIslandBed(gameWorld, islands.get(islandIndex), islandIndex,
+                gameRoom.getIslandY(), EXTRA_BED_COLORS[islandIndex % EXTRA_BED_COLORS.length]);
     }
 
     public void onExtraBedDestroyed(Player destroyer) {
@@ -875,7 +878,7 @@ public class Game {
             return;
 
         final double bonusHealth = sourceTeam.getBedsDestroyed() * 4.0;
-        for (GameParticipant participant : sourceTeam.getPlayers()) {
+        for (GameCombatant participant : sourceTeam.getPlayers()) {
             if (participant instanceof GamePlayer gp) {
                 final Player player = gp.player();
                 final AttributeInstance maxHealth = player.getAttribute(Attribute.MAX_HEALTH);
@@ -892,7 +895,7 @@ public class Game {
         }
     }
 
-    private void teleportToTeamSpawn(GameParticipant participant, Team team) {
+    private void teleportToTeamSpawn(GameCombatant participant, Team team) {
         Location spawn = team.getSpawnLocation();
 
         if (team.getBedLocation() != null && !team.isBedDestroyed()) {
@@ -905,7 +908,7 @@ public class Game {
         }
     }
 
-    public void equipEntity(GameParticipant participant, Team team) {
+    public void equipEntity(GameCombatant participant, Team team) {
         final ItemStack[] armorAndTool = createTeamArmorAndTool(team.getColor().getColor());
         final EntityEquipment equipment = participant.equipment();
 
@@ -936,14 +939,14 @@ public class Game {
 
         ItemStack pickaxe = new ItemStack(Material.WOODEN_PICKAXE);
         ItemMeta pickMeta = pickaxe.getItemMeta();
-        pickMeta.displayName(TranslationLoader.txt("rush.item_pickaxe"));
+        pickMeta.displayName(i18n.txt("rush.item_pickaxe"));
         pickMeta.addEnchant(Enchantment.EFFICIENCY, 1, true);
         pickaxe.setItemMeta(pickMeta);
 
         return new ItemStack[] { helmet, leggings, boots, pickaxe };
     }
 
-    public void onPlayerDeath(GameParticipant victim, Player bukkitKiller) {
+    public void onPlayerDeath(GameCombatant victim, Player bukkitKiller) {
         final Team playerTeam = getPlayerTeam(victim);
 
         if (victim instanceof GamePlayer gp) {
@@ -1015,7 +1018,7 @@ public class Game {
         }
     }
 
-    private void broadcastKillMessage(GameParticipant victim, Team victimTeam, Player killer, List<Player> assists) {
+    private void broadcastKillMessage(GameCombatant victim, Team victimTeam, Player killer, List<Player> assists) {
         TextColor victimColor = victimTeam != null
                 ? victimTeam.getColor().getTextColor()
                 : NamedTextColor.GRAY;
@@ -1058,7 +1061,7 @@ public class Game {
                 Component.text(destroyerName), Component.text(destroyerTeamName),
                 Component.text(team.getColor().name())));
 
-        for (GameParticipant participant : getPlayers()) {
+        for (GameCombatant participant : getPlayers()) {
             if (participant instanceof GamePlayer gp) {
                 Player player = gp.player();
                 player.playSound(player.getLocation(), Sound.ENTITY_ENDER_DRAGON_GROWL, 1.0f, 1.0f);
@@ -1067,7 +1070,7 @@ public class Game {
 
         rewardDestroyer(destroyer);
 
-        for (GameParticipant participant : team.getPlayers()) {
+        for (GameCombatant participant : team.getPlayers()) {
             if (participant instanceof GamePlayer gp) {
                 gp.player().sendMessage(Component.translatable("rush.bed_destroyed"));
             }
@@ -1101,7 +1104,7 @@ public class Game {
         state = GameState.STOPPED;
 
         if (winner != null) {
-            for (GameParticipant participant : getPlayers()) {
+            for (GameCombatant participant : getPlayers()) {
                 if (participant instanceof GamePlayer gp) {
                     gp.player().showTitle(Title.title(
                             Component.translatable("rush.win", Component.text(winner.getColor().name())),
@@ -1124,7 +1127,7 @@ public class Game {
 
         String winSound = "tland:game.global.win_celebrate";
         String endMusic = "tland:music.global.gameendmusic";
-        for (GameParticipant participant : getPlayers()) {
+        for (GameCombatant participant : getPlayers()) {
             if (participant instanceof GamePlayer gp) {
                 Player player = gp.player();
                 player.playSound(player.getLocation(), winSound, SoundCategory.MUSIC, 1.0f, 1.0f);
@@ -1152,7 +1155,7 @@ public class Game {
         }
 
         for (Team team : teams.values()) {
-            for (GameParticipant participant : team.getPlayers()) {
+            for (GameCombatant participant : team.getPlayers()) {
                 switch (participant) {
                     case GamePlayer gp -> gp.player().setGameMode(GameMode.SPECTATOR);
                     case GameMannequin mm -> mm.remove();
@@ -1170,11 +1173,11 @@ public class Game {
                     .map(Player::getName)
                     .collect(Collectors.toList());
             Map<String, String> teamColorsByPlayerUuid = new HashMap<>();
-            for (Map.Entry<UUID, TeamColor> entry : playerTeamColors.entrySet()) {
+            for (Map.Entry<UUID, Team.Color> entry : playerTeamColors.entrySet()) {
                 teamColorsByPlayerUuid.put(entry.getKey().toString(), entry.getValue().name());
             }
             for (Team team : teams.values()) {
-                for (GameParticipant participant : team.getPlayers()) {
+                for (GameCombatant participant : team.getPlayers()) {
                     if (participant instanceof GameMannequin) {
                         teamColorsByPlayerUuid.put(participant.uniqueId().toString(), team.getColor().name());
                     }
@@ -1232,7 +1235,7 @@ public class Game {
         broadcastMessage(duration);
         broadcastMessage(Component.empty());
 
-        for (GameParticipant participant : getPlayers()) {
+        for (GameCombatant participant : getPlayers()) {
             if (participant instanceof GamePlayer gp) {
                 Player player = gp.player();
                 PlayerStatistic stats = getPlayerStatistic(player);
@@ -1252,7 +1255,7 @@ public class Game {
     }
 
     private void broadcastMessage(Component message) {
-        for (GameParticipant participant : getPlayers()) {
+        for (GameCombatant participant : getPlayers()) {
             if (participant instanceof GamePlayer gp) {
                 gp.player().sendMessage(message);
             }
@@ -1267,9 +1270,9 @@ public class Game {
 
         runningTasks.forEach(BukkitTask::cancel);
         runningTasks.clear();
-        stopResourceSpawners();
+        stopGenerators();
 
-        for (GameParticipant participant : getPlayers()) {
+        for (GameCombatant participant : getPlayers()) {
             removePlayer(participant);
 
             if (lobby != null) {
@@ -1327,7 +1330,7 @@ public class Game {
 
             for (Team team : teams.values()) {
                 UUID teamId = UUID.nameUUIDFromBytes(team.getColor().name().getBytes());
-                for (GameParticipant participant : team.getPlayers()) {
+                for (GameCombatant participant : team.getPlayers()) {
                     if (!(participant instanceof GamePlayer gp))
                         continue;
                     Player holder = gp.player();
@@ -1362,7 +1365,7 @@ public class Game {
 
         final BukkitTask task = Bukkit.getScheduler().runTaskTimer(Main.getInstance(), () -> {
             for (Team team : teams.values()) {
-                for (GameParticipant participant : new ArrayList<>(team.getPlayers())) {
+                for (GameCombatant participant : new ArrayList<>(team.getPlayers())) {
                     if (!(participant instanceof GameMannequin mm) || mm.dead())
                         continue;
                     if (mm.location().getY() < voidThreshold) {
@@ -1427,7 +1430,7 @@ public class Game {
         }, protectionTicks);
     }
 
-    private void startResourceSpawners() {
+    private void startGenerators() {
         final int islandY = gameRoom.getIslandY();
         final World gameWorld = gameRoom.getWorld();
 
@@ -1440,7 +1443,7 @@ public class Game {
                 chestLocations = team.getEnderChestLocations();
             } else if (islands != null && i < islands.size() && gameWorld != null) {
                 Island island = islands.get(i);
-                int[] dir = IslandLayout.ISLAND_DIRECTIONS[i];
+                int[] dir = Island.Layout.ISLAND_DIRECTIONS[i];
                 int perpX = dir[1];
                 chestLocations = GameManager.placeIslandEnderChests(
                         gameWorld,
@@ -1453,25 +1456,25 @@ public class Game {
             }
 
             for (Location chestLocation : chestLocations) {
-                for (ResourceType type : ResourceType.values()) {
-                    ResourceSpawner spawner = new ResourceSpawner(this, type, chestLocation);
-                    resourceSpawners.add(spawner);
+                for (Generator.Type type : Generator.Type.values()) {
+                    Generator spawner = new Generator(this, type, chestLocation);
+                    generators.add(spawner);
 
                     BukkitTask task = Bukkit.getScheduler().runTaskTimer(
                             Main.getInstance(),
                             spawner,
-                            spawner.getResourceType().getSpawnIntervalTicks(),
-                            spawner.getResourceType().getSpawnIntervalTicks());
+                            spawner.getType().getSpawnIntervalTicks(),
+                            spawner.getType().getSpawnIntervalTicks());
                     spawnerTasks.add(task);
                 }
             }
         }
     }
 
-    private void stopResourceSpawners() {
+    private void stopGenerators() {
         spawnerTasks.forEach(BukkitTask::cancel);
         spawnerTasks.clear();
-        resourceSpawners.clear();
+        generators.clear();
     }
 
     private void updateActionBar() {
@@ -1493,7 +1496,7 @@ public class Game {
     }
 
     private void updatePlayerList() {
-        for (GameParticipant participant : freePlayers) {
+        for (GameCombatant participant : freePlayers) {
             if (participant instanceof GamePlayer gp) {
                 final Boolean isReady = playersReady.get(participant);
                 gp.player().playerListName(
@@ -1512,15 +1515,15 @@ public class Game {
         return playersReady.values().stream().filter(r -> r).count();
     }
 
-    public List<GameParticipant> getPlayers() {
-        final List<GameParticipant> allPlayers = new ArrayList<>(freePlayers);
+    public List<GameCombatant> getPlayers() {
+        final List<GameCombatant> allPlayers = new ArrayList<>(freePlayers);
         for (Team team : teams.values()) {
             allPlayers.addAll(team.getPlayers());
         }
         return allPlayers;
     }
 
-    public Team getPlayerTeam(GameParticipant participant) {
+    public Team getPlayerTeam(GameCombatant participant) {
         for (Team team : teams.values()) {
             if (team.isInTeam(participant)) {
                 return team;
@@ -1552,7 +1555,7 @@ public class Game {
     }
 
     private void updateWinStreaks(Team winner) {
-        for (GameParticipant participant : getPlayers()) {
+        for (GameCombatant participant : getPlayers()) {
             if (participant instanceof GamePlayer gp) {
                 Player player = gp.player();
                 final PlayerStatistic stats = getPlayerStatistic(player);
@@ -1571,7 +1574,7 @@ public class Game {
      * Removes all items from ender chests of all game participants and spectators.
      */
     private void clearAllEnderChests() {
-        for (GameParticipant p : getPlayers())
+        for (GameCombatant p : getPlayers())
             if (p instanceof GamePlayer gp)
                 gp.player().getEnderChest().clear();
         for (GamePlayer sp : spectators)
@@ -1593,7 +1596,7 @@ public class Game {
         }
         runningTasks.clear();
 
-        stopResourceSpawners();
+        stopGenerators();
 
         killTracker.reset();
 

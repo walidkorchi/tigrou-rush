@@ -1,5 +1,6 @@
 package io.github.rush.entities;
 
+import io.github.rush.abstracts.Trade;
 import io.papermc.paper.datacomponent.DataComponentTypes;
 import io.papermc.paper.datacomponent.item.PotionContents;
 import io.papermc.paper.registry.RegistryAccess;
@@ -25,11 +26,11 @@ import java.util.Map;
 
 public enum MerchantType {
 
-    WEAPONSMITH(Profession.WEAPONSMITH, Material.IRON_SWORD),
-    BUILDER(Profession.CARTOGRAPHER, Material.SANDSTONE),
-    ALCHEMIST(Profession.CLERIC, Material.GOLDEN_APPLE),
-    ARMORSMITH(Profession.ARMORER, Material.LEATHER_CHESTPLATE),
-    SPEED(Profession.LIBRARIAN, null);
+    WEAPONSMITH     (Profession.WEAPONSMITH,    Material.IRON_SWORD),
+    BUILDER         (Profession.CARTOGRAPHER,   Material.SANDSTONE),
+    ALCHEMIST       (Profession.CLERIC,         Material.GOLDEN_APPLE),
+    ARMORSMITH      (Profession.ARMORER,        Material.LEATHER_CHESTPLATE),
+    SPEED           (Profession.LIBRARIAN,      null);
 
     @Getter
     private final Profession profession;

@@ -1,8 +1,8 @@
 package io.github.rush.replay;
 
 import io.github.rush.Main;
-import io.github.rush.TranslationLoader;
-import io.github.rush.menus.GUI;
+import io.github.rush.utils.i18n;
+import io.github.rush.guis.GUI;
 import io.github.rush.utils.ItemBuilder;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Material;
@@ -21,7 +21,7 @@ public final class ReplayViewerMenuGUI {
     public static void open(Player player, ReplayPlayback playback) {
         final GUI gui = new GUI(Component.translatable("gui.replay_viewer.menu_title"), 3);
 
-        gui.addItem(SLOT_LEAVE, ItemBuilder.of(Material.OAK_DOOR).name(TranslationLoader.txt("gui.replay_viewer.leave")).build(), p -> {
+        gui.addItem(SLOT_LEAVE, ItemBuilder.of(Material.OAK_DOOR).name(i18n.txt("gui.replay_viewer.leave")).build(), p -> {
             p.closeInventory();
             Main.getInstance().getReplayManager().leaveReplay(p);
         });
@@ -42,7 +42,7 @@ public final class ReplayViewerMenuGUI {
     private static ItemStack buildNightVisionItem(Player player) {
         final boolean active = player.hasPotionEffect(PotionEffectType.NIGHT_VISION);
         return ItemBuilder.of(active ? Material.LIME_DYE : Material.GRAY_DYE)
-                .name(TranslationLoader.txt("gui.replay_viewer.night_vision"))
+                .name(i18n.txt("gui.replay_viewer.night_vision"))
                 .build();
     }
 }

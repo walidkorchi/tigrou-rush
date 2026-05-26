@@ -1,10 +1,13 @@
 package io.github.rush.replay;
 
+import io.github.rush.utils.ReplayUtils.ReplayFile;
+import io.github.rush.utils.ReplayUtils.ReplayHeader;
+
 import io.github.rush.Main;
 import io.github.rush.game.Game;
-import io.github.rush.game.GameParticipant;
-import io.github.rush.game.GamePlayer;
-import io.github.rush.game.GameMannequin;
+import io.github.rush.entities.GameCombatant;
+import io.github.rush.entities.GamePlayer;
+import io.github.rush.entities.GameMannequin;
 import io.papermc.paper.event.player.AsyncChatEvent;
 import io.papermc.paper.event.player.PlayerArmSwingEvent;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
@@ -68,7 +71,7 @@ public final class ReplayRecorder implements Listener {
     private void sampleMovement() {
         long ts = elapsed();
 
-        for (GameParticipant participant : game.getPlayers()) {
+        for (GameCombatant participant : game.getPlayers()) {
             if (participant instanceof GamePlayer gp) {
                 Player player = gp.player();
                 final Location loc = player.getLocation();

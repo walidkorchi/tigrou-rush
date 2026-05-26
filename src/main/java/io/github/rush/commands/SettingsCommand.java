@@ -1,6 +1,6 @@
 package io.github.rush.commands;
 
-import io.github.rush.menus.PlayerSettingsGUI;
+import io.github.rush.guis.PlayerSettingsGUI;
 import io.papermc.paper.command.brigadier.Commands;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 

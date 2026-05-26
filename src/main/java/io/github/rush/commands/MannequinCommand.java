@@ -3,11 +3,10 @@ package io.github.rush.commands;
 import io.github.rush.Main;
 import io.github.rush.game.Game;
 import io.github.rush.game.GameManager;
-import io.github.rush.game.GameMannequin;
+import io.github.rush.entities.GameMannequin;
 import io.github.rush.game.GameRoom;
-import io.github.rush.game.Team;
-import io.github.rush.game.TeamColor;
-import io.github.rush.menus.TeamSelectionGUI;
+import io.github.rush.abstracts.Team;
+import io.github.rush.guis.TeamSelectionGUI;
 import io.papermc.paper.command.brigadier.Commands;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.argument.ArgumentTypes;
@@ -122,9 +121,9 @@ public class MannequinCommand {
             }
         }
 
-        TeamColor teamColor = null;
+        Team.Color teamColor = null;
         if (activeGame != null) {
-            teamColor = teamName != null ? TeamColor.valueOf(teamName.toUpperCase()) : getSmallestTeam(activeGame);
+            teamColor = teamName != null ? Team.Color.valueOf(teamName.toUpperCase()) : getSmallestTeam(activeGame);
         }
 
         PlayerProfile profile = Bukkit.createProfile(name);
@@ -162,11 +161,11 @@ public class MannequinCommand {
         sender.sendMessage(Component.translatable("rush.mannequin_no_game", Component.text(name)));
     }
 
-    private TeamColor getSmallestTeam(Game game) {
+    private Team.Color getSmallestTeam(Game game) {
         return game.getTeams().values().stream()
                 .min((a, b) -> Integer.compare(a.getPlayers().size(), b.getPlayers().size()))
                 .map(t -> t.getColor())
-                .orElse(TeamColor.RED);
+                .orElse(Team.Color.RED);
     }
 
     private int runClear(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {

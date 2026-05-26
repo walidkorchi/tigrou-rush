@@ -47,13 +47,13 @@ public final class CustomSoundRegistrar {
         } catch (InvocationTargetException e) {
             plugin.getLogger().warning("Failed to register customs sounds: " + e.getCause().getClass().getName() + ": "
                     + e.getCause().getMessage());
-            for (var ste : e.getCause().getStackTrace()) {
+            for (StackTraceElement ste : e.getCause().getStackTrace()) {
                 plugin.getLogger().warning("  at " + ste.toString());
             }
         } catch (Exception e) {
             plugin.getLogger()
                     .warning("Failed to register customs sounds: " + e.getClass().getName() + ": " + e.getMessage());
-            for (var ste : e.getStackTrace()) {
+            for (StackTraceElement ste : e.getStackTrace()) {
                 plugin.getLogger().warning("  at " + ste.toString());
             }
         }

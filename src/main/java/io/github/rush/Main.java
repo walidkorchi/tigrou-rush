@@ -1,17 +1,18 @@
 package io.github.rush;
 
 import io.github.rush.commands.CommandManager;
-import io.github.rush.config.ConfigManager;
+import io.github.rush.utils.i18n;
+import io.github.rush.storage.ConfigManager;
 import io.github.rush.entities.*;
 import io.github.rush.events.*;
 import io.github.rush.objects.*;
 import io.github.rush.game.*;
 import io.github.rush.replay.ReplayManager;
 import io.github.rush.replay.ReplayStorage;
-import io.github.rush.settings.PlayerSettingsManager;
-import io.github.rush.statistics.*;
-import io.github.rush.scoreboard.ScoreboardManager;
-import io.github.rush.tablist.TablistManager;
+import io.github.rush.storage.PlayerSettingsManager;
+import io.github.rush.storage.*;
+import io.github.rush.storage.PlayerLevelManager.PlayerLevel;
+import io.github.rush.abstracts.Generator;
 import io.github.rush.utils.CustomSoundRegistrar;
 import com.maximde.hologramlib.HologramLib;
 import com.maximde.hologramlib.hologram.HologramManager;
@@ -98,10 +99,10 @@ public class Main extends JavaPlugin {
 
         configManager = new ConfigManager(this);
 
-        ResourceType.loadFromConfig(configManager.getConfig());
+        Generator.Type.loadFromConfig(configManager.getConfig());
         MerchantType.loadFromConfig(configManager.getConfig());
 
-        TranslationLoader.register(this);
+        i18n.register(this);
 
         scoreboardManager = new ScoreboardManager(this);
         tablistManager = new TablistManager(this);
@@ -133,13 +134,13 @@ public class Main extends JavaPlugin {
         commandManager.getAuthorCommand().restoreExistingAuthors();
         commandManager.getLeaderboardCommand().restoreLeaderboards();
 
-        final TranslationStore.StringBased<MessageFormat> i18n = TranslationStore
+        final TranslationStore.StringBased<MessageFormat> mainStore = TranslationStore
                 .messageFormat(Key.key("rush", "main"));
 
         try {
-            i18n.registerAll(Locale.FRANCE,
+            mainStore.registerAll(Locale.FRANCE,
                     ResourceBundle.getBundle("io.github.rush.i18n.Bundle", Locale.FRANCE), true);
-            GlobalTranslator.translator().addSource(i18n);
+            GlobalTranslator.translator().addSource(mainStore);
             getLogger().info("Registered i18n translations");
         } catch (Exception e) {
             getLogger().warning("Failed to register translations: " + e.getMessage());
@@ -223,6 +224,9 @@ public class Main extends JavaPlugin {
 
         playerBoards.clear();
 
+        if (playerSettingsManager != null) {
+            playerSettingsManager.close();
+        }
         if (playerStatisticManager != null) {
             playerStatisticManager.close();
         }

@@ -1,5 +1,8 @@
 package io.github.rush.game;
 
+import io.github.rush.entities.GameCombatant;
+import io.github.rush.entities.GamePlayer;
+
 import io.github.rush.Main;
 import lombok.Setter;
 import net.kyori.adventure.text.Component;
@@ -44,7 +47,7 @@ public class GameLobbyCountdown {
         float pitch = seconds <= 1 ? 2.0f : 1.0f;
         Component message = Component.translatable("rush.countdown_seconds", Component.text(seconds));
 
-        for (GameParticipant participant : game.getPlayers()) {
+        for (GameCombatant participant : game.getPlayers()) {
             if (participant instanceof GamePlayer gp) {
                 Player player = gp.player();
                 player.sendMessage(message);
@@ -69,7 +72,7 @@ public class GameLobbyCountdown {
     public void broadcastCountdownMessage(int seconds) {
         Component message = Component.translatable("rush.countdown_seconds", Component.text(seconds));
 
-        for (GameParticipant participant : game.getPlayers()) {
+        for (GameCombatant participant : game.getPlayers()) {
             if (participant instanceof GamePlayer gp) {
                 gp.player().sendMessage(message);
             }
