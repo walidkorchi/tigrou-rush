@@ -27,6 +27,7 @@ import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
+
 import org.bukkit.SoundCategory;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
@@ -768,6 +769,14 @@ public class Game {
                 }
             }
 
+            if (gameRoom.getConfig().extraHearts()) {
+                for (int i = 0; i < islandAssignment.size(); i++) {
+                    if (islandAssignment.get(i) == null) {
+                        placeExtraBed(i);
+                    }
+                }
+            }
+
             for (GameParticipant participant : getPlayers()) {
                 final Team team = getPlayerTeam(participant);
 
@@ -810,6 +819,72 @@ public class Game {
             final Location spawnLoc = new Location(gameWorld, island.getX(), islandY + 2, island.getZ());
 
             team.setSpawnLocation(spawnLoc);
+        }
+    }
+
+    static final TeamColor[] EXTRA_BED_COLORS = {
+            TeamColor.WHITE, TeamColor.ORANGE, TeamColor.MAGENTA, TeamColor.LIGHT_BLUE
+    };
+
+    private void placeExtraBed(int islandIndex) {
+        if (islands == null || islandIndex >= islands.size()) return;
+        final World gameWorld = gameRoom.getWorld();
+        if (gameWorld == null) return;
+
+        final Island island = islands.get(islandIndex);
+        int[] coords = Team.bedCoords(island.getX(), island.getZ(),
+                gameRoom.getIslandY(), islandIndex);
+        Team.placeBedAt(gameWorld, coords[0], coords[1], coords[2],
+                Team.facingTowardsCenter(islandIndex),
+                Team.bedMaterialFor(EXTRA_BED_COLORS[islandIndex % EXTRA_BED_COLORS.length]));
+    }
+
+    public void onExtraBedDestroyed(Player destroyer) {
+        rewardDestroyer(destroyer);
+        broadcastMessage(Component.translatable("rush.neutral_bed_destroyed",
+                Component.text(destroyer.getName())));
+
+        if (recorder != null) {
+            recorder.recordBedDestroy("NEUTRAL", destroyer.getUniqueId());
+        }
+    }
+
+    private void rewardDestroyer(Player destroyer) {
+        if (destroyer == null) return;
+
+        final PlayerLevelManager levelManager = Main.getInstance().getPlayerLevelManager();
+        if (levelManager != null) {
+            levelManager.addXP(destroyer.getUniqueId(), Math.round(30 * coefficient));
+        }
+
+        final PlayerStatistic stat = getPlayerStatistic(destroyer);
+        stat.setCurrentDestroyedBeds(stat.getCurrentDestroyedBeds() + 1);
+
+        final Team sourceTeam = getPlayerTeam(new GamePlayer(destroyer));
+        if (sourceTeam != null) {
+            sourceTeam.setBedsDestroyed(sourceTeam.getBedsDestroyed() + 1);
+            applyExtraHearts(sourceTeam);
+        }
+    }
+
+    private void applyExtraHearts(Team sourceTeam) {
+        if (gameRoom == null || !gameRoom.getConfig().extraHearts()) return;
+
+        final double bonusHealth = sourceTeam.getBedsDestroyed() * 4.0;
+        for (GameParticipant participant : sourceTeam.getPlayers()) {
+            if (participant instanceof GamePlayer gp) {
+                final Player player = gp.player();
+                final AttributeInstance maxHealth = player.getAttribute(Attribute.MAX_HEALTH);
+                if (maxHealth != null) {
+                    maxHealth.removeModifier(NamespacedKey.minecraft("extra_hearts"));
+                    maxHealth.addModifier(
+                            new AttributeModifier(NamespacedKey.minecraft("extra_hearts"), bonusHealth,
+                                    AttributeModifier.Operation.ADD_NUMBER, EquipmentSlotGroup.ANY));
+                }
+                player.sendMessage(
+                        Component.translatable("rush.extra_hearts",
+                                Component.text(sourceTeam.getBedsDestroyed() * 2)));
+            }
         }
     }
 
@@ -986,36 +1061,7 @@ public class Game {
             }
         }
 
-        if (destroyer != null) {
-            PlayerLevelManager bedLevelManager = Main.getInstance().getPlayerLevelManager();
-            if (bedLevelManager != null) {
-                bedLevelManager.addXP(destroyer.getUniqueId(), Math.round(30 * coefficient));
-            }
-            PlayerStatistic destroyerStat = getPlayerStatistic(destroyer);
-            destroyerStat.setCurrentDestroyedBeds(destroyerStat.getCurrentDestroyedBeds() + 1);
-        }
-
-        if (destroyerTeam != null) {
-            destroyerTeam.setBedsDestroyed(destroyerTeam.getBedsDestroyed() + 1);
-            if (gameRoom.getConfig().extraHearts()) {
-                double bonusHealth = destroyerTeam.getBedsDestroyed() * 4.0;
-                for (GameParticipant participant : destroyerTeam.getPlayers()) {
-                    if (participant instanceof GamePlayer gp) {
-                        Player player = gp.player();
-                        AttributeInstance maxHealth = player.getAttribute(Attribute.MAX_HEALTH);
-                        if (maxHealth != null) {
-                            maxHealth.removeModifier(NamespacedKey.minecraft("extra_hearts"));
-                            maxHealth.addModifier(
-                                    new AttributeModifier(NamespacedKey.minecraft("extra_hearts"), bonusHealth,
-                                            AttributeModifier.Operation.ADD_NUMBER, EquipmentSlotGroup.ANY));
-                        }
-                        player.sendMessage(
-                                Component.translatable("rush.extra_hearts",
-                                        Component.text(destroyerTeam.getBedsDestroyed() * 2)));
-                    }
-                }
-            }
-        }
+        rewardDestroyer(destroyer);
 
         for (GameParticipant participant : team.getPlayers()) {
             if (participant instanceof GamePlayer gp) {
@@ -1135,6 +1181,7 @@ public class Game {
                     gameRoom.getConfig().mapType().name(),
                     gameRoom.getConfig().islandType().name(),
                     gameRoom.getConfig().maxTeams(),
+                    gameRoom.getConfig().extraHearts(),
                     teamColorsByPlayerUuid);
             recorder = null;
         }

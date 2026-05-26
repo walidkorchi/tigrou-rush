@@ -2,6 +2,7 @@ package io.github.rush.game;
 
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.type.Bed;
@@ -148,46 +149,35 @@ public class Team {
     }
 
     public void placeBed(int islandIndex) {
-        if (spawnLocation == null) {
-            return;
-        }
-
+        if (spawnLocation == null) return;
         Material bedMaterial = Team.bedMaterialFor(color);
-        if (bedMaterial == null) {
-            return;
-        }
+        if (bedMaterial == null) return;
 
-        int x = spawnLocation.getBlockX();
-        int y = spawnLocation.getBlockY() - 2;
-        int z = spawnLocation.getBlockZ();
+        int[] coords = bedCoords(spawnLocation.getBlockX(), spawnLocation.getBlockZ(),
+                spawnLocation.getBlockY() - 2, islandIndex);
+        placeBedAt(spawnLocation.getWorld(), coords[0], coords[1], coords[2],
+                facingTowardsCenter(islandIndex), bedMaterial);
 
-        int bedOffset = -6;
+        bedLocation = new Location(spawnLocation.getWorld(), coords[0], coords[1], coords[2]);
+    }
 
-        // Bed foot placed outward; bedFacing points from foot toward head (inward =
-        // toward center)
-        BlockFace bedFacing = Team.facingTowardsCenter(islandIndex);
-        switch (islandIndex) {
-            case 0 -> z += bedOffset; // N: foot at z-6, head south
-            case 1 -> x -= bedOffset; // E: foot at x+6, head west
-            case 2 -> z -= bedOffset; // S: foot at z+6, head north
-            case 3 -> x += bedOffset; // W: foot at x-6, head east
-        }
+    public static int[] bedCoords(int spawnX, int spawnZ, int bedY, int islandIndex) {
+        int[] dir = IslandLayout.ISLAND_DIRECTIONS[islandIndex];
+        return new int[] { spawnX + dir[0] * 6, bedY, spawnZ + dir[1] * 6 };
+    }
 
-        Block bedFoot = spawnLocation.getWorld().getBlockAt(x, y, z);
+    public static void placeBedAt(World world, int x, int y, int z, BlockFace facing, Material bedMaterial) {
+        Block bedFoot = world.getBlockAt(x, y, z);
+        Bed footData = (Bed) bedMaterial.createBlockData();
+        footData.setPart(Bed.Part.FOOT);
+        footData.setFacing(facing);
+        bedFoot.setBlockData(footData);
 
-        Bed footBedData = (Bed) bedMaterial.createBlockData();
-        footBedData.setPart(Bed.Part.FOOT);
-        footBedData.setFacing(bedFacing);
-        bedFoot.setBlockData(footBedData);
-
-        Block bedHead = bedFoot.getRelative(bedFacing);
-
-        Bed headBedData = (Bed) bedMaterial.createBlockData();
-        headBedData.setPart(Bed.Part.HEAD);
-        headBedData.setFacing(bedFacing);
-        bedHead.setBlockData(headBedData);
-
-        bedLocation = bedFoot.getLocation();
+        Block bedHead = bedFoot.getRelative(facing);
+        Bed headData = (Bed) bedMaterial.createBlockData();
+        headData.setPart(Bed.Part.HEAD);
+        headData.setFacing(facing);
+        bedHead.setBlockData(headData);
     }
 
     public static Material bedMaterialFor(TeamColor color) {

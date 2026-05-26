@@ -243,7 +243,7 @@ public class TeamSelectionGUI {
         final PatternType snoutType = bannerRegistry.get(BannerPatternKeys.PIGLIN);
 
         if (snoutType != null) {
-            meta.addPattern(new Pattern(DyeColor.WHITE, snoutType));
+            meta.addPattern(new Pattern(color.getContrastDyeColor(), snoutType));
         }
 
         banner.setItemMeta(meta);

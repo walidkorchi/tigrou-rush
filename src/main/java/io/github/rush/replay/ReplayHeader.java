@@ -13,5 +13,6 @@ public record ReplayHeader(
         String mapTypeName,
         String islandTypeName,
         int maxTeams,
+        boolean extraHearts,
         Map<String, String> teamColorsByPlayerUuid) {
 }

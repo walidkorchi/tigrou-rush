@@ -53,4 +53,10 @@ public enum TeamColor {
     public String getChatColor() {
         return this.textColor.toString();
     }
+
+    public DyeColor getContrastDyeColor() {
+        final Color c = this.dyeColor.getColor();
+        final double brightness = c.getRed() * 0.299 + c.getGreen() * 0.587 + c.getBlue() * 0.114;
+        return brightness > 128 ? DyeColor.BLACK : DyeColor.WHITE;
+    }
 }

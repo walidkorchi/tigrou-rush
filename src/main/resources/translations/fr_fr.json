@@ -15,6 +15,7 @@
   "rush.kill_no_killer": "§4⚔ {0}§7 est mort",
   "rush.kill_with_killer": "§4⚔ {0}§7 a été tué par {1}",
   "rush.bed_destroyed_broadcast": "§c{0} §7({1}) a détruit le lit de l'équipe §c{2}§7!",
+  "rush.neutral_bed_destroyed": "§c{0} §7a détruit un lit supplémentaire!",
   "rush.extra_hearts": "§a+{0} Cœurs permanents!",
   "rush.game_summary_header": "§6§lRÉSUMÉ DE LA PARTIE",
   "rush.game_duration": "§eDurée: §f{0}",

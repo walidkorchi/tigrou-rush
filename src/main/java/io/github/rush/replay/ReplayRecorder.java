@@ -225,7 +225,7 @@ public final class ReplayRecorder implements Listener {
 
     public ReplayFile stop(String sessionId, String winnerTeamColorName, String hostName,
             List<String> participantNames, String mapTypeName,
-            String islandTypeName, int maxTeams,
+            String islandTypeName, int maxTeams, boolean extraHearts,
             Map<String, String> teamColorsByPlayerUuid) {
 
         HandlerList.unregisterAll(this);
@@ -238,7 +238,7 @@ public final class ReplayRecorder implements Listener {
         final long durationMs = elapsed();
         final ReplayHeader header = new ReplayHeader(sessionId, hostName, startMs, durationMs,
                 winnerTeamColorName, participantNames, mapTypeName,
-                islandTypeName, maxTeams, teamColorsByPlayerUuid);
+                islandTypeName, maxTeams, extraHearts, teamColorsByPlayerUuid);
         return new ReplayFile(header, new HashMap<>(actionMap));
     }
 }

@@ -33,8 +33,6 @@ import org.bukkit.World;
 import org.bukkit.WorldCreator;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.block.BlockFace;
-import org.bukkit.block.Block;
-import org.bukkit.block.data.type.Bed;
 import org.bukkit.block.data.type.EnderChest;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.ItemFrame;
@@ -962,38 +960,35 @@ public class GameManager {
             }
         }
 
-        for (Map.Entry<Integer, String> entry : islandToTeam.entrySet()) {
-            final int slot = entry.getKey();
+        boolean extraHearts = false;
+        try {
+            extraHearts = file.header().extraHearts();
+        } catch (Exception ignored) {
+        }
+
+        for (int slot = 0; slot < islands.size(); slot++) {
             final Island island = islands.get(slot);
 
             int[] dir = IslandLayout.ISLAND_DIRECTIONS[slot];
             int perpX = dir[1];
             int spawnX = island.getX();
             int spawnZ = island.getZ();
-            int spawnY = islandY + 2;
 
-            int bedX = spawnX + dir[0] * 6;
-            int bedZ = spawnZ + dir[1] * 6;
-            int bedY = spawnY - 2;
-
+            int[] bedCoords = Team.bedCoords(spawnX, spawnZ, islandY, slot);
             BlockFace bedFacing = Team.facingTowardsCenter(slot);
-            Material bedMat = Team.bedMaterialFor(TeamColor.valueOf(entry.getValue()));
 
-            Bed footData = (Bed) bedMat.createBlockData();
-            footData.setPart(Bed.Part.FOOT);
-            footData.setFacing(bedFacing);
-            world.getBlockAt(bedX, bedY, bedZ).setBlockData(footData);
-
-            Block headBlock = world.getBlockAt(bedX, bedY, bedZ).getRelative(bedFacing);
-            Bed headData = (Bed) bedMat.createBlockData();
-            headData.setPart(Bed.Part.HEAD);
-            headData.setFacing(bedFacing);
-            headBlock.setBlockData(headData);
+            if (islandToTeam.containsKey(slot)) {
+                Team.placeBedAt(world, bedCoords[0], bedCoords[1], bedCoords[2], bedFacing,
+                        Team.bedMaterialFor(TeamColor.valueOf(islandToTeam.get(slot))));
+            } else if (extraHearts) {
+                Team.placeBedAt(world, bedCoords[0], bedCoords[1], bedCoords[2], bedFacing,
+                        Team.bedMaterialFor(Game.EXTRA_BED_COLORS[slot % Game.EXTRA_BED_COLORS.length]));
+            }
 
             // Ender chests (2 per team island)
             int speedOffset = plugin.getConfig().getInt("villagerSpeedOffset", 13);
             int enderChestOffset = speedOffset - 1;
-            placeIslandEnderChests(world, spawnX, spawnZ, bedY, dir, perpX, enderChestOffset,
+            placeIslandEnderChests(world, spawnX, spawnZ, bedCoords[1], dir, perpX, enderChestOffset,
                     Team.facingTowardsCenter(slot), 2);
             placeIslandMerchants(world, island, slot, islandY);
         }

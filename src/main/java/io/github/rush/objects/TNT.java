@@ -158,7 +158,16 @@ public class TNT implements Listener {
         }
 
         Team team = game.getTeam(bedColor.name());
+
+        // Extra bed with no team — only relevant when extraHearts is enabled
         if (team == null) {
+            if (room.getConfig().extraHearts()) {
+                removeBedBlocks(bedBlock);
+                Player tntSource = resolveTntSource(source);
+                if (tntSource != null) {
+                    game.onExtraBedDestroyed(tntSource);
+                }
+            }
             return;
         }
 
@@ -166,15 +175,7 @@ public class TNT implements Listener {
             return;
         }
 
-        Player tntSource = null;
-        if (source instanceof Player) {
-            tntSource = (Player) source;
-        } else if (source instanceof TNTPrimed) {
-            TNTPrimed tnt = (TNTPrimed) source;
-            if (tnt.getSource() instanceof Player) {
-                tntSource = (Player) tnt.getSource();
-            }
-        }
+        Player tntSource = resolveTntSource(source);
 
         if (tntSource != null) {
             Team sourceTeam = game.getPlayerTeam(new GamePlayer(tntSource));
@@ -201,6 +202,17 @@ public class TNT implements Listener {
         if (otherHalf.getType().name().endsWith("_BED")) {
             otherHalf.setType(Material.AIR, false);
         }
+    }
+
+    private Player resolveTntSource(Entity source) {
+        if (source instanceof Player) {
+            return (Player) source;
+        } else if (source instanceof TNTPrimed tnt) {
+            if (tnt.getSource() instanceof Player) {
+                return (Player) tnt.getSource();
+            }
+        }
+        return null;
     }
 
     private TeamColor getTeamColorFromBed(Bed bed) {
