@@ -18,7 +18,6 @@ import com.maximde.hologramlib.hologram.HologramManager;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import fr.mrmicky.fastboard.FastBoard;
 import net.kyori.adventure.key.Key;
-import net.kyori.adventure.text.Component;
 import net.kyori.adventure.translation.GlobalTranslator;
 import net.kyori.adventure.translation.TranslationStore;
 import net.momirealms.craftengine.bukkit.api.BukkitAdaptor;
@@ -27,12 +26,9 @@ import net.momirealms.craftengine.core.item.ItemManager;
 
 import org.bukkit.entity.Player;
 import org.bukkit.Bukkit;
-import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.World;
-import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.FileConfiguration;
-import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
@@ -43,7 +39,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.ResourceBundle;
 import lombok.Getter;
-import lombok.Setter;
 
 public class Main extends JavaPlugin {
 

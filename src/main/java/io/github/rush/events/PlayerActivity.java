@@ -4,7 +4,6 @@ import io.github.rush.Main;
 import io.github.rush.commands.AuthorCommand;
 import io.github.rush.game.Game;
 import io.github.rush.game.GameMannequin;
-import io.github.rush.game.GameParticipant;
 import io.github.rush.game.GamePlayer;
 import io.github.rush.replay.ReplayFollowGUI;
 import io.github.rush.replay.ReplayPlayback;

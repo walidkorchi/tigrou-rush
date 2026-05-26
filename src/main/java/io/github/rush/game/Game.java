@@ -827,9 +827,11 @@ public class Game {
     };
 
     private void placeExtraBed(int islandIndex) {
-        if (islands == null || islandIndex >= islands.size()) return;
+        if (islands == null || islandIndex >= islands.size())
+            return;
         final World gameWorld = gameRoom.getWorld();
-        if (gameWorld == null) return;
+        if (gameWorld == null)
+            return;
 
         final Island island = islands.get(islandIndex);
         int[] coords = Team.bedCoords(island.getX(), island.getZ(),
@@ -850,7 +852,8 @@ public class Game {
     }
 
     private void rewardDestroyer(Player destroyer) {
-        if (destroyer == null) return;
+        if (destroyer == null)
+            return;
 
         final PlayerLevelManager levelManager = Main.getInstance().getPlayerLevelManager();
         if (levelManager != null) {
@@ -868,7 +871,8 @@ public class Game {
     }
 
     private void applyExtraHearts(Team sourceTeam) {
-        if (gameRoom == null || !gameRoom.getConfig().extraHearts()) return;
+        if (gameRoom == null || !gameRoom.getConfig().extraHearts())
+            return;
 
         final double bonusHealth = sourceTeam.getBedsDestroyed() * 4.0;
         for (GameParticipant participant : sourceTeam.getPlayers()) {
@@ -1302,51 +1306,6 @@ public class Game {
         clearGameState();
 
         cycle.onGameEnd();
-
-        state = GameState.WAITING;
-    }
-
-    private void resetGame() {
-        for (GameParticipant participant : getPlayers()) {
-            if (participant instanceof GamePlayer gp) {
-                Player player = gp.player();
-                player.setGameMode(GameMode.ADVENTURE);
-                resetPlayerHealth(player);
-                player.getInventory().clear();
-                player.getInventory().setArmorContents(null);
-
-                if (lobby != null) {
-                    player.teleport(lobby);
-                }
-
-                player.getInventory().setItem(0, TeamSelectionGUI.createBannerItem());
-            } else if (participant instanceof GameMannequin mm) {
-                mm.remove();
-            }
-
-            removePlayer(participant);
-        }
-
-        for (GamePlayer spectator : new ArrayList<>(spectators)) {
-            removeSpectator(spectator);
-            Player player = spectator.player();
-
-            if (lobby != null) {
-                player.teleport(lobby);
-            }
-
-            player.getInventory().setItem(0, TeamSelectionGUI.createBannerItem());
-        }
-
-        for (Team team : teams.values()) {
-            team.reset();
-        }
-
-        clearGameState();
-        runningTasks.forEach(BukkitTask::cancel);
-        runningTasks.clear();
-
-        stopResourceSpawners();
 
         state = GameState.WAITING;
     }
