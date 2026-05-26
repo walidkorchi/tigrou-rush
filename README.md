@@ -6,18 +6,18 @@
 
 ## ✨ Features
 
-- ⚔️ Bed destruction permanently eliminates a team
-- 💜 Extra Hearts — each bed destroyed grants the destroying team +2 permanent hearts
-- 🚫 Forbidden zone blocks placement between spawns and lifts when overtime begins
-- 🧭 Lodestone compass always points to the nearest living enemy
-- 🪨 Building restricted to sandstone, end stone, and TNT within island ring paths
-- 🏪 5 merchants per island — one shop hub and four typed villagers (Weaponsmith, Armorsmith, Alchemist, Builder)
-- 📈 XP coefficient scales all rewards by team count × team size (1.00× to 1.45×)
-- 🕹️ Host-configurable rooms — format (1v1→4v4), map, overtime duration, extra hearts, all from a GUI
-- ⏱️ Overtime — forbidden zone lifts, dedicated music loop, configurable 5–120 min per room
-- 📼 Full game replay — 100ms position sampling, block changes, kills, bed destructions; playable at 0.25×–4× speed with ±5s seek and follow-player mode
-- 🏅 36-rank prestige system — Bronze, Argent, Or across four gem tiers each; rank-up titles and prestige-wide broadcasts
-- 🤖 AI mannequins — host-spawnable bots assignable to any team, with player-identical respawn rules
+- ⚔️ **Bed Wars** : destroying a team's bed permanently eliminates them from the game
+- 💜 **Extra Hearts** : each bed destroyed grants the killing team +2 permanent hearts for the rest of the game
+- 🚫 **Forbidden Zone** : placement between opposing spawns is blocked until overtime begins
+- 🧭 **Enemy Compass** : lodestone compass in every player's hotbar, updates every second to the nearest living enemy
+- 🪨 **Restricted Building** : only sandstone, end stone, and TNT are placeable, and only within island ring paths
+- 🏪 **Island Merchants** : 5 villagers per island — one shop hub and four typed traders (Weaponsmith, Armorsmith, Alchemist, Builder)
+- 📈 **XP Coefficient** : all rewards scale with team count × team size, from 1.00× (2 teams 1v1) to 1.45× (4 teams 4v4)
+- 🕹️ **Host Rooms** : format (1v1→4v4), map, overtime duration, and extra hearts configured in-game before launch
+- ⏱️ **Overtime** : forbidden zone lifts, dedicated music loop plays, duration configurable from 5 to 120 minutes per room
+- 📼 **Replays** : every game auto-recorded; playback at 0.25×–4× speed with ±5s seek and follow-player mode
+- 🏅 **Prestige System** : 36 ranks across Bronze, Argent, and Or — each split into four gem tiers with rank-up titles and server-wide broadcasts
+- 🤖 **AI Mannequins** : host-spawnable bots assignable to any team, following the same respawn and invulnerability rules as players
 
 
 ## 🏆 Roadmap
