@@ -6,7 +6,64 @@
 
 ## ✨ Features
 
--  
+### ⚔️ Core Gameplay
+
+- **Bed destruction** permanently eliminates a team; when *Extra Hearts* is on, each bed destroyed also grants the destroying team **+2 permanent hearts**
+- **Forbidden zone** — a geometric corridor between opposing spawns that blocks all block placement and lifts automatically the moment overtime begins
+- **Lodestone compass** updates every second to the nearest living enemy; always in slot 0 of every player's hotbar
+- **Restricted building** — only sandstone, end stone, and TNT are placeable, and only within the island ring paths
+- **Island merchants** — one speed baby-villager (shop hub) and four typed villagers per island (Weaponsmith, Armorsmith, Alchemist, Builder) placed at fixed cardinal-direction offsets
+- **XP coefficient** scales every reward (kill, assist, bed, win) by a factor derived from team count × team size: **1.00× (2 teams, 1v1) up to 1.45× (4 teams, 4v4)**
+
+### 🕹️ Host Room Configuration
+
+Rooms are created and configured entirely in-game through a GUI before launch:
+
+| Option | Values |
+|---|---|
+| **Format** | 1v1 · 2v2 · 3v3 · 4v4, across 2–4 teams |
+| **Island type** | 4 islands (8 planned) |
+| **Map** | cycle through loaded schematics |
+| **Overtime duration** | 5 – 120 minutes, in 5-minute steps |
+| **Overtime start** | begin the game already in overtime phase |
+| **Extra Hearts** | toggle; adds neutral beds on unused islands |
+
+A confirmation screen summarises the full configuration before the room is created.
+
+### ⏱️ Overtime
+
+- Forbidden zone deactivates instantly; all placement restrictions lift
+- Dedicated two-part music: intro cue → 40-second loop until game end
+- Per-room duration (default 30 min), set by the host at room creation
+
+### 📼 Replay System
+
+Every game is recorded automatically. Replays capture:
+
+- Positions and rotations at **100 ms intervals** (every 2 ticks)
+- Block placements and breaks with full before/after block state
+- Kills, bed destructions, respawns, and overtime entry
+
+Playback controls available to viewers:
+
+- **Speed**: 0.25×, 0.5×, 1×, 2×, 3×, 4×
+- **Seek**: ±5 seconds per click
+- **Follow mode**: compass teleports the viewer to any recorded player
+- Multiple concurrent viewers per replay session, each in their own isolated world
+
+### 🏅 36-Rank Prestige System
+
+- First rank at **10 000 XP**; each successive rank costs **1.25× more**
+- Three prestiges — **Bronze** (1–12), **Argent** (13–24), **Or** (25–36) — each split into four gem tiers: Émeraude, Améthyste, Diamant, Rubis
+- Rank-up triggers a title + toast; prestige advancement broadcasts to all online players
+- Per-game stats persisted: kills, deaths, assists, beds destroyed, win streak, weighted score
+
+### 🤖 AI Mannequins
+
+- Hosts can spawn named mannequin bots and assign them to any team, filling out uneven lobbies
+- Mannequins respawn with the same **6-second invulnerability window** as real players (invisible during cooldown)
+- Count toward team size for ender-chest generator scaling (2–4 generators per island, depending on occupancy)
+
 
 ## 🏆 Roadmap
 
