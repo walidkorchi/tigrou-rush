@@ -11,15 +11,15 @@ jobs:
     name: Checkstyle
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v4.2.2
+      - uses: actions/setup-java@v4.7.1
         with:
           distribution: 'temurin'
           java-version: '25'
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v4.4.1
       - name: Cache plugin JARs
         id: cache-plugins
-        uses: actions/cache@v4
+        uses: actions/cache@v4.2.3
         with:
           path: ${{ github.workspace }}/../server/plugins
           key: server-plugins-fawe-1318-hologram-1.8.3
@@ -38,15 +38,15 @@ jobs:
     name: SpotBugs
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v4.2.2
+      - uses: actions/setup-java@v4.7.1
         with:
           distribution: 'temurin'
           java-version: '25'
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v4.4.1
       - name: Cache plugin JARs
         id: cache-plugins
-        uses: actions/cache@v4
+        uses: actions/cache@v4.2.3
         with:
           path: ${{ github.workspace }}/../server/plugins
           key: server-plugins-fawe-1318-hologram-1.8.3
@@ -65,15 +65,15 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v4.2.2
+      - uses: actions/setup-java@v4.7.1
         with:
           distribution: 'temurin'
           java-version: '25'
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v4.4.1
       - name: Cache plugin JARs
         id: cache-plugins
-        uses: actions/cache@v4
+        uses: actions/cache@v4.2.3
         with:
           path: ${{ github.workspace }}/../server/plugins
           key: server-plugins-fawe-1318-hologram-1.8.3
