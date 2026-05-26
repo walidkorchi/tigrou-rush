@@ -4,4 +4,7 @@ build
 bin
 .factorypath
 source
-node_modules
+
+# TypeScript
+ai/node_modules
+ai/rush.d.ts
