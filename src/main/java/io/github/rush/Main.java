@@ -13,7 +13,7 @@ import io.github.rush.storage.PlayerSettingsManager;
 import io.github.rush.storage.*;
 import io.github.rush.storage.PlayerLevelManager.PlayerLevel;
 import io.github.rush.abstracts.Generator;
-import io.github.rush.utils.CustomSoundRegistrar;
+
 import com.maximde.hologramlib.HologramLib;
 import com.maximde.hologramlib.hologram.HologramManager;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
@@ -117,7 +117,6 @@ public class Main extends JavaPlugin {
         craftEngine = BukkitCraftEngine.instance();
         craftEngineItemManager = craftEngine.itemManager();
 
-        CustomSoundRegistrar.register(this);
         HologramLib.getManager().ifPresentOrElse(
                 manager -> hologramManager = manager,
                 () -> getLogger().severe(i18n.log("internal.main.hologram_init_failed")));

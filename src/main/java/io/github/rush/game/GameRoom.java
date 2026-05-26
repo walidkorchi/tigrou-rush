@@ -6,6 +6,8 @@ import io.github.rush.Main;
 import io.github.rush.objects.Island;
 import lombok.Getter;
 import lombok.Setter;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
@@ -16,7 +18,6 @@ import java.util.UUID;
 import java.util.function.Predicate;
 
 import dz.jtsgen.annotations.TypeScript;
-import net.kyori.adventure.text.Component;
 
 /**
  * Bridge between GameManager and Game instance.
@@ -159,6 +160,26 @@ public class GameRoom {
 
     public void removePlayer(Player player) {
         game.removePlayer(new GamePlayer(player));
+    }
+
+    public void sendReadyActionBar() {
+        sendReadyActionBar(this);
+    }
+
+    public static void sendReadyActionBar(GameRoom room) {
+        Game game = room.getGame();
+        if (game.getState() != GameState.WAITING)
+            return;
+
+        long readyCount = game.getPlayersReadyCount();
+        int maxPlayers = room.getMaxPlayers();
+        NamedTextColor color = readyCount >= maxPlayers ? NamedTextColor.GREEN : NamedTextColor.RED;
+        Component message = Component.translatable("rush.ready_players",
+                Component.text(readyCount + "/" + maxPlayers).color(color));
+
+        for (Player player : room.getWorld().getPlayers()) {
+            player.sendActionBar(message);
+        }
     }
 
     public static UUID nextHost(List<UUID> joinOrder, UUID disconnected, Predicate<UUID> isOnline) {

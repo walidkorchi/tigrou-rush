@@ -1,5 +1,14 @@
+import mcData from "minecraft-data";
 import { createBot } from "mineflayer";
-import { RoomStateItem, Slots } from "./rush-types";
+import type { Item } from "prismarine-item";
+
+const mc = mcData("1.21.4");
+
+const WOOL_NAMES = new Set(
+  Object.values(mc.itemsByName)
+    .filter((i) => i.name.endsWith("_wool"))
+    .map((i) => i.name)
+);
 
 const bot = createBot({
   host: "localhost",
@@ -12,13 +21,17 @@ function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-let step:
-  | "init"
-  | "opening_rooms"
-  | "joining_room"
-  | "opening_teams"
-  | "joining_team"
-  | "done" = "init";
+const Step = {
+  Init: "init",
+  OpeningRooms: "opening_rooms",
+  JoiningRoom: "joining_room",
+  OpeningTeams: "opening_teams",
+  JoiningTeam: "joining_team",
+  Done: "done",
+} as const;
+type Step = (typeof Step)[keyof typeof Step];
+
+let step: Step = Step.Init;
 
 bot.once("spawn", async () => {
   /** CraftEngine requires players to accept server resource pack,
@@ -43,21 +56,20 @@ bot.on("windowOpen", (window) => {
   );
 
   // ── Room listing ──
-  if (step === "opening_rooms") {
+  if (step === Step.OpeningRooms) {
     // Rooms are listed first (before archived replays).
     // Yellow wool = waiting + available  |  Red wool = waiting + full  |  Green wool = running
     // Orange wool = archived replay (skip)
     for (let i = 0; i < cs; i++) {
-      const item = window.slots[i];
+      const item: Item | null = window.slots[i] as Item | null;
       if (!item) {
         continue;
       }
-      const name = item.name ?? "";
-      console.log(`  [${i}] ${name}`);
-      // Prefer yellow_wool (waiting with free slots)
-      if (name.replace(/^minecraft:/, "") === RoomStateItem.WAITING_AVAILABLE) {
+      console.log(`  [${i}] ${item.name}`);
+      // Yellow wool = GameState.WAITING with free slots
+      if (item.name === "yellow_wool") {
         console.log(`→ clicking room at slot ${i}`);
-        step = "joining_room";
+        step = Step.JoiningRoom;
         bot.clickWindow(i, 0, 0);
         return;
       }
@@ -68,14 +80,14 @@ bot.on("windowOpen", (window) => {
     return;
   }
 
-  // ── Team selection (2-row chest GUI) ──
-  if (step === "opening_teams") {
-    // Middle row (slots 9-17) has team wool items
-    for (let i = Slots.teamSelection.first; i <= Slots.teamSelection.last && i < cs; i++) {
+  // ── Team selection (2-row chest GUI, CraftEngine GuiLayout '<AAAAAAA>') ──
+  if (step === Step.OpeningTeams) {
+    // Scan all slots for team wool items (nav arrows at 9 and 17 contain no wool)
+    for (let i = 0; i < cs; i++) {
       const item = window.slots[i];
-      if (item) {
+      if (item != null && WOOL_NAMES.has(item.name)) {
         console.log(`→ clicking team slot ${i}: ${item.name}`);
-        step = "joining_team";
+        step = Step.JoiningTeam;
         bot.clickWindow(i, 0, 0);
         return;
       }
@@ -89,19 +101,19 @@ bot.on("windowOpen", (window) => {
 bot.on("windowClose", async () => {
   console.log(`[close] step=${step}`);
 
-  if (step === "joining_room") {
+  if (step === Step.JoiningRoom) {
     // Teleported to waiting room → right-click banner (slot 0) for team selection
     console.log("[wait] Room joined, opening team selection...");
     await sleep(3000);
-    step = "opening_teams";
+    step = Step.OpeningTeams;
     bot.setQuickBarSlot(0);
     await sleep(400);
     bot.activateItem();
     return;
   }
 
-  if (step === "joining_team") {
-    step = "done";
+  if (step === Step.JoiningTeam) {
+    step = Step.Done;
     console.log("[done] Joined a team, auto-ready. Waiting for game start.");
     bot.chat("Let's go!");
   }

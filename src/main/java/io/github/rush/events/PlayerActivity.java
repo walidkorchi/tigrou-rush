@@ -14,6 +14,7 @@ import io.github.rush.game.GameRoom;
 import io.github.rush.game.GameState;
 import io.github.rush.abstracts.Team;
 import io.github.rush.guis.HostPanelGUI;
+import io.github.rush.sound.RushSounds;
 import java.util.UUID;
 import io.github.rush.guis.GUI;
 import io.github.rush.guis.PlayerSettingsGUI;
@@ -59,7 +60,6 @@ import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Sound;
-import org.bukkit.SoundCategory;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.BoundingBox;
@@ -79,23 +79,7 @@ public class PlayerActivity implements Listener {
 
     private void sendActionBarToAll() {
         for (GameRoom room : plugin.getGameManager().getAllGameRooms()) {
-            if (room.getGame().getState() != GameState.WAITING)
-                continue;
-
-            final long readyCount = room.getGame().getPlayersReadyCount();
-            final int maxPlayers = room.getMaxPlayers();
-
-            final Component message = Component.text()
-                    .content("Joueurs prêts (")
-                    .color(NamedTextColor.WHITE)
-                    .append(Component.text(readyCount + "/" + maxPlayers)
-                            .color(readyCount >= maxPlayers ? NamedTextColor.GREEN : NamedTextColor.RED))
-                    .append(Component.text(")").color(NamedTextColor.WHITE))
-                    .build();
-
-            for (Player player : room.getWorld().getPlayers()) {
-                player.sendActionBar(message);
-            }
+            GameRoom.sendReadyActionBar(room);
         }
     }
 
@@ -106,8 +90,9 @@ public class PlayerActivity implements Listener {
         event.joinMessage(Component.translatable("rush.chat_join", Component.text(player.getName())));
         plugin.getTablistManager().onPlayerJoin(player);
 
-        // edge case > player reconnecting when disconnecting in the middle of a running game room
-        final GameManager.ReconnectData reconnectData = plugin.getGameManager().consumeReconnectData(player.getUniqueId());
+        // edge case: player reconnects after log off in a middle of a RUNNING game room
+        final GameManager.ReconnectData reconnectData = plugin.getGameManager()
+                .consumeReconnectData(player.getUniqueId());
 
         if (reconnectData != null) {
             final GameRoom room = plugin.getGameManager().getGameRoom(reconnectData.roomId());
@@ -117,14 +102,14 @@ public class PlayerActivity implements Listener {
                 plugin.getServer().getScheduler().runTask(plugin,
                         () -> plugin.getGameManager().handleReconnect(player, room, reconnectData));
             } else {
-                // edge case > game ended while offline
+                // edge case: game ended while offline
                 plugin.getGameManager().resetPlayerHubState(player);
             }
         } else {
             plugin.getGameManager().resetPlayerHubState(player);
         }
 
-        player.playSound(player.getLocation(), "tland:music.global.lobby", SoundCategory.MUSIC, 1.0f, 1.0f)
+        RushSounds.LOBBY_MUSIC.play(player);
     }
 
     @EventHandler

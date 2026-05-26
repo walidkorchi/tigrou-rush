@@ -15,7 +15,6 @@ import io.papermc.paper.registry.RegistryAccess;
 import io.papermc.paper.registry.RegistryKey;
 import io.papermc.paper.registry.keys.BannerPatternKeys;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import net.momirealms.craftengine.core.item.Item;
 import net.momirealms.craftengine.core.item.ItemManager;
 import net.momirealms.craftengine.core.plugin.context.PlayerOptionalContext;
@@ -268,14 +267,7 @@ public class TeamSelectionGUI {
         GameManager gm = Main.getInstance().getGameManager();
         GameRoom barRoom = gm.getGameRoomByWorld(player.getWorld().getName());
         if (barRoom != null) {
-            long readyCount = game.getPlayersReadyCount();
-            int maxPlayers = barRoom.getMaxPlayers();
-            NamedTextColor countColor = readyCount >= maxPlayers ? NamedTextColor.GREEN : NamedTextColor.RED;
-            Component bar = Component.translatable("rush.ready_players",
-                    Component.text(readyCount + "/" + maxPlayers).color(countColor));
-            for (Player p : barRoom.getWorld().getPlayers()) {
-                p.sendActionBar(bar);
-            }
+            GameRoom.sendReadyActionBar(barRoom);
         }
     }
 }

@@ -4,6 +4,7 @@ import io.github.rush.entities.GameCombatant;
 import io.github.rush.entities.GamePlayer;
 
 import io.github.rush.Main;
+import io.github.rush.sound.RushSounds;
 import lombok.Setter;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
@@ -52,6 +53,7 @@ public class GameLobbyCountdown {
                 Player player = gp.player();
                 player.sendMessage(message);
                 player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1.0f, pitch);
+                RushSounds.COUNTDOWN.play(player);
             }
         }
     }

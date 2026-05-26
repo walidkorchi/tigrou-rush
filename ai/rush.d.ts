@@ -27,13 +27,6 @@ declare namespace rush {
     BLACK
   }
 
-  export enum TeamSize {
-    VS1,
-    VS2,
-    VS3,
-    VS4
-  }
-
   /**
    *  NOTE: ARCHIVED is not included within the lifecycle as a state
    *  of a GameRoom instance since it is scheduled for removal and world cleanup
@@ -43,6 +36,13 @@ declare namespace rush {
     WAITING,
     RUNNING,
     STOPPED
+  }
+
+  export enum TeamSize {
+    VS1,
+    VS2,
+    VS3,
+    VS4
   }
 
  }

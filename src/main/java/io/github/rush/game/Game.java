@@ -13,6 +13,7 @@ import io.github.rush.entities.GamePlayer;
 import io.github.rush.Main;
 import io.github.rush.utils.i18n;
 import io.github.rush.guis.TeamSelectionGUI;
+import io.github.rush.sound.RushSounds;
 import io.github.rush.utils.ItemBuilder;
 import io.github.rush.objects.Island;
 import io.github.rush.utils.ReplayUtils.ReplayFile;
@@ -38,7 +39,6 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
 
-import org.bukkit.SoundCategory;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.attribute.AttributeModifier;
@@ -532,19 +532,15 @@ public class Game {
     private void playOvertimeMusic() {
         if (overtimeMusicTask != null)
             return;
-        String intro = "tland:music.global.overtime_intro_music";
-        String loop = "tland:music.global.overtime_loop_music";
         for (GameCombatant participant : getPlayers()) {
             if (participant instanceof GamePlayer gp) {
-                Player player = gp.player();
-                player.playSound(player.getLocation(), intro, SoundCategory.MUSIC, 1.0f, 1.0f);
+                RushSounds.OVERTIME_INTRO.play(gp.player());
             }
         }
         overtimeMusicTask = Bukkit.getScheduler().runTaskTimer(Main.getInstance(), () -> {
             for (GameCombatant participant : getPlayers()) {
                 if (participant instanceof GamePlayer gp) {
-                    Player player = gp.player();
-                    player.playSound(player.getLocation(), loop, SoundCategory.MUSIC, 1.0f, 1.0f);
+                    RushSounds.OVERTIME_LOOP.play(gp.player());
                 }
             }
         }, 160L, 800L);
@@ -759,6 +755,11 @@ public class Game {
             if (gameRoom.getConfig().overtimeStart()) {
                 gameTime = getOvertimeSeconds();
                 broadcastMessage(Component.translatable("rush.overtime"));
+                for (GameCombatant participant : getPlayers()) {
+                    if (participant instanceof GamePlayer gp) {
+                        RushSounds.BORDER_SHRINKING.play(gp.player());
+                    }
+                }
                 playOvertimeMusic();
             }
 
@@ -996,6 +997,10 @@ public class Game {
 
         broadcastKillMessage(victim, playerTeam, killer, assists);
 
+        if (victim instanceof GamePlayer deathPlayer) {
+            RushSounds.PLAYER_DIED.play(deathPlayer.player());
+        }
+
         if (recorder != null && victim instanceof GamePlayer dp) {
             recorder.recordDeath(dp.uniqueId());
         }
@@ -1008,6 +1013,23 @@ public class Game {
             } else {
                 playerTeam.removePlayer(victim);
             }
+
+            if (playerTeam != null) {
+                if (playerTeam.getPlayers().isEmpty()) {
+                    for (GameCombatant p : getPlayers()) {
+                        if (p instanceof GamePlayer tp) {
+                            RushSounds.TEAM_ELIMINATED.play(tp.player());
+                        }
+                    }
+                } else {
+                    for (GameCombatant p : playerTeam.getPlayers()) {
+                        if (p instanceof GamePlayer tp) {
+                            RushSounds.TEAMMATE_ELIMINATED.play(tp.player());
+                        }
+                    }
+                }
+            }
+
             checkGameOver();
         }
     }
@@ -1119,19 +1141,17 @@ public class Game {
             overtimeMusicTask = null;
         }
 
-        String winSound = "tland:game.global.win_celebrate";
-        String endMusic = "tland:music.global.gameendmusic";
         for (GameCombatant participant : getPlayers()) {
             if (participant instanceof GamePlayer gp) {
                 Player player = gp.player();
-                player.playSound(player.getLocation(), winSound, SoundCategory.MUSIC, 1.0f, 1.0f);
-                player.playSound(player.getLocation(), endMusic, SoundCategory.MUSIC, 1.0f, 1.0f);
+                RushSounds.WIN_CELEBRATE.play(player);
+                RushSounds.GAME_END_MUSIC.play(player);
             }
         }
         for (GamePlayer spectator : spectators) {
             Player player = spectator.player();
-            player.playSound(player.getLocation(), winSound, SoundCategory.MUSIC, 1.0f, 1.0f);
-            player.playSound(player.getLocation(), endMusic, SoundCategory.MUSIC, 1.0f, 1.0f);
+            RushSounds.WIN_CELEBRATE.play(player);
+            RushSounds.GAME_END_MUSIC.play(player);
         }
 
         clearAllEnderChests();
@@ -1472,20 +1492,8 @@ public class Game {
     }
 
     private void updateActionBar() {
-        if (state != GameState.WAITING)
-            return;
-
-        String gameWorld = worldName;
-
-        long readyCount = getPlayersReadyCount();
-        NamedTextColor color = readyCount >= maxPlayers ? NamedTextColor.GREEN : NamedTextColor.RED;
-        Component message = Component.translatable("rush.ready_players",
-                Component.text(readyCount + "/" + maxPlayers).color(color));
-
-        for (Player player : Main.getInstance().getServer().getOnlinePlayers()) {
-            if (player.getWorld().getName().equals(gameWorld)) {
-                player.sendActionBar(message);
-            }
+        if (gameRoom != null) {
+            GameRoom.sendReadyActionBar(gameRoom);
         }
     }
 
