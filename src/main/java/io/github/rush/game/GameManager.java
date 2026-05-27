@@ -21,6 +21,7 @@ import com.sk89q.worldedit.session.ClipboardHolder;
 import io.github.rush.Main;
 import io.github.rush.storage.ConfigManager;
 import io.github.rush.utils.i18n;
+import io.github.rush.utils.RushLogger;
 import io.github.rush.guis.GUI;
 import io.github.rush.guis.HostConfigGUI;
 import io.github.rush.guis.TeamSelectionGUI;
@@ -64,6 +65,7 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import org.bukkit.scheduler.BukkitTask;
 
 /**
@@ -120,10 +122,10 @@ public class GameManager {
                 "CraftEngine/generated/sounds_merge.zip");
         long duration = ConfigManager.readOggDurationFromZip(mergeZip, "assets/minecraft/sounds/music/global/gameendmusic.ogg");
         if (duration <= 0) {
-            plugin.getLogger().warning(i18n.log("internal.game_manager.music_duration_fallback"));
+            RushLogger.warn(i18n.log("internal.game_manager.music_duration_fallback"));
             duration = 27_000L;
         } else {
-            plugin.getLogger().info(i18n.log("internal.game_manager.music_duration_detected", duration / 1000));
+            RushLogger.info(i18n.log("internal.game_manager.music_duration_detected", duration / 1000));
         }
         gameEndMusicDurationMs = duration;
         return duration;
@@ -236,7 +238,7 @@ public class GameManager {
 
             } catch (Exception e) {
                 barTask[0].cancel();
-                plugin.getLogger().severe(i18n.log("internal.game_manager.world_create_failed", e.getMessage()));
+                RushLogger.error(i18n.log("internal.game_manager.world_create_failed", e.getMessage()));
                 e.printStackTrace();
                 host.sendMessage(Component.translatable("rush.room_create_failed"));
             }
@@ -258,7 +260,7 @@ public class GameManager {
     private void pasteSchematicFile(World world, File schematicFile, BlockVector3 target, int rotation) {
         ClipboardFormat format = ClipboardFormats.findByFile(schematicFile);
         if (format == null) {
-            plugin.getLogger().severe(i18n.log("internal.game_manager.schematic_unknown_format", schematicFile.getPath()));
+            RushLogger.error(i18n.log("internal.game_manager.schematic_unknown_format", schematicFile.getPath()));
             return;
         }
         // Must be called from an async thread. Load and paste happen here on the same
@@ -273,9 +275,9 @@ public class GameManager {
             }
             Operation operation = holder.createPaste(editSession).to(target).ignoreAirBlocks(false).build();
             Operations.complete(operation);
-            plugin.getLogger().info(i18n.log("internal.game_manager.schematic_pasted", target));
+            RushLogger.info(i18n.log("internal.game_manager.schematic_pasted", target));
         } catch (IOException | WorldEditException e) {
-            plugin.getLogger().severe(i18n.log("internal.game_manager.schematic_paste_failed", e.getMessage()));
+            RushLogger.error(i18n.log("internal.game_manager.schematic_paste_failed", e.getMessage()));
         }
     }
 
@@ -316,6 +318,7 @@ public class GameManager {
         if (gameWorld != null) {
             // Set spawn on main thread after world is created
             Bukkit.getScheduler().runTask(plugin, () -> {
+                // TODO: ?
                 gameWorld.setSpawnLocation(0, 64, 0);
                 gameWorld.setAutoSave(false);
                 for (GameRule<Boolean> gameRule : gameRules) {
@@ -412,13 +415,13 @@ public class GameManager {
             }
 
             Bukkit.unloadWorld(world, false);
-            plugin.getLogger().info(i18n.log("internal.game_manager.world_unloaded", world.getName()));
+            RushLogger.info(i18n.log("internal.game_manager.world_unloaded", world.getName()));
 
             final File worldFolder = new File(Bukkit.getWorldContainer(), world.getName());
 
             Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
                 ConfigManager.deleteDirectory(worldFolder);
-                plugin.getLogger().info(i18n.log("internal.game_manager.world_folder_deleted", worldFolder.getAbsolutePath()));
+                RushLogger.info(i18n.log("internal.game_manager.world_folder_deleted", worldFolder.getAbsolutePath()));
             });
         }
     }
@@ -818,7 +821,7 @@ public class GameManager {
         final World world = createVoidWorld(REPLAY_WORLD_PREFIX + sessionId);
 
         if (world == null) {
-            plugin.getLogger().severe(i18n.log("internal.game_manager.replay_world_create_failed", sessionId));
+            RushLogger.error(i18n.log("internal.game_manager.replay_world_create_failed", sessionId));
             return;
         }
 
@@ -855,7 +858,7 @@ public class GameManager {
                             island.getRotation());
                 }
             } else {
-                plugin.getLogger().warning(i18n.log("internal.game_manager.replay_world_no_schematic",
+                RushLogger.warn(i18n.log("internal.game_manager.replay_world_no_schematic",
                         sessionId, resolvedMapType != null ? resolvedMapType.schematicName() : "none"));
             }
 
@@ -904,8 +907,12 @@ public class GameManager {
             if (islandToTeam.containsKey(slot)) {
                 Team.placeIslandBed(world, island, slot, islandY, Team.Color.valueOf(islandToTeam.get(slot)));
             } else if (extraHearts) {
+                Set<Team.Color> takenColors = islandToTeam.values().stream()
+                        .map(Team.Color::valueOf)
+                        .collect(Collectors.toSet());
+                List<Team.Color> extraColors = Game.randomExtraBedColors(takenColors);
                 Team.placeIslandBed(world, island, slot, islandY,
-                        Game.EXTRA_BED_COLORS[slot % Game.EXTRA_BED_COLORS.length]);
+                        extraColors.get(slot % extraColors.size()));
             }
 
             // Ender chests (2 per team island)
@@ -935,7 +942,7 @@ public class GameManager {
      * Called when a GameRoom's game starts.
      */
     public void onGameRoomStarted(GameRoom room) {
-        plugin.getLogger().info(i18n.log("internal.game_manager.game_started", room.getId()));
+        RushLogger.info(i18n.log("internal.game_manager.game_started", room.getId()));
         // TODO: Additional logic when game starts (statistics, notifications, etc.)
     }
 
@@ -943,7 +950,7 @@ public class GameManager {
      * Called when a GameRoom's game ends.
      */
     public void onGameRoomEnded(GameRoom room) {
-        plugin.getLogger().info(i18n.log("internal.game_manager.game_ended", room.getId()));
+        RushLogger.info(i18n.log("internal.game_manager.game_ended", room.getId()));
 
         final Location mainLobby = plugin.getMainLobby();
         long musicDurationMs = getGameEndMusicDurationMs();

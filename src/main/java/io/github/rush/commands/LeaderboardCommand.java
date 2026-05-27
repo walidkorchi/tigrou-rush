@@ -2,6 +2,7 @@ package io.github.rush.commands;
 
 import io.github.rush.Main;
 import io.github.rush.utils.i18n;
+import io.github.rush.utils.RushLogger;
 import io.papermc.paper.command.brigadier.Commands;
 import lombok.Getter;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
@@ -184,8 +185,7 @@ public class LeaderboardCommand {
 
                 World world = Bukkit.getWorld(worldName);
                 if (world == null) {
-                    Main.getInstance().getLogger()
-                            .warning("Leaderboard restore: world '" + worldName + "' not found, skipping.");
+                    RushLogger.warn("Leaderboard restore: world '" + worldName + "' not found, skipping.");
                     continue;
                 }
 
@@ -193,8 +193,7 @@ public class LeaderboardCommand {
                 try {
                     type = LeaderboardType.valueOf(typeName);
                 } catch (IllegalArgumentException e) {
-                    Main.getInstance().getLogger()
-                            .warning("Leaderboard restore: unknown type '" + typeName + "', skipping.");
+                    RushLogger.warn("Leaderboard restore: unknown type '" + typeName + "', skipping.");
                     continue;
                 }
 
@@ -218,7 +217,7 @@ public class LeaderboardCommand {
                 configManager.saveConfig();
             }
 
-            Main.getInstance().getLogger().info(i18n.log("internal.command.leaderboard.restored", holograms.size()));
+            RushLogger.info(i18n.log("internal.command.leaderboard.restored", holograms.size()));
         }, 1L);
     }
 
@@ -333,7 +332,7 @@ public class LeaderboardCommand {
                     case LEVEL -> levelManager.getTop10ByXP();
                 };
             } catch (Exception e) {
-                Main.getInstance().getLogger().warning(i18n.log("internal.command.leaderboard.query_failed", e.getMessage()));
+                RushLogger.warn(i18n.log("internal.command.leaderboard.query_failed", e.getMessage()));
                 return List.of();
             }
         }

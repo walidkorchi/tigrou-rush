@@ -24,16 +24,15 @@ public final class ReplayManager {
     public void joinReplay(Player player, ReplayHeader header) {
         final String sessionId = header.sessionId();
 
-        // World already ready — add viewer immediately
+        // add viewer immediately if replay world is already ready
         final ReplayPlayback existing = activePlaybacks.get(sessionId);
-
         if (existing != null) {
             existing.addViewer(player);
             viewerToSession.put(player, sessionId);
             return;
         }
 
-        // World being created — queue the viewer
+        // queue the viewer whilst the world is being created
         if (pendingViewers.containsKey(sessionId)) {
             pendingViewers.get(sessionId).add(player);
             viewerToSession.put(player, sessionId);
@@ -41,7 +40,6 @@ public final class ReplayManager {
             return;
         }
 
-        // Start world creation
         pendingViewers.put(sessionId, new ArrayList<>(List.of(player)));
         viewerToSession.put(player, sessionId);
         player.sendMessage(Component.translatable("rush.replay_loading"));
@@ -75,15 +73,15 @@ public final class ReplayManager {
                                     p.sendMessage(Component.translatable("rush.replay_not_found"));
                                 }
                             }
-                        }
-                );
+                        });
             });
         });
     }
 
     public void leaveReplay(Player player) {
         final String sessionId = viewerToSession.remove(player);
-        if (sessionId == null) return;
+        if (sessionId == null)
+            return;
 
         final ReplayPlayback playback = activePlaybacks.get(sessionId);
         if (playback != null && playback.removeViewer(player)) {

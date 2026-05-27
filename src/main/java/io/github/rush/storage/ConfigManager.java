@@ -2,6 +2,7 @@ package io.github.rush.storage;
 
 import io.github.rush.Main;
 import io.github.rush.utils.i18n;
+import io.github.rush.utils.RushLogger;
 import lombok.Getter;
 
 import org.bukkit.configuration.file.FileConfiguration;
@@ -57,7 +58,7 @@ public class ConfigManager {
         try {
             config.save(configFile);
         } catch (IOException e) {
-            plugin.getLogger().warning(i18n.log("internal.storage.config.save_failed", e.getMessage()));
+            RushLogger.warn(i18n.log("internal.storage.config.save_failed", e.getMessage()));
         }
     }
 
@@ -76,7 +77,7 @@ public class ConfigManager {
         File schematicFile = new File(plugin.getDataFolder().getParentFile(),
                 "FastAsyncWorldEdit/schematics/" + filename);
         if (!schematicFile.exists()) {
-            plugin.getLogger().warning(i18n.log("internal.game_manager.schematic_not_found", schematicFile.getPath()));
+            RushLogger.warn(i18n.log("internal.game_manager.schematic_not_found", schematicFile.getPath()));
             return null;
         }
         return schematicFile;

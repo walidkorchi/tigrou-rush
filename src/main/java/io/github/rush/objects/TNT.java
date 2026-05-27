@@ -37,6 +37,7 @@ import io.github.rush.entities.GamePlayer;
 import io.github.rush.game.GameRoom;
 import io.github.rush.abstracts.Team;
 import net.kyori.adventure.text.Component;
+import io.github.rush.utils.RushLogger;
 
 public class TNT implements Listener {
 
@@ -255,9 +256,8 @@ public class TNT implements Listener {
             try {
                 setTntSource(tnt, source);
             } catch (ReflectiveOperationException event) {
-                plugin.getLogger().warning(
-                        "Cannot set the source for " + tnt + " (" + event.getClass().getName() + "): "
-                                + event.getMessage());
+                RushLogger.warn("Cannot set the source for " + tnt + " (" + event.getClass().getName() + "): "
+                        + event.getMessage());
             }
         }
         return tnt;

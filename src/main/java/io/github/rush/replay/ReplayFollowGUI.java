@@ -26,26 +26,28 @@ public final class ReplayFollowGUI {
         GUI gui = new GUI(Component.translatable("gui.replay_follow.title"), rows);
 
         int slot = 0;
+
         for (UUID uuid : mannequins.keySet()) {
             String name = Bukkit.getOfflinePlayer(uuid).getName();
+
             if (name == null)
                 name = uuid.toString().substring(0, 8);
-            final String displayName = name;
+
             final UUID targetUuid = uuid;
+            final ItemStack head = new ItemStack(Material.PLAYER_HEAD);
+            final SkullMeta meta = (SkullMeta) head.getItemMeta();
 
-            ItemStack head = new ItemStack(Material.PLAYER_HEAD);
-            SkullMeta meta = (SkullMeta) head.getItemMeta();
             meta.setOwningPlayer(Bukkit.getOfflinePlayer(uuid));
-            meta.displayName(i18n.txt("rush.replay_follow_name", displayName));
+            meta.displayName(i18n.txt("rush.replay_follow_name", name));
 
-            UUID currentTarget = playback.getFollowTarget(viewer.getUniqueId());
-            if (targetUuid.equals(currentTarget)) {
+            if (targetUuid.equals(playback.getFollowTarget(viewer.getUniqueId()))) {
                 meta.lore(List.of(
                         i18n.txt("rush.replay_following"),
                         i18n.txt("rush.replay_stop_follow")));
             } else {
                 meta.lore(List.of(i18n.txt("rush.replay_click_follow")));
             }
+
             head.setItemMeta(meta);
 
             gui.addItem(slot, head, p -> {

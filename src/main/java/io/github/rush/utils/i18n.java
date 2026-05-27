@@ -2,6 +2,7 @@ package io.github.rush.utils;
 
 import com.google.gson.Gson;
 import io.github.rush.Main;
+import io.github.rush.utils.RushLogger;
 
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
@@ -26,7 +27,7 @@ public final class i18n {
 
         try (InputStream in = plugin.getClass().getClassLoader().getResourceAsStream("translations/fr_fr.json")) {
             if (in == null) {
-                plugin.getLogger().warning("translations/fr_fr.json not found in resources");
+                RushLogger.warn("translations/fr_fr.json not found in resources");
                 return;
             }
 
@@ -43,9 +44,9 @@ public final class i18n {
             GlobalTranslator.translator().addSource(store);
             entries = new HashMap<>(loaded);
 
-            plugin.getLogger().info("Loaded " + entries.size() + " translations (fr_FR)");
+            RushLogger.info("Loaded " + entries.size() + " translations (fr_FR)");
         } catch (Exception e) {
-            plugin.getLogger().severe("Failed to load translations: " + e.getMessage());
+            RushLogger.error("Failed to load translations: " + e.getMessage());
         }
     }
 

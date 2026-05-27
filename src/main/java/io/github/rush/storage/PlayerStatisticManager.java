@@ -2,6 +2,7 @@ package io.github.rush.storage;
 
 import io.github.rush.Main;
 import io.github.rush.utils.i18n;
+import io.github.rush.utils.RushLogger;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Id;
@@ -137,7 +138,7 @@ public class PlayerStatisticManager {
             em.merge(statistic);
             em.getTransaction().commit();
         } catch (Exception e) {
-            Main.getInstance().getLogger().severe(i18n.log("internal.storage.player_statistic.save_failed", e.getMessage()));
+            RushLogger.error(i18n.log("internal.storage.player_statistic.save_failed", e.getMessage()));
             if (em.getTransaction().isActive()) {
                 em.getTransaction().rollback();
             }

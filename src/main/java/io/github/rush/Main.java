@@ -2,6 +2,7 @@ package io.github.rush;
 
 import io.github.rush.commands.CommandManager;
 import io.github.rush.utils.i18n;
+import io.github.rush.utils.RushLogger;
 import io.github.rush.storage.ConfigManager;
 import io.github.rush.entities.*;
 import io.github.rush.events.*;
@@ -18,9 +19,6 @@ import com.maximde.hologramlib.HologramLib;
 import com.maximde.hologramlib.hologram.HologramManager;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import fr.mrmicky.fastboard.FastBoard;
-import net.kyori.adventure.key.Key;
-import net.kyori.adventure.translation.GlobalTranslator;
-import net.kyori.adventure.translation.TranslationStore;
 import net.momirealms.craftengine.bukkit.api.BukkitAdaptor;
 import net.momirealms.craftengine.bukkit.plugin.BukkitCraftEngine;
 import net.momirealms.craftengine.core.item.ItemManager;
@@ -33,12 +31,9 @@ import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
-import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
-import java.util.ResourceBundle;
 import lombok.Getter;
 
 public class Main extends JavaPlugin {
@@ -119,7 +114,7 @@ public class Main extends JavaPlugin {
 
         HologramLib.getManager().ifPresentOrElse(
                 manager -> hologramManager = manager,
-                () -> getLogger().severe(i18n.log("internal.main.hologram_init_failed")));
+                () -> RushLogger.error(i18n.log("internal.main.hologram_init_failed")));
 
         Bukkit.getPluginManager().registerEvents(new GameRules(this), this);
         Bukkit.getPluginManager().registerEvents(new PlayerActivity(this), this);
@@ -133,18 +128,6 @@ public class Main extends JavaPlugin {
         // persist author particles animation + holograms between server restarts
         commandManager.getAuthorCommand().restoreExistingAuthors();
         commandManager.getLeaderboardCommand().restoreLeaderboards();
-
-        final TranslationStore.StringBased<MessageFormat> mainStore = TranslationStore
-                .messageFormat(Key.key("rush", "main"));
-
-        try {
-            mainStore.registerAll(Locale.FRANCE,
-                    ResourceBundle.getBundle("io.github.rush.i18n.Bundle", Locale.FRANCE), true);
-            GlobalTranslator.translator().addSource(mainStore);
-            getLogger().info(i18n.log("internal.main.i18n_registered"));
-        } catch (Exception e) {
-            getLogger().warning(i18n.log("internal.main.i18n_register_failed", e.getMessage()));
-        }
 
         Bukkit.getScheduler().runTaskTimer(this, () -> {
             scoreboardManager.updateAll();
@@ -193,15 +176,15 @@ public class Main extends JavaPlugin {
 
     @Override
     public void onDisable() {
-        getLogger().info(i18n.log("internal.main.shutdown_start"));
+        RushLogger.info(i18n.log("internal.main.shutdown_start"));
 
         Bukkit.getScheduler().cancelTasks(this);
-        getLogger().info(i18n.log("internal.main.shutdown_tasks_cancelled"));
+        RushLogger.info(i18n.log("internal.main.shutdown_tasks_cancelled"));
 
         if (gameManager != null) {
             for (GameRoom room : new ArrayList<>(gameManager.getAllGameRooms()))
                 gameManager.removeGameRoom(room.getId());
-            getLogger().info(i18n.log("internal.main.shutdown_rooms_cleaned"));
+            RushLogger.info(i18n.log("internal.main.shutdown_rooms_cleaned"));
         }
 
         if (scoreboardManager != null) {
@@ -209,17 +192,17 @@ public class Main extends JavaPlugin {
                 scoreboardManager.removeScoreboard(player);
             }
             scoreboardManager.removeAllScoreboards();
-            getLogger().info(i18n.log("internal.main.shutdown_scoreboards_removed"));
+            RushLogger.info(i18n.log("internal.main.shutdown_scoreboards_removed"));
         }
 
         if (commandManager != null && commandManager.getAuthorCommand() != null) {
             commandManager.getAuthorCommand().cleanupAll();
-            getLogger().info(i18n.log("internal.main.shutdown_author_holograms_cleaned"));
+            RushLogger.info(i18n.log("internal.main.shutdown_author_holograms_cleaned"));
         }
 
         if (commandManager != null && commandManager.getLeaderboardCommand() != null) {
             commandManager.getLeaderboardCommand().cleanupAll();
-            getLogger().info(i18n.log("internal.main.shutdown_leaderboard_holograms_cleaned"));
+            RushLogger.info(i18n.log("internal.main.shutdown_leaderboard_holograms_cleaned"));
         }
 
         playerBoards.clear();
@@ -234,6 +217,6 @@ public class Main extends JavaPlugin {
             playerLevelManager.close();
         }
 
-        getLogger().info(i18n.log("internal.main.shutdown_complete"));
+        RushLogger.info(i18n.log("internal.main.shutdown_complete"));
     }
 }

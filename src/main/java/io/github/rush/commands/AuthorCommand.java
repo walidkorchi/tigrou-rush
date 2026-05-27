@@ -2,6 +2,7 @@ package io.github.rush.commands;
 
 import io.github.rush.Main;
 import io.github.rush.utils.i18n;
+import io.github.rush.utils.RushLogger;
 import io.github.rush.storage.ConfigManager;
 import io.papermc.paper.command.brigadier.Commands;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
@@ -105,7 +106,7 @@ public class AuthorCommand {
                             // Respawn hologram
                             spawnHologram(armorStandId, glassLoc.add(0, 2.2, 0));
 
-                            Bukkit.getLogger().info(i18n.log("internal.command.author.restored"));
+                            RushLogger.info(i18n.log("internal.command.author.restored"));
                             return; // Only one author allowed
                         }
                     }
@@ -140,7 +141,7 @@ public class AuthorCommand {
                             // Respawn hologram
                             spawnHologram(armorStandId, glassLoc.add(0, 2.2, 0));
 
-                            Bukkit.getLogger().info(i18n.log("internal.command.author.restored_scanned"));
+                            RushLogger.info(i18n.log("internal.command.author.restored_scanned"));
                             return; // Only one author allowed
                         }
                     }

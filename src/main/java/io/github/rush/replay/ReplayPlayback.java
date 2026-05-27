@@ -4,6 +4,7 @@ import io.github.rush.utils.ReplayUtils.BlockRestore;
 import io.github.rush.utils.ReplayUtils.ReplayFile;
 
 import io.github.rush.Main;
+import io.github.rush.game.Game;
 import io.github.rush.objects.TNT;
 import io.github.rush.abstracts.Team;
 import net.kyori.adventure.text.Component;
@@ -26,7 +27,6 @@ import org.bukkit.entity.Pose;
 import org.bukkit.entity.TNTPrimed;
 import org.bukkit.inventory.EntityEquipment;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.LeatherArmorMeta;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.Vector;
@@ -78,19 +78,21 @@ public final class ReplayPlayback {
     public ReplayPlayback(ReplayFile file, World world) {
         this.file = file;
         this.world = world;
+
         spawnMannequins();
+
         tickTask = Bukkit.getScheduler().runTaskTimer(Main.getInstance(), this::tick, 1L, 1L);
     }
 
     private void spawnMannequins() {
-        Map<String, String> teamColors = file.header().teamColorsByPlayerUuid();
+        final Map<String, String> teamColors = file.header().teamColorsByPlayerUuid();
 
         for (Map.Entry<UUID, List<ReplayAction>> entry : file.actions().entrySet()) {
-            UUID uuid = entry.getKey();
+            final UUID uuid = entry.getKey();
             if (uuid.equals(GLOBAL))
                 continue;
 
-            MoveAction firstMove = entry.getValue().stream()
+            final MoveAction firstMove = entry.getValue().stream()
                     .filter(a -> a instanceof MoveAction)
                     .map(a -> (MoveAction) a)
                     .findFirst()
@@ -98,21 +100,23 @@ public final class ReplayPlayback {
             if (firstMove == null)
                 continue;
 
-            Location loc = new Location(world,
+            final Location loc = new Location(world,
                     firstMove.x(), firstMove.y(), firstMove.z(),
                     firstMove.yaw(), firstMove.pitch());
+            final Mannequin mannequin = (Mannequin) world.spawnEntity(loc, EntityType.MANNEQUIN);
 
-            Mannequin mannequin = (Mannequin) world.spawnEntity(loc, EntityType.MANNEQUIN);
             mannequin.setAI(false);
             mannequin.setGravity(false);
             mannequin.setSilent(true);
             mannequin.setInvulnerable(true);
             mannequin.setCollidable(false);
 
-            Color color = resolveColor(teamColors != null ? teamColors.get(uuid.toString()) : null);
-            applyArmor(mannequin, color);
+            final Color color = Team.Color.valueOf(teamColors.get(uuid.toString())).getColor();
 
-            PlayerProfile profile = Bukkit.createProfile(uuid);
+            Game.equipWithTeamArmor(mannequin.getEquipment(), color);
+
+            final PlayerProfile profile = Bukkit.createProfile(uuid);
+
             profile.update().thenAccept(updated -> {
                 if (updated != null && updated.getTextures() != null
                         && updated.getTextures().getSkin() != null) {
@@ -123,31 +127,6 @@ public final class ReplayPlayback {
             mannequins.add(mannequin);
             mannequinByPlayer.put(uuid, mannequin);
         }
-    }
-
-    private Color resolveColor(String teamColorName) {
-        if (teamColorName == null)
-            return Color.WHITE;
-        try {
-            return Team.Color.valueOf(teamColorName).getColor();
-        } catch (IllegalArgumentException e) {
-            return Color.WHITE;
-        }
-    }
-
-    private void applyArmor(Mannequin mannequin, Color color) {
-        EntityEquipment equip = mannequin.getEquipment();
-        equip.setHelmet(coloredLeather(Material.LEATHER_HELMET, color));
-        equip.setLeggings(coloredLeather(Material.LEATHER_LEGGINGS, color));
-        equip.setBoots(coloredLeather(Material.LEATHER_BOOTS, color));
-    }
-
-    private ItemStack coloredLeather(Material material, Color color) {
-        ItemStack item = new ItemStack(material);
-        LeatherArmorMeta meta = (LeatherArmorMeta) item.getItemMeta();
-        meta.setColor(color);
-        item.setItemMeta(meta);
-        return item;
     }
 
     private void applyEquipment(Mannequin mannequin, String mainHand, String offHand) {
@@ -255,6 +234,7 @@ public final class ReplayPlayback {
             }
         } else if (action instanceof BedDestroyAction bed) {
             String destroyerName = "Inconnu";
+
             if (bed.destroyerUuid() != null) {
                 Player online = Bukkit.getPlayer(bed.destroyerUuid());
                 if (online != null) {
@@ -265,19 +245,22 @@ public final class ReplayPlayback {
                         destroyerName = cached;
                 }
             }
+
             for (Player viewer : viewers) {
                 viewer.sendMessage(Component.translatable("rush.replay_bed_destroyed",
                         Component.text(destroyerName), Component.text(bed.teamColorName())));
             }
         } else if (action instanceof DropItemAction drop) {
-            Location dropLoc = new Location(world, drop.x(), drop.y(), drop.z(), drop.yaw(), 0);
-            Material mat = Material.getMaterial(drop.material());
+            final Material mat = Material.getMaterial(drop.material());
+
             if (mat != null && mat != Material.AIR) {
-                ItemStack stack = new ItemStack(mat, drop.amount());
-                Item item = world.dropItem(dropLoc, stack);
+                final Location dropLoc = new Location(world, drop.x(), drop.y(), drop.z(), drop.yaw(), 0);
+                final Item item = world.dropItem(dropLoc, new ItemStack(mat, drop.amount()));
+
                 item.setVelocity(new Vector(drop.velX(), drop.velY(), drop.velZ()));
                 item.setPickupDelay(Integer.MAX_VALUE);
                 item.setUnlimitedLifetime(true);
+
                 replayEntities.add(item);
             }
         } else if (action instanceof TntIgniteAction tnt) {
@@ -422,9 +405,10 @@ public final class ReplayPlayback {
 
     private void repositionMannequins(long targetMs) {
         deadPlayers.clear();
+
         for (Map.Entry<UUID, List<ReplayAction>> entry : file.actions().entrySet()) {
-            UUID uuid = entry.getKey();
-            List<ReplayAction> actions = entry.getValue();
+            final UUID uuid = entry.getKey();
+            final List<ReplayAction> actions = entry.getValue();
 
             int idx = 0;
             while (idx < actions.size() && actions.get(idx).timestamp() <= targetMs) {
@@ -486,15 +470,21 @@ public final class ReplayPlayback {
 
     public void addViewer(Player player) {
         viewers.add(player);
+
         player.setGameMode(GameMode.ADVENTURE);
         player.setAllowFlight(true);
         player.setFlying(true);
         player.setInvulnerable(true);
-        int islandY = world.getMaxHeight() - Main.getInstance().getConfig().getInt("distance-height-limit");
+
+        final int islandY = world.getMaxHeight() - Main.getInstance().getConfig().getInt("distance-height-limit");
+
         player.teleport(new Location(world, 0.5, islandY + 10, 0.5, 0f, -30f));
+
         ReplayViewerInventory.give(player, isPaused, speedMultiplier);
+
         player.sendMessage(Component.translatable("rush.replay_watching_full",
                 Component.text(file.header().hostName())));
+
         Bukkit.getScheduler().runTask(Main.getInstance(), () -> {
             if (player.isOnline()) {
                 player.setAllowFlight(true);
@@ -507,33 +497,32 @@ public final class ReplayPlayback {
         viewers.remove(player);
         followerTargets.remove(player.getUniqueId());
         player.removePotionEffect(PotionEffectType.NIGHT_VISION);
+
         Main.getInstance().getGameManager().resetPlayerHubState(player);
+
         return viewers.isEmpty();
     }
 
+    // TODO: for future usage, left for reference
     public boolean isViewerPresent(Player player) {
         return viewers.contains(player);
     }
 
-    public boolean isEmpty() {
-        return viewers.isEmpty();
-    }
-
-    public String getSessionId() {
-        return file.header().sessionId();
-    }
-
     public void cleanup() {
         clearReplayEntities();
+
         if (tickTask != null) {
             tickTask.cancel();
             tickTask = null;
         }
+
         for (Mannequin mannequin : new ArrayList<>(mannequins)) {
             mannequin.remove();
         }
+
         mannequins.clear();
         mannequinByPlayer.clear();
+
         Main.getInstance().getGameManager().destroyReplayWorld(world);
     }
 }
