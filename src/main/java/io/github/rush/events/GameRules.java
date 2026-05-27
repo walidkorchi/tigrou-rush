@@ -42,7 +42,7 @@ public class GameRules implements Listener {
             Material.SANDSTONE, Material.END_STONE, Material.TNT);
 
     private static final Set<Material> BREAKABLE_BLOCKS = Set.of(
-            Material.SANDSTONE, Material.END_STONE);
+            Material.SANDSTONE, Material.END_STONE, Material.TNT);
 
     private Game getRunningGameForWorld(String worldName) {
         final GameRoom room = plugin.getGameManager().getGameRoomByWorld(worldName);

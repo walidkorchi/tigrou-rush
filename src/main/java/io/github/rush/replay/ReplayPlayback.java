@@ -60,7 +60,10 @@ public final class ReplayPlayback {
     private final Set<UUID> deadPlayers = new HashSet<>();
     private final Map<UUID, UUID> followerTargets = new HashMap<>();
     private final Set<Entity> replayEntities = new HashSet<>();
-    private final List<BukkitTask> pendingTasks = new ArrayList<>();
+    private final List<PendingExplosion> pendingExplosions = new ArrayList<>();
+
+    private record PendingExplosion(long explosionMs, int x, int y, int z) {
+    }
 
     @Getter
     @Setter
@@ -178,6 +181,7 @@ public final class ReplayPlayback {
             frameIndices.put(uuid, idx);
         }
 
+        processPendingExplosions();
     }
 
     private void dispatchAction(UUID uuid, ReplayAction action) {
@@ -186,10 +190,9 @@ public final class ReplayPlayback {
                 return;
             Mannequin mannequin = mannequinByPlayer.get(uuid);
             if (mannequin != null) {
-                double yOffset = move.sneaking() ? -0.3 : 0.0;
                 mannequin.setPose(move.sneaking() ? Pose.SNEAKING : Pose.STANDING, true);
                 mannequin.teleport(new Location(world,
-                        move.x(), move.y() + yOffset, move.z(),
+                        move.x(), move.y(), move.z(),
                         move.yaw(), move.pitch()));
                 applyEquipment(mannequin, move.mainHand(), move.offHand());
             }
@@ -234,8 +237,10 @@ public final class ReplayPlayback {
             Mannequin mannequin = mannequinByPlayer.get(uuid);
             if (mannequin != null) {
                 mannequin.swingHand(swing.hand());
-                world.playSound(mannequin.getLocation(), Sound.ENTITY_PLAYER_ATTACK_SWEEP,
-                        SoundCategory.PLAYERS, 1.0f, 0.9f + (float) Math.random() * 0.2f);
+                // TODO: this is not ideal if right click when block placing should
+                // be played only on left click when mannequin is pointing towards an entity
+                // world.playSound(mannequin.getLocation(), Sound.ENTITY_PLAYER_ATTACK_SWEEP,
+                // SoundCategory.PLAYERS, 1.0f, 0.9f + (float) Math.random() * 0.2f);
             }
         } else if (action instanceof DamageAction damage) {
             Mannequin mannequin = mannequinByPlayer.get(damage.victimUuid());
@@ -287,20 +292,24 @@ public final class ReplayPlayback {
             primed.setVelocity(new Vector(0, 0.25, 0));
             replayEntities.add(primed);
 
-            scheduleBedDestruction(tntLoc, tnt.fuseTicks());
+            pendingExplosions.add(new PendingExplosion(
+                    playheadMs + tnt.fuseTicks() * 50L,
+                    tntLoc.getBlockX(), tntLoc.getBlockY(), tntLoc.getBlockZ()));
         }
     }
 
-    private void scheduleBedDestruction(Location tntLoc, int fuseTicks) {
-        BukkitTask task = Bukkit.getScheduler().runTaskLater(Main.getInstance(), () -> {
-            if (!tntLoc.isChunkLoaded())
-                return;
-            int radius = Main.getInstance().getConfig().getInt("radius", 4);
-            int bx = tntLoc.getBlockX(), by = tntLoc.getBlockY(), bz = tntLoc.getBlockZ();
+    private void processPendingExplosions() {
+        int radius = Main.getInstance().getConfig().getInt("radius");
+        var it = pendingExplosions.iterator();
+        while (it.hasNext()) {
+            PendingExplosion ex = it.next();
+            if (ex.explosionMs > playheadMs)
+                continue;
+            it.remove();
             for (int dx = -radius; dx <= radius; dx++) {
                 for (int dy = -radius; dy <= radius; dy++) {
                     for (int dz = -radius; dz <= radius; dz++) {
-                        Block b = world.getBlockAt(bx + dx, by + dy, bz + dz);
+                        Block b = world.getBlockAt(ex.x + dx, ex.y + dy, ex.z + dz);
                         if (b.getType().name().endsWith("_BED")) {
                             TNT.removeBedBlocks(b);
                             world.playSound(b.getLocation(), Sound.BLOCK_WOOL_BREAK,
@@ -309,19 +318,15 @@ public final class ReplayPlayback {
                     }
                 }
             }
-        }, fuseTicks);
-        pendingTasks.add(task);
+        }
     }
 
     private void clearReplayEntities() {
-        for (BukkitTask task : pendingTasks) {
-            task.cancel();
-        }
-        pendingTasks.clear();
         for (Entity entity : replayEntities) {
             entity.remove();
         }
         replayEntities.clear();
+        pendingExplosions.clear();
     }
 
     public void togglePause() {
@@ -396,6 +401,7 @@ public final class ReplayPlayback {
                 }
                 frameIndices.put(uuid, idx);
             }
+            processPendingExplosions();
         } else {
             clearReplayEntities();
             List<ReplayAction> allBlockActions = new ArrayList<>();
@@ -467,8 +473,7 @@ public final class ReplayPlayback {
 
             if (!Double.isNaN(lastX)) {
                 if (alive) {
-                    double yOff = lastSneaking ? -0.3 : 0.0;
-                    mannequin.teleport(new Location(world, lastX, lastY + yOff, lastZ, lastYaw, lastPitch));
+                    mannequin.teleport(new Location(world, lastX, lastY, lastZ, lastYaw, lastPitch));
                     applyEquipment(mannequin, lastMainHand, lastOffHand);
                     mannequin.setSneaking(lastSneaking);
                 } else {
@@ -485,7 +490,7 @@ public final class ReplayPlayback {
         player.setAllowFlight(true);
         player.setFlying(true);
         player.setInvulnerable(true);
-        int islandY = world.getMaxHeight() - Main.getInstance().getConfig().getInt("distance-height-limit", 12);
+        int islandY = world.getMaxHeight() - Main.getInstance().getConfig().getInt("distance-height-limit");
         player.teleport(new Location(world, 0.5, islandY + 10, 0.5, 0f, -30f));
         ReplayViewerInventory.give(player, isPaused, speedMultiplier);
         player.sendMessage(Component.translatable("rush.replay_watching_full",
@@ -502,13 +507,7 @@ public final class ReplayPlayback {
         viewers.remove(player);
         followerTargets.remove(player.getUniqueId());
         player.removePotionEffect(PotionEffectType.NIGHT_VISION);
-        Location lobby = Main.getInstance().getMainLobby();
-        if (lobby == null) {
-            lobby = Bukkit.getWorlds().get(0).getSpawnLocation();
-        }
-        player.setGameMode(GameMode.ADVENTURE);
-        player.teleport(lobby);
-        Main.getInstance().getGameManager().restoreHubInventory(player);
+        Main.getInstance().getGameManager().resetPlayerHubState(player);
         return viewers.isEmpty();
     }
 

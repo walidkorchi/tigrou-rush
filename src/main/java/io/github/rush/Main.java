@@ -124,6 +124,7 @@ public class Main extends JavaPlugin {
         Bukkit.getPluginManager().registerEvents(new GameRules(this), this);
         Bukkit.getPluginManager().registerEvents(new PlayerActivity(this), this);
         Bukkit.getPluginManager().registerEvents(new TNT(this), this);
+        Bukkit.getPluginManager().registerEvents(new MOTDListener(), this);
 
         commandManager = new CommandManager();
         commandManager.registerAll(this);

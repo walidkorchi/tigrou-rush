@@ -328,11 +328,16 @@ public class PlayerActivity implements Listener {
 
         final GameRoom room = plugin.getGameManager().getGameRoomByWorld(worldName);
 
-        if (room != null && room.isRunning()) {
-            final Game game = room.getGame();
+        if (room != null) {
+            if (room.isRunning()) {
+                final Game game = room.getGame();
 
-            if (game != null && !game.isSpectator(new GamePlayer(player))) {
-                rescueFromVoid(player, game, room.getIslandY());
+                if (game != null && !game.isSpectator(new GamePlayer(player))) {
+                    rescueFromVoid(player, game, room.getIslandY());
+                }
+            } else if (room.isWaiting() && player.getLocation().getY() < room.getIslandY() - Main.getInstance().getVoidThreshold()) {
+                player.setFallDistance(0);
+                player.teleport(room.getLobbyLocation());
             }
         }
     }

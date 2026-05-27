@@ -3,7 +3,6 @@ package io.github.rush.guis;
 import io.github.rush.Main;
 import io.github.rush.utils.i18n;
 import io.github.rush.game.Game;
-import io.github.rush.game.GameManager;
 import io.github.rush.entities.GamePlayer;
 import io.github.rush.game.GameRoom;
 import io.github.rush.game.GameState;
@@ -261,11 +260,12 @@ public class TeamSelectionGUI {
         game.setPlayerReady(gp, !currentlyReady);
         player.getInventory().setItem(1, createReadyItem(!currentlyReady));
 
-        final Team.Color color = game.getPlayerTeam(gp).getColor();
-        player.getInventory().setHelmet(createTeamBanner(color));
+        final Team team = game.getPlayerTeam(gp);
+        if (team != null) {
+            player.getInventory().setHelmet(createTeamBanner(team.getColor()));
+        }
 
-        GameManager gm = Main.getInstance().getGameManager();
-        GameRoom barRoom = gm.getGameRoomByWorld(player.getWorld().getName());
+        GameRoom barRoom = Main.getInstance().getGameManager().getGameRoomByWorld(player.getWorld().getName());
         if (barRoom != null) {
             GameRoom.sendReadyActionBar(barRoom);
         }

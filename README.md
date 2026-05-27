@@ -41,14 +41,11 @@ You will likely encounter TypeScript code as well. It relies on the `dz.jtsgen.a
 
 ### 🐛 Bugs
 
+- [ ] When a placed TNT block explodes after ignite, all surrounding TNTs ignite all at once spawning TNTPrimed which creates a canon tnt fly which is expected as per game design, but in replay worlds of recorded games, TNTPrimed are not spawned and all surrounding TNTs are thrown into the void.
 - [ ] GamePlayer no longer takes regular fall damage in a running game world
 
 ### 📜 Needs testing but optimistically fixed/implemented
 
-- [ ] Potion trade is a splash bottle water, not a healing potion
-- [ ] Replay worlds do not replicate the record game world state > enderchests with resources generators do not exist in islands with team beds of replay world in contrast to the recorded game world.
-- [ ] In a running game room when scenario "Coeurs supplémentaires" is enabled, islands with no teams have no beds, which is contradictory because only destroying beds grants +2 permanent hearts as per game design, a color bed must be assigned respectively. Same thing must applies to replay worlds.
-- [ ] Create a helper to color the BannerPatternKeys.PIGLIN banner pattern with visible contrast color either with white or black based on the team color instead of creating a condition for each team color, so the pattern is visible against any background color.
-- [ ] In a running game, enderchests and resources spanwers appear only in existing teams islands with beds. As per game design, they appear on all islands by default whether the island has a bed or not.
-- [ ] When player dies from void, no killing sound effect is emitted. Usually players take damage for that purpose. It's becausing we are rescusing the player before actually dying, but we need to revive him and make sure that the client player does not render the death screen.
+- [ ] TNT explosions ignited by game combattant do not seem to break surrouding breakable blocks (like: sandstone, endstone).
+- [ ] When replay is paused using controls for a recorded game, the ignited TNT action must be stopped as well, what happens is that the TNT explodes even if the replay is paused.
 - [ ] In a running game room, mannequins don't die from void which is 20 blocks below the islands the way normal players die and are telported back to their team bed island. > Fix attempt result : The message appears in chat where they did die by getting pushed by another player to the void, but are not teleported back to their team bed island. As per game design, they have a respawn cooldown of 6 seconds, where they are invisible to everyone else which is a state of invulnerability. Currently, the message is spammed infinitely as "%mannequinplayer% est mort"

@@ -10,7 +10,6 @@ import com.mojang.brigadier.Command;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 
-import org.bukkit.entity.Player;
 import org.jspecify.annotations.NullMarked;
 
 import net.kyori.adventure.text.Component;
@@ -50,13 +49,7 @@ public class ForceStartCommand {
                 return Command.SINGLE_SUCCESS;
             }
 
-            room.getGame().start();
-            for (Player online : plugin.getServer().getOnlinePlayers()) {
-                if (online.getWorld().equals(room.getWorld())) {
-                    online.sendMessage(Component.translatable("rush.force_start_broadcast"));
-                }
-            }
-            ctx.getSource().getSender().sendMessage(Component.translatable("rush.game_force_started"));
+            room.getGame().forceStart();
 
             return Command.SINGLE_SUCCESS;
         });

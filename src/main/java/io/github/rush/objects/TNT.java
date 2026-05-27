@@ -5,6 +5,7 @@ import java.lang.reflect.Method;
 import java.text.DecimalFormat;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -38,6 +39,9 @@ import io.github.rush.abstracts.Team;
 import net.kyori.adventure.text.Component;
 
 public class TNT implements Listener {
+
+    private static final Set<Material> EXPLOSION_BREAKABLE = Set.of(
+            Material.SANDSTONE, Material.END_STONE);
 
     private final Main plugin;
 
@@ -126,8 +130,10 @@ public class TNT implements Listener {
                 continue;
             }
 
-            // Protect island blocks and remove non-island blocks from explosion
-            blockIterator.remove();
+            // Protect island blocks (non-breakable) but let player-placed blocks break
+            if (!EXPLOSION_BREAKABLE.contains(blockType)) {
+                blockIterator.remove();
+            }
         }
     }
 

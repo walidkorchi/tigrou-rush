@@ -112,4 +112,4 @@ All user-facing strings go through Adventure's `Component.translatable("rush.<ke
 | CraftEngine | Custom items, sounds, resource pack, bitmap font rank images |
 | packetevents | Packet-level features (tablist etc.) |
 
-Schematics are read from `../server/plugins/FastAsyncWorldEdit/schematics/`. The game island schematic name is configured via `schematicFilename` in `config.yml`; the waiting room uses `waiting_room.schem`.
+Schematics are read from `../server/plugins/FastAsyncWorldEdit/schematics/**/*.schem`.

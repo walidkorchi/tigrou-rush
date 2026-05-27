@@ -703,7 +703,7 @@ public class GameManager {
 
     public static void placeIslandMerchants(World world, io.github.rush.objects.Island island, int islandIndex,
             int islandY) {
-        int speedOffset = Main.getInstance().getConfig().getInt("villagerSpeedOffset", 13);
+        int speedOffset = Main.getInstance().getConfig().getInt("villagerSpeedOffset");
         int regularOffset = Main.getInstance().getConfig().getInt("villagerRegularOffset", speedOffset - 1);
 
         int[] dir = Island.Layout.ISLAND_DIRECTIONS[islandIndex];

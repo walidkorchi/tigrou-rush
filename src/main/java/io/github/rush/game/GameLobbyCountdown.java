@@ -15,12 +15,14 @@ import org.bukkit.scheduler.BukkitTask;
 public class GameLobbyCountdown {
 
     private final Game game;
+    private final boolean force;
     @Setter
     private int counter = 60;
     private BukkitTask task;
 
-    public GameLobbyCountdown(Game game) {
+    public GameLobbyCountdown(Game game, boolean force) {
         this.game = game;
+        this.force = force;
     }
 
     public void start() {
@@ -59,7 +61,7 @@ public class GameLobbyCountdown {
     }
 
     private boolean canStart() {
-        return game.areEnoughTeamsFull();
+        return force || game.areEnoughTeamsFull();
     }
 
     public void cancel() {

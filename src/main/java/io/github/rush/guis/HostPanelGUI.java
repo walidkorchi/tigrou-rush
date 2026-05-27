@@ -56,7 +56,7 @@ public final class HostPanelGUI {
 
         gui.addItem(4, forceStart, p -> {
             p.closeInventory();
-            room.getGame().start();
+            room.getGame().forceStart();
         });
 
         // Per-player kick buttons (row 2+, one slot per player)

@@ -77,12 +77,11 @@ public final class HostConfigGUI {
     }
 
     private static void cycleFormat(GameRoomConfig.Builder b) {
-        int maxCount = b.islandType().getCount();
         int players = b.teamSize().getPlayersPerTeam();
         int teams = b.maxTeams();
 
         teams++;
-        if (teams > maxCount) {
+        if (teams > b.islandType().getCount()) {
             teams = 2;
             players++;
             if (players > 4) {
@@ -95,28 +94,31 @@ public final class HostConfigGUI {
     }
 
     private static String formatDisplayName(int teams, int playersPerTeam) {
-        StringBuilder sb = new StringBuilder();
+        final StringBuilder sb = new StringBuilder();
+
         for (int i = 0; i < teams; i++) {
-            if (i > 0) sb.append("vs");
+            if (i > 0)
+                sb.append("vs");
             sb.append(playersPerTeam);
         }
+
         return sb.toString();
     }
 
     private static ItemStack islandTypeItem(GameRoomConfig.Builder b) {
-        final Material mat = b.islandType() == GameRoom.IslandType.FOUR_ISLANDS
+        return labeled(b.islandType() == GameRoom.IslandType.FOUR_ISLANDS
                 ? Material.GRASS_BLOCK
-                : Material.STONE;
-        final Component displayName = i18n.txt("rush.config_island_type_name",
-                b.islandType().getDisplayName());
-        return labeled(mat, displayName, List.of(
-                i18n.txt("rush.config_island_type_click"),
-                Component.empty(),
-                i18n.txt("rush.config_island_type_current", b.islandType().getDisplayName())));
+                : Material.STONE,
+                i18n.txt("rush.config_island_type_name",
+                        b.islandType().getDisplayName()),
+                List.of(
+                        i18n.txt("rush.config_island_type_click"),
+                        Component.empty(),
+                        i18n.txt("rush.config_island_type_current", b.islandType().getDisplayName())));
     }
 
     private static ItemStack formatItem(GameRoomConfig.Builder b) {
-        String displayName = formatDisplayName(b.maxTeams(), b.teamSize().getPlayersPerTeam());
+        final String displayName = formatDisplayName(b.maxTeams(), b.teamSize().getPlayersPerTeam());
         return labeled(Material.IRON_SWORD, i18n.txt("rush.config_format_name", displayName),
                 List.of(
                         i18n.txt("rush.config_format_click"),
@@ -125,18 +127,16 @@ public final class HostConfigGUI {
     }
 
     private static ItemStack mapTypeItem(GameRoomConfig.Builder b) {
-        final Component displayName = i18n.txt("rush.config_map_type_name",
-                b.mapType().name());
-        return labeled(Material.FILLED_MAP, displayName, List.of(
-                i18n.txt("rush.config_map_type_click"),
-                Component.empty(),
-                i18n.txt("rush.config_map_type_current", b.mapType().name())));
+        return labeled(Material.FILLED_MAP,
+                i18n.txt("rush.config_map_type_name", b.mapType().name()),
+                List.of(
+                        i18n.txt("rush.config_map_type_click"),
+                        Component.empty(),
+                        i18n.txt("rush.config_map_type_current", b.mapType().name())));
     }
 
     private static ItemStack overtimeDurationItem(GameRoomConfig.Builder b) {
-        final Component displayName = i18n.txt("rush.config_overtime_dur_name",
-                b.overtimeDuration());
-        return labeled(Material.CLOCK, displayName, List.of(
+        return labeled(Material.CLOCK, i18n.txt("rush.config_overtime_dur_name", b.overtimeDuration()), List.of(
                 i18n.txt("rush.config_overtime_dur_left"),
                 i18n.txt("rush.config_overtime_dur_right"),
                 i18n.txt("rush.config_overtime_dur_range"),
@@ -145,27 +145,28 @@ public final class HostConfigGUI {
     }
 
     private static ItemStack flagItem(Component label, boolean enabled, Component description) {
-        final Material mat = enabled ? Material.LIME_DYE : Material.GRAY_DYE;
-        final String state = i18n.raw(enabled ? "rush.config_flag_state_enabled" : "rush.config_flag_state_disabled");
-        return labeled(mat, label, List.of(
+        return labeled(enabled ? Material.LIME_DYE : Material.GRAY_DYE, label, List.of(
                 description,
                 Component.empty(),
-                i18n.txt("rush.config_flag_state", state),
+                i18n.txt("rush.config_flag_state",
+                        i18n.raw(enabled ? "rush.config_flag_state_enabled" : "rush.config_flag_state_disabled")),
                 i18n.txt("rush.config_flag_click_toggle")));
     }
 
     private static ItemStack confirmItem(GameRoomConfig.Builder b) {
-        String formatName = formatDisplayName(b.maxTeams(), b.teamSize().getPlayersPerTeam());
         return labeled(Material.NETHER_STAR,
                 i18n.txt("rush.config_confirm_name"),
                 List.of(
                         i18n.txt("rush.config_confirm_lore_islands", b.islandType().getDisplayName()),
-                        i18n.txt("rush.config_confirm_lore_format", formatName),
+                        i18n.txt("rush.config_confirm_lore_format",
+                                formatDisplayName(b.maxTeams(), b.teamSize().getPlayersPerTeam())),
                         i18n.txt("rush.config_confirm_lore_map", b.mapType().name()),
                         i18n.txt("rush.config_confirm_lore_extra_hearts",
-                                i18n.raw(b.extraHearts() ? "rush.config_confirm_lore_extra_hearts_yes" : "rush.config_confirm_lore_extra_hearts_no")),
+                                i18n.raw(b.extraHearts() ? "rush.config_confirm_lore_extra_hearts_yes"
+                                        : "rush.config_confirm_lore_extra_hearts_no")),
                         i18n.txt("rush.config_confirm_lore_overtime_start",
-                                i18n.raw(b.overtimeStart() ? "rush.config_confirm_lore_overtime_start_yes" : "rush.config_confirm_lore_overtime_start_no")),
+                                i18n.raw(b.overtimeStart() ? "rush.config_confirm_lore_overtime_start_yes"
+                                        : "rush.config_confirm_lore_overtime_start_no")),
                         i18n.txt("rush.config_confirm_lore_overtime_dur", b.overtimeDuration()),
                         Component.empty(),
                         i18n.txt("rush.config_confirm_lore_click")));

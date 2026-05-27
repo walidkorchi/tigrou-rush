@@ -50,8 +50,6 @@ import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.EquipmentSlotGroup;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.CompassMeta;
-import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.inventory.meta.LeatherArmorMeta;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitTask;
@@ -156,12 +154,7 @@ public class Game {
     }
 
     private void initializeTeams(int maxTeams, int playersPerTeam) {
-        List<Team.Color> colors = List.of(
-                Team.Color.RED, Team.Color.BLUE, Team.Color.GREEN, Team.Color.YELLOW);
-
-        int teamCount = Math.min(maxTeams, colors.size());
-        for (int i = 0; i < teamCount; i++) {
-            Team.Color color = colors.get(i);
+        for (Team.Color color : Team.Color.values()) {
             Team team = new Team(color.name(), color, playersPerTeam);
             teams.put(color.name(), team);
         }
@@ -441,7 +434,7 @@ public class Game {
         if (state == GameState.WAITING) {
             if (areEnoughTeamsFull()) {
                 if (lobbyCountdown == null) {
-                    lobbyCountdown = new GameLobbyCountdown(this);
+                    lobbyCountdown = new GameLobbyCountdown(this, false);
                     lobbyCountdown.start();
                 }
             } else if (lobbyCountdown != null) {
@@ -473,9 +466,8 @@ public class Game {
             if (lobbyCountdown != null) {
                 lobbyCountdown.cancel();
             }
-            lobbyCountdown = new GameLobbyCountdown(this);
-            lobbyCountdown.setCounter(5);
-            lobbyCountdown.broadcastCountdownMessage(5);
+            lobbyCountdown = new GameLobbyCountdown(this, true);
+            lobbyCountdown.setCounter(15);
             lobbyCountdown.start();
         }
     }
@@ -487,11 +479,17 @@ public class Game {
                     .collect(Collectors.toList());
 
             if (!unassigned.isEmpty()) {
+                int maxActiveTeams = maxPlayers / getPlayersPerTeam();
+
                 final List<Team> sortedTeams = teams.values().stream()
-                        .sorted(Comparator.comparingInt(t -> t.getPlayers().size()))
+                        .sorted(Comparator.<Team, Boolean>comparing(t -> t.getPlayers().isEmpty())
+                                .thenComparingInt(t -> t.getPlayers().size()))
+                        .limit(maxActiveTeams)
                         .collect(Collectors.toList());
 
                 for (GameCombatant participant : unassigned) {
+                    if (sortedTeams.isEmpty())
+                        break;
                     Team smallestTeam = sortedTeams.get(0);
 
                     if (smallestTeam.getPlayers().size() < smallestTeam.getMaxPlayers()) {
@@ -605,9 +603,9 @@ public class Game {
         int bx = location.getBlockX();
         int by = location.getBlockY();
         int bz = location.getBlockZ();
-        int speedOffset = Main.getInstance().getConfig().getInt("villagerSpeedOffset", 13);
+        int speedOffset = Main.getInstance().getConfig().getInt("villagerSpeedOffset");
         int regularOffset = Main.getInstance().getConfig().getInt("villagerRegularOffset", speedOffset - 1);
-        int radius = Main.getInstance().getConfig().getInt("merchantProtectionRadius", 3);
+        int radius = Main.getInstance().getConfig().getInt("merchantProtectionRadius");
         int islandY = gameRoom.getIslandY();
 
         // Merchants span islandY+1 (feet) to islandY+2 (head); skip all iteration if Y
@@ -662,7 +660,7 @@ public class Game {
         final int islandY = gameRoom.getIslandY();
 
         final int regularOffset = Main.getInstance().getConfig().getInt("villagerRegularOffset",
-                Main.getInstance().getConfig().getInt("villagerSpeedOffset", 13) - 1);
+                Main.getInstance().getConfig().getInt("villagerSpeedOffset") - 1);
         final double islandRadiusSq = (regularOffset + 2.0) * (regularOffset + 2.0);
         final double bx = location.getX();
         final double bz = location.getZ();
@@ -731,6 +729,7 @@ public class Game {
 
     private void computeIslandAssignment() {
         List<Team> orderedTeams = teams.values().stream()
+                .filter(t -> !t.getPlayers().isEmpty())
                 .sorted(Comparator.comparingInt(t -> t.getColor().ordinal()))
                 .collect(Collectors.toList());
 
@@ -832,9 +831,11 @@ public class Game {
     };
 
     private void placeExtraBed(int islandIndex) {
-        if (islands == null || islandIndex >= islands.size()) return;
+        if (islands == null || islandIndex >= islands.size())
+            return;
         final World gameWorld = gameRoom.getWorld();
-        if (gameWorld == null) return;
+        if (gameWorld == null)
+            return;
         Team.placeIslandBed(gameWorld, islands.get(islandIndex), islandIndex,
                 gameRoom.getIslandY(), EXTRA_BED_COLORS[islandIndex % EXTRA_BED_COLORS.length]);
     }
@@ -872,7 +873,15 @@ public class Game {
         if (gameRoom == null || !gameRoom.getConfig().extraHearts())
             return;
 
-        final double bonusHealth = sourceTeam.getBedsDestroyed() * 4.0;
+        if (gameRoom.getConfig().maxTeams() <= 2)
+            return;
+
+        final int maxHearts = Main.getInstance().getConfig().getInt("maxBedsGrantHearts", 6);
+        final double bonusHealth = Math.min(sourceTeam.getBedsDestroyed() * 4.0, maxHearts * 2.0);
+
+        final boolean capped = sourceTeam.getBedsDestroyed() * 4.0 >= maxHearts * 2.0
+                && (sourceTeam.getBedsDestroyed() - 1) * 4.0 < maxHearts * 2.0;
+
         for (GameCombatant participant : sourceTeam.getPlayers()) {
             if (participant instanceof GamePlayer gp) {
                 final Player player = gp.player();
@@ -883,9 +892,7 @@ public class Game {
                             new AttributeModifier(NamespacedKey.minecraft("extra_hearts"), bonusHealth,
                                     AttributeModifier.Operation.ADD_NUMBER, EquipmentSlotGroup.ANY));
                 }
-                player.sendMessage(
-                        Component.translatable("rush.extra_hearts",
-                                Component.text(sourceTeam.getBedsDestroyed() * 2)));
+                player.sendMessage(Component.translatable(capped ? "rush.extra_hearts_max" : "rush.extra_hearts"));
             }
         }
     }
@@ -914,30 +921,22 @@ public class Game {
     }
 
     private ItemStack[] createTeamArmorAndTool(Color color) {
-        ItemStack helmet = new ItemStack(Material.LEATHER_HELMET);
-        LeatherArmorMeta helmetMeta = (LeatherArmorMeta) helmet.getItemMeta();
-        helmetMeta.setColor(color);
-        helmetMeta.addEnchant(Enchantment.PROTECTION, 1, true);
-        helmet.setItemMeta(helmetMeta);
-
-        ItemStack leggings = new ItemStack(Material.LEATHER_LEGGINGS);
-        LeatherArmorMeta legsMeta = (LeatherArmorMeta) leggings.getItemMeta();
-        legsMeta.setColor(color);
-        legsMeta.addEnchant(Enchantment.PROTECTION, 1, true);
-        leggings.setItemMeta(legsMeta);
-
-        ItemStack boots = new ItemStack(Material.LEATHER_BOOTS);
-        LeatherArmorMeta bootsMeta = (LeatherArmorMeta) boots.getItemMeta();
-        bootsMeta.setColor(color);
-        bootsMeta.addEnchant(Enchantment.PROTECTION, 1, true);
-        boots.setItemMeta(bootsMeta);
-
-        ItemStack pickaxe = new ItemStack(Material.WOODEN_PICKAXE);
-        ItemMeta pickMeta = pickaxe.getItemMeta();
-        pickMeta.displayName(i18n.txt("rush.item_pickaxe"));
-        pickMeta.addEnchant(Enchantment.EFFICIENCY, 1, true);
-        pickaxe.setItemMeta(pickMeta);
-
+        final ItemStack helmet = ItemBuilder.of(Material.LEATHER_HELMET)
+                .color(color)
+                .addEnchant(Enchantment.PROTECTION, 1, true)
+                .build();
+        final ItemStack leggings = ItemBuilder.of(Material.LEATHER_LEGGINGS)
+                .color(color)
+                .addEnchant(Enchantment.PROTECTION, 1, true)
+                .build();
+        final ItemStack boots = ItemBuilder.of(Material.LEATHER_BOOTS)
+                .color(color)
+                .addEnchant(Enchantment.PROTECTION, 1, true)
+                .build();
+        final ItemStack pickaxe = ItemBuilder.of(Material.WOODEN_PICKAXE)
+                .name(i18n.txt("rush.item_pickaxe"))
+                .addEnchant(Enchantment.EFFICIENCY, 1, true)
+                .build();
         return new ItemStack[] { helmet, leggings, boots, pickaxe };
     }
 
@@ -1097,7 +1096,7 @@ public class Game {
 
     private void checkGameOver() {
         List<Team> teamsWithBeds = teams.values().stream()
-                .filter(t -> !t.isBedDestroyed())
+                .filter(t -> !t.getPlayers().isEmpty() && !t.isBedDestroyed())
                 .collect(Collectors.toList());
 
         List<Team> teamsWithoutBedsButAlive = teams.values().stream()
@@ -1434,7 +1433,7 @@ public class Game {
             return;
 
         mannequin.setInvulnerable(true);
-        mannequin.setVisibleByDefault(false);
+        mannequin.setVisibleByDefault(true);
 
         Bukkit.getScheduler().runTaskLater(Main.getInstance(), () -> {
             if (mannequin.isDead())

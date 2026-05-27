@@ -4,8 +4,11 @@ import io.papermc.paper.datacomponent.DataComponentTypes;
 import io.papermc.paper.datacomponent.item.ItemLore;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Material;
+import org.bukkit.enchantments.Enchantment;
+import org.bukkit.Color;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.meta.LeatherArmorMeta;
 
 import java.util.Arrays;
 import java.util.List;
@@ -47,6 +50,18 @@ public final class ItemBuilder {
 
     public ItemBuilder lore(Component... lines) {
         this.loreLines = List.of(lines);
+        return this;
+    }
+
+    public ItemBuilder color(Color color) {
+        if (meta instanceof LeatherArmorMeta lam) {
+            lam.setColor(color);
+        }
+        return this;
+    }
+
+    public ItemBuilder addEnchant(Enchantment enchantment, int level, boolean ignoreLevelRestriction) {
+        meta.addEnchant(enchantment, level, ignoreLevelRestriction);
         return this;
     }
 

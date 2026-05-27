@@ -29,7 +29,6 @@ fallDamage: 5.0                               # Reduce the fall damage by dividi
 
 # --- Islands/Map Configuration ---
 
-schematicFilename: rush_island.schem          # Schematic filename for the rush island
 islandOffset: 30                              # Distance from center point to islands
 void-threshold: 20                            # Blocks below islandY at which a falling player is rescued and teleported back to their bed
 villagerSpeedOffset: 13                       # Villager spawn offsets (distance from island center)
@@ -49,6 +48,7 @@ kill-tracker:
 max-replays: 20                               # Max replay files retained (oldest deleted on save)
 distance-height-limit: 12                     # Max island paste height: worldMaxHeight - this value
 overtime-duration: 30                         # Minutes of play before overtime begins (beds destroyed, all restrictions lifted)
+maxBedsGrantHearts: 6                          # Max total extra hearts a team can get from bed destructions (0 to disable)
 bedProtectionRadius: 3                        # Radius around beds where block placement is prevented
 respawn-protection: 4                         # Respawn protection time in seconds (0 to disable)
 merchantProtectionRadius: 1                   # Radius around regular merchants where block placement is prevented
