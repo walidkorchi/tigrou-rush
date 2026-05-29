@@ -23,6 +23,7 @@ import io.github.rush.storage.PlayerLevelManager;
 import io.github.rush.storage.PlayerLevelManager.PlayerLevel;
 import io.papermc.paper.event.player.AsyncChatEvent;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
@@ -297,9 +298,7 @@ public class PlayerActivity implements Listener {
 
         // prevents dropping armor during game
         if (isPlayerInGame(player)) {
-            final ItemStack item = event.getItemDrop().getItemStack();
-
-            if (isArmorItem(item.getType())) {
+            if (isArmorItem(event.getItemDrop().getItemStack().getType())) {
                 event.setCancelled(true);
             }
         }
@@ -335,7 +334,8 @@ public class PlayerActivity implements Listener {
                 if (game != null && !game.isSpectator(new GamePlayer(player))) {
                     rescueFromVoid(player, game, room.getIslandY());
                 }
-            } else if (room.isWaiting() && player.getLocation().getY() < room.getIslandY() - Main.getInstance().getVoidThreshold()) {
+            } else if (room.isWaiting()
+                    && player.getLocation().getY() < room.getIslandY() - Main.getInstance().getVoidThreshold()) {
                 player.setFallDistance(0);
                 player.teleport(room.getLobbyLocation());
             }
@@ -343,13 +343,9 @@ public class PlayerActivity implements Listener {
     }
 
     private void rescueFromVoid(Player player, Game game, int islandY) {
-        final double voidThreshold = islandY - Main.getInstance().getVoidThreshold();
-
-        if (player.getLocation().getY() < voidThreshold) {
+        if (player.getLocation().getY() < (islandY - Main.getInstance().getVoidThreshold())) {
             player.setFallDistance(0);
             player.setHealth(0);
-            // PlayerDeathEvent fires: onPlayerDie cancels the death screen,
-            // restores health/food, and calls handleEntityDeath.
         }
     }
 
@@ -369,9 +365,8 @@ public class PlayerActivity implements Listener {
         player.setHealth(player.getAttribute(Attribute.MAX_HEALTH).getValue());
         player.setFoodLevel(20);
         player.setSaturation(20f);
-        Player killer = player.getKiller();
 
-        handleEntityDeath(game, player, killer);
+        handleEntityDeath(game, player);
     }
 
     @EventHandler
@@ -406,10 +401,13 @@ public class PlayerActivity implements Listener {
         }, 1L);
     }
 
-    private void handleEntityDeath(Game game, Entity entity, Player killer) {
-        game.onPlayerDeath(new GamePlayer((Player) entity), killer);
+    private void handleEntityDeath(Game game, Entity entity) {
+        final Player player = (Player) entity;
+        final Player killer = player.getKiller();
 
-        Team team = game.getPlayerTeam(new GamePlayer((Player) entity));
+        game.onPlayerDeath(new GamePlayer(player), killer);
+
+        Team team = game.getPlayerTeam(new GamePlayer(player));
         boolean bedDestroyed = team != null && team.isBedDestroyed();
 
         if (!bedDestroyed && team != null) {
@@ -422,10 +420,10 @@ public class PlayerActivity implements Listener {
                 entity.teleport(spawn);
             }
 
-            game.equipEntity(new GamePlayer((Player) entity), team);
+            game.equipEntity(new GamePlayer(player), team);
 
-            if (entity instanceof Player player) {
-                game.addProtection(player);
+            if (entity instanceof Player p) {
+                game.addProtection(p);
             }
         }
     }
@@ -440,18 +438,18 @@ public class PlayerActivity implements Listener {
     }
 
     @EventHandler
-    public void onPlayerInteract(PlayerInteractEvent pie) {
-        if (pie.getAction() != Action.PHYSICAL && pie.getHand() != EquipmentSlot.HAND) {
+    public void onPlayerInteract(PlayerInteractEvent event) {
+        if (event.getAction() != Action.PHYSICAL && event.getHand() != EquipmentSlot.HAND) {
             return;
         }
 
-        Player player = pie.getPlayer();
+        Player player = event.getPlayer();
         ItemStack item = player.getInventory().getItemInMainHand();
 
         // Replay viewer: route hotbar actions and block all hub logic
         if (plugin.getReplayManager() != null && plugin.getReplayManager().isWatching(player)) {
-            if (pie.getAction() == Action.RIGHT_CLICK_AIR || pie.getAction() == Action.RIGHT_CLICK_BLOCK) {
-                pie.setCancelled(true);
+            if (event.getAction() == Action.RIGHT_CLICK_AIR || event.getAction() == Action.RIGHT_CLICK_BLOCK) {
+                event.setCancelled(true);
                 ReplayPlayback playback = plugin.getReplayManager().getPlayback(player);
                 if (playback == null)
                     return;
@@ -487,7 +485,7 @@ public class PlayerActivity implements Listener {
             return;
         }
 
-        if (pie.getAction() == Action.RIGHT_CLICK_AIR || pie.getAction() == Action.RIGHT_CLICK_BLOCK) {
+        if (event.getAction() == Action.RIGHT_CLICK_AIR || event.getAction() == Action.RIGHT_CLICK_BLOCK) {
             if (item != null && item.getType() == Material.COMPASS) {
                 // Spectator compass: return to lobby (GameRoom or legacy game)
                 Game spectatorGame = Main.getInstance().getGameManager().getGameForPlayer(player);
@@ -497,18 +495,18 @@ public class PlayerActivity implements Listener {
                     if (spectatorRoom != null) {
                         plugin.getGameManager().removePlayerFromGameRoom(player);
                     }
-                    pie.setCancelled(true);
+                    event.setCancelled(true);
                     return;
                 }
                 // Open game listing GUI
                 Main.getInstance().getGameManager().openGameList(player);
-                pie.setCancelled(true);
+                event.setCancelled(true);
                 return;
             }
 
             if (item != null && item.getType() == Material.BEACON) {
                 Main.getInstance().getGameManager().openHostConfigGUI(player);
-                pie.setCancelled(true);
+                event.setCancelled(true);
                 return;
             }
 
@@ -516,36 +514,36 @@ public class PlayerActivity implements Listener {
                 GameRoom hostRoom = plugin.getGameManager().getGameRoomOfPlayer(player);
                 if (hostRoom != null && player.getUniqueId().equals(hostRoom.getHostUUID())) {
                     HostPanelGUI.open(player, hostRoom, plugin.getGameManager());
-                    pie.setCancelled(true);
+                    event.setCancelled(true);
                     return;
                 }
             }
 
             if (item != null && item.getType() == Material.WHITE_BANNER) {
                 TeamSelectionGUI.openTeamSelection(player);
-                pie.setCancelled(true);
+                event.setCancelled(true);
                 return;
             }
 
             if (item != null && item.getType() == Material.SLIME_BALL) {
                 TeamSelectionGUI.openLeaveTeamMenu(player);
-                pie.setCancelled(true);
+                event.setCancelled(true);
                 return;
             }
 
             if (item != null && (item.getType() == Material.LIME_DYE || item.getType() == Material.RED_DYE)) {
                 TeamSelectionGUI.toggleReady(player);
-                pie.setCancelled(true);
+                event.setCancelled(true);
                 return;
             }
 
             if (item != null && item.getType() == Material.REPEATER) {
                 PlayerSettingsGUI.openPlayerSettings(player);
-                pie.setCancelled(true);
+                event.setCancelled(true);
                 return;
             }
 
-            Block clickedBlock = pie.getClickedBlock();
+            Block clickedBlock = event.getClickedBlock();
             if (clickedBlock != null && isGlass(clickedBlock.getType())) {
                 Location blockLoc = clickedBlock.getLocation();
                 for (Location glassLoc : plugin.getCommandManager().getAuthorCommand().getGlassBlocks().keySet()) {
@@ -554,7 +552,7 @@ public class PlayerActivity implements Listener {
                             && blockLoc.getBlockY() == glassLoc.getBlockY()
                             && blockLoc.getBlockZ() == glassLoc.getBlockZ()) {
                         AuthorCommand.playCookieFountain(blockLoc.add(0.5, 0.5, 0.5));
-                        pie.setCancelled(true);
+                        event.setCancelled(true);
                         return;
                     }
                 }
@@ -563,17 +561,16 @@ public class PlayerActivity implements Listener {
 
         // Block interactive block access in hub for non-OP players
         if (isHubPlayer(player) && !player.isOp()) {
-            Block block = pie.getClickedBlock();
-            if (pie.getAction() == Action.RIGHT_CLICK_BLOCK && block != null && isHubRestrictedBlock(block)) {
-                pie.setCancelled(true);
+            Block block = event.getClickedBlock();
+            if (event.getAction() == Action.RIGHT_CLICK_BLOCK && block != null && isHubRestrictedBlock(block)) {
+                event.setCancelled(true);
                 return;
             }
         }
 
-        // Always prevent crop trampling in hub for non-OP players, regardless of game
-        // state
-        if (isHubPlayer(player) && !player.isOp() && pie.getAction() == Action.PHYSICAL) {
-            pie.setCancelled(true);
+        // prevent crop trampling in hub for non-OP players, regardless of game state
+        if (isHubPlayer(player) && !player.isOp() && event.getAction() == Action.PHYSICAL) {
+            event.setCancelled(true);
             return;
         }
 
@@ -581,14 +578,14 @@ public class PlayerActivity implements Listener {
         if (!player.isOp()) {
             GameRoom interactRoom = plugin.getGameManager().getGameRoomByWorld(player.getWorld().getName());
             if (interactRoom != null && interactRoom.isWaiting()) {
-                if (pie.getAction() == Action.RIGHT_CLICK_BLOCK) {
-                    Block block = pie.getClickedBlock();
+                if (event.getAction() == Action.RIGHT_CLICK_BLOCK) {
+                    Block block = event.getClickedBlock();
                     if (block != null && isHubRestrictedBlock(block)) {
-                        pie.setCancelled(true);
+                        event.setCancelled(true);
                         return;
                     }
-                } else if (pie.getAction() == Action.PHYSICAL) {
-                    pie.setCancelled(true);
+                } else if (event.getAction() == Action.PHYSICAL) {
+                    event.setCancelled(true);
                     return;
                 }
             }
@@ -617,7 +614,7 @@ public class PlayerActivity implements Listener {
             return;
         }
 
-        // Disable 2x2 crafting grid while in game
+        // 2x2 crafting grid disabled while in game
         if (isPlayerInGame(player)) {
             if (event.getView().getTopInventory().getType() == InventoryType.CRAFTING) {
                 if (event.getRawSlot() >= 0 && event.getRawSlot() <= 4) {
@@ -800,6 +797,25 @@ public class PlayerActivity implements Listener {
         PlayerLevel playerLevel = levelManager.loadPlayerLevel(player.getUniqueId());
 
         Component rankComponent = MiniMessage.miniMessage().deserialize(playerLevel.getFormattedRank());
+
+        int ri = playerLevel.getRankIndex();
+        Component hoverText;
+        if (ri >= 0) {
+            String rankName = PlayerLevel.getPrestigeName(ri) + " "
+                    + PlayerLevel.getGemName(ri) + " "
+                    + PlayerLevel.getLevelInRank(ri);
+            hoverText = Component.text(rankName, NamedTextColor.GOLD)
+                    .append(Component.newline())
+                    .append(Component.text("XP: ", NamedTextColor.GRAY))
+                    .append(Component.text(String.format("%,d", playerLevel.getTotalXP()), NamedTextColor.YELLOW));
+        } else {
+            hoverText = Component.text("Non classé", NamedTextColor.GRAY)
+                    .append(Component.newline())
+                    .append(Component.text("XP: ", NamedTextColor.GRAY))
+                    .append(Component.text(String.format("%,d", playerLevel.getTotalXP()), NamedTextColor.YELLOW));
+        }
+        rankComponent = rankComponent.hoverEvent(HoverEvent.showText(hoverText));
+
         Component rankBadge = Component.text("[", NamedTextColor.GRAY)
                 .append(rankComponent)
                 .append(Component.text("]", NamedTextColor.GRAY));

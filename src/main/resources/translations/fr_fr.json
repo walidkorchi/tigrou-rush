@@ -234,6 +234,12 @@
   "rush.archive_saved": "La partie a été archivée et pourra être revisitée ultérieurement.",
   "rush.archive_skipped": "Cette partie ne sera pas archivée, et donc ne pourra pas être revisitée.",
 
+  "rush.loading_create_world": "Création du monde",
+  "rush.loading_init": "Initialisation",
+  "rush.loading_lobby": "Génération du lobby d'attente",
+  "rush.loading_islands": "Génération des îles",
+  "rush.loading_build": "Construction du monde",
+
   "internal.main.hologram_init_failed": "Failed to initialize HologramLib manager.",
   "internal.main.i18n_registered": "Registered i18n translations",
   "internal.main.i18n_register_failed": "Failed to register translations: {0}",
@@ -245,8 +251,7 @@
   "internal.main.shutdown_leaderboard_holograms_cleaned": "Cleaned up leaderboard holograms.",
   "internal.main.shutdown_complete": "Rush plugin shutdown complete.",
 
-  "internal.game_manager.music_duration_fallback": "Could not read gameendmusic.ogg duration, using 27s default",
-  "internal.game_manager.music_duration_detected": "Detected gameendmusic.ogg duration: {0}s",
+
   "internal.game_manager.world_create_failed": "Error creating game world: {0}",
   "internal.game_manager.schematic_not_found": "Schematic not found: {0}",
   "internal.game_manager.schematic_unknown_format": "Unknown schematic format: {0}",
@@ -267,6 +272,8 @@
   "internal.sound.registered": "Registered custom sound: {0}",
   "internal.sound.all_registered": "Registered {0} custom sounds with Minecraft registry",
   "internal.sound.register_failed": "Failed to register custom sounds: {0}: {1}",
+  "internal.sound.duration_fallback": "Could not read duration for {0}, using 27s default",
+  "internal.sound.duration_detected": "Detected {0} duration: {1}s",
 
   "internal.command.leaderboard.restored": "Restored {0} leaderboard hologram(s).",
   "internal.command.leaderboard.query_failed": "Leaderboard query failed: {0}",

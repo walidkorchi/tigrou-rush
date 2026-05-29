@@ -13,32 +13,32 @@ public class TablistManager {
 
     private static final class FastTablist {
         private final Player player;
-        private Component header = Component.empty();
-        private Component footer = Component.empty();
+        // private Component header = Component.empty();
+        // private Component footer = Component.empty();
 
         FastTablist(Player player) {
             this.player = player;
         }
 
-        void updateHeader(Component header) {
-            this.header = header;
-            send();
-        }
+        // void updateHeader(Component header) {
+        // this.header = header;
+        // send();
+        // }
 
-        void updateFooter(Component footer) {
-            this.footer = footer;
-            send();
-        }
+        // void updateFooter(Component footer) {
+        // this.footer = footer;
+        // send();
+        // }
 
-        void updateHeaderFooter(Component header, Component footer) {
-            this.header = header;
-            this.footer = footer;
-            send();
-        }
+        // void updateHeaderFooter(Component header, Component footer) {
+        // this.header = header;
+        // this.footer = footer;
+        // send();
+        // }
 
-        private void send() {
-            player.sendPlayerListHeaderAndFooter(this.header, this.footer);
-        }
+        // private void send() {
+        // player.sendPlayerListHeaderAndFooter(this.header, this.footer);
+        // }
 
         void delete() {
             player.sendPlayerListHeaderAndFooter(Component.empty(), Component.empty());

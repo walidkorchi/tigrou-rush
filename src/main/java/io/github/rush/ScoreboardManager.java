@@ -1,6 +1,6 @@
 package io.github.rush;
 
-import fr.mrmicky.fastboard.FastBoard;
+import fr.mrmicky.fastboard.adventure.FastBoard;
 import io.github.rush.game.Game;
 import io.github.rush.entities.GamePlayer;
 import io.github.rush.game.GameState;
@@ -8,6 +8,9 @@ import io.github.rush.abstracts.Team;
 import io.github.rush.storage.PlayerLevelManager.PlayerLevel;
 import io.github.rush.storage.PlayerStatisticManager.PlayerStatistic;
 import io.github.rush.utils.TextUtils;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.minimessage.MiniMessage;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
@@ -57,14 +60,12 @@ public class ScoreboardManager {
         this.plugin = plugin;
     }
 
-    private String getAnimatedSeparator() {
+    private Component getAnimatedSeparator() {
         int frameIndex = (int) animationFrame;
-
         if (frameIndex >= SEPARATOR_FRAMES.length) {
-            return SEPARATOR_FRAMES[0];
+            frameIndex = 0;
         }
-
-        return SEPARATOR_FRAMES[frameIndex];
+        return LegacyComponentSerializer.legacySection().deserialize(SEPARATOR_FRAMES[frameIndex]);
     }
 
     public void updateLobbyScoreboard(Player player) {
@@ -72,29 +73,33 @@ public class ScoreboardManager {
         final String title = TextUtils.convertHexToLegacy(
                 "&#B8291BT&#C0301Ci&#C8361Eg&#D03D1Fr&#D84320o&#DF4A22u&#E75023R&#EF5724u&#F75D26s&#FF6427h");
 
-        board.updateTitle(title);
+        board.updateTitle(LegacyComponentSerializer.legacySection().deserialize(title));
 
         final PlayerStatistic stat = plugin.getPlayerStatisticManager().loadStatistic(player.getUniqueId());
         final PlayerLevel playerLevel = plugin.getPlayerLevelManager().loadPlayerLevel(player.getUniqueId());
 
-        final List<String> lines = new ArrayList<>();
+        final List<Component> lines = new ArrayList<>();
 
         lines.add(getAnimatedSeparator());
-        lines.add("");
+        lines.add(Component.empty());
         if (playerLevel.getRankIndex() >= 0) {
             long progress = playerLevel.getProgressInRank();
             long range = playerLevel.getXPForCurrentRange();
-            lines.add(playerLevel.getFormattedRank() + " §8[" + progress + "/" + range + "§8]");
+            Component rankImage = MiniMessage.miniMessage().deserialize(playerLevel.getFormattedRank());
+            Component progressPart = LegacyComponentSerializer.legacySection()
+                    .deserialize(" §8[" + progress + "/" + range + "§8]");
+            lines.add(rankImage.append(progressPart));
         } else {
-            lines.add("§8Non classé");
+            lines.add(LegacyComponentSerializer.legacySection().deserialize("§8Non classé"));
         }
-        lines.add("§8[" + generateProgressBar(playerLevel) + "§8]");
-        lines.add("");
-        lines.add("§f☆ §7Statistiques:");
-        lines.add(stat.getKills() + " §c\uD83D\uDDE1 §f" + stat.getAssists() + " §c\u2694 §f" + stat.getDeaths()
-                + " §c☠ §8("
-                + String.format("%.1f", stat.getWeightedScore()) + ")");
-        lines.add("");
+        lines.add(LegacyComponentSerializer.legacySection().deserialize("§8[" + generateProgressBar(playerLevel) + "§8]"));
+        lines.add(Component.empty());
+        lines.add(LegacyComponentSerializer.legacySection().deserialize("§f☆ §7Statistiques:"));
+        lines.add(LegacyComponentSerializer.legacySection().deserialize(
+                stat.getKills() + " §c\uD83D\uDDE1 §f" + stat.getAssists() + " §c\u2694 §f" + stat.getDeaths()
+                        + " §c☠ §8("
+                        + String.format("%.1f", stat.getWeightedScore()) + ")"));
+        lines.add(Component.empty());
         lines.add(getAnimatedSeparator());
 
         board.updateLines(lines);
@@ -126,24 +131,28 @@ public class ScoreboardManager {
     public void updateGameScoreboard(Player player, Game game) {
         final FastBoard board = getOrCreateBoard(player);
         final Team playerTeam = game.getPlayerTeam(new GamePlayer(player));
-        final List<String> lines = new ArrayList<>();
+        final List<Component> lines = new ArrayList<>();
 
-        lines.add("");
+        lines.add(Component.empty());
         if (game.isOvertime()) {
-            lines.add("§c§lOVERTIME §f" + game.getFormattedTime());
+            lines.add(LegacyComponentSerializer.legacySection()
+                    .deserialize("§c§lOVERTIME §f" + game.getFormattedTime()));
         } else {
-            lines.add("§eTemps: §f" + game.getFormattedTime());
+            lines.add(LegacyComponentSerializer.legacySection()
+                    .deserialize("§eTemps: §f" + game.getFormattedTime()));
         }
-        lines.add("");
+        lines.add(Component.empty());
 
         if (playerTeam != null) {
             final String bedStatus = !playerTeam.isBedDestroyed() ? "✅" : "❌";
 
-            lines.add("§eLit: §f" + bedStatus);
+            lines.add(LegacyComponentSerializer.legacySection()
+                    .deserialize("§eLit: §f" + bedStatus));
 
-            lines.add("§eÎle: §f" + getRelativeIslandNumber(player, game, playerTeam));
-            lines.add("");
-            lines.add("§e§nÉquipes§r");
+            lines.add(LegacyComponentSerializer.legacySection()
+                    .deserialize("§eÎle: §f" + getRelativeIslandNumber(player, game, playerTeam)));
+            lines.add(Component.empty());
+            lines.add(LegacyComponentSerializer.legacySection().deserialize("§e§nÉquipes§r"));
 
             for (Team team : game.getTeams().values()) {
                 if (team.getPlayers().isEmpty())
@@ -153,10 +162,11 @@ public class ScoreboardManager {
                 final int playerCount = team.getPlayers().size();
                 final String bedEmoji = !team.isBedDestroyed() ? "✅" : "❌";
 
-                lines.add(teamLetter + ": §f" + playerCount + " " + bedEmoji);
+                lines.add(LegacyComponentSerializer.legacySection()
+                        .deserialize(teamLetter + ": §f" + playerCount + " " + bedEmoji));
             }
         } else {
-            lines.add("§cPas d'équipe!");
+            lines.add(LegacyComponentSerializer.legacySection().deserialize("§cPas d'équipe!"));
         }
 
         board.updateLines(lines);
@@ -176,11 +186,6 @@ public class ScoreboardManager {
         final int nearestSlot = getNearestIslandSlot(player.getLocation(), islands);
         final int islandCount = islands.size();
 
-        // Go in the direction where the nearest other team is FARTHEST — i.e. take the
-        // long
-        // way around. In a 2-team game the two teams sit on adjacent slots (S+E), so
-        // both
-        // teams must count away from each other to make the opponent appear at rank 4.
         if (isClockwisePreferred(assignment, homeSlot, islandCount)) {
             return (nearestSlot - homeSlot + islandCount) % islandCount + 1;
         } else {
@@ -207,9 +212,6 @@ public class ScoreboardManager {
                 break;
         }
 
-        // Prefer the direction in which the nearest team is farther away (take the long
-        // path).
-        // When distances are equal (symmetric 4-team ring) fall back to clockwise.
         return nearestCW >= nearestCCW;
     }
 
@@ -298,18 +300,20 @@ public class ScoreboardManager {
     public void updateSpectatorScoreboard(Player player, Game game) {
         final FastBoard board = getOrCreateBoard(player);
 
-        board.updateTitle("§6§lRush - Spectateur");
+        board.updateTitle(LegacyComponentSerializer.legacySection().deserialize("§6§lRush - Spectateur"));
 
-        final List<String> lines = new ArrayList<>();
+        final List<Component> lines = new ArrayList<>();
 
-        lines.add("");
+        lines.add(Component.empty());
         if (game.isOvertime()) {
-            lines.add("§c§lOVERTIME §f" + game.getFormattedTime());
+            lines.add(LegacyComponentSerializer.legacySection()
+                    .deserialize("§c§lOVERTIME §f" + game.getFormattedTime()));
         } else {
-            lines.add("§eTemps: §f" + game.getFormattedTime());
+            lines.add(LegacyComponentSerializer.legacySection()
+                    .deserialize("§eTemps: §f" + game.getFormattedTime()));
         }
-        lines.add("");
-        lines.add("§e§nÉquipes§r");
+        lines.add(Component.empty());
+        lines.add(LegacyComponentSerializer.legacySection().deserialize("§e§nÉquipes§r"));
 
         for (Team team : game.getTeams().values()) {
             if (team.getPlayers().isEmpty() && !game.getSpectators().isEmpty())
@@ -319,14 +323,15 @@ public class ScoreboardManager {
             final int playerCount = team.getPlayers().size();
             final String bedEmoji = !team.isBedDestroyed() ? "✅" : "❌";
 
-            lines.add(teamLetter + ": §f" + playerCount + " " + bedEmoji);
+            lines.add(LegacyComponentSerializer.legacySection()
+                    .deserialize(teamLetter + ": §f" + playerCount + " " + bedEmoji));
         }
 
-        lines.add("");
+        lines.add(Component.empty());
 
         final long spectatorCount = game.getSpectators().size();
 
-        lines.add("§7Spectateurs: §f" + spectatorCount);
+        lines.add(LegacyComponentSerializer.legacySection().deserialize("§7Spectateurs: §f" + spectatorCount));
         board.updateLines(lines);
     }
 

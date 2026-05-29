@@ -71,15 +71,18 @@ public class ConfigManager {
 
     /**
      * Returns the schematic {@link File} for {@code filename} under the shared
-     * FastAsyncWorldEdit schematics directory, or {@code null} if it does not exist.
+     * FastAsyncWorldEdit schematics directory, or {@code null} if it does not
+     * exist.
      */
     public File getSchematicFile(String filename) {
-        File schematicFile = new File(plugin.getDataFolder().getParentFile(),
+        final File schematicFile = new File(plugin.getDataFolder().getParentFile(),
                 "FastAsyncWorldEdit/schematics/" + filename);
+
         if (!schematicFile.exists()) {
             RushLogger.warn(i18n.log("internal.game_manager.schematic_not_found", schematicFile.getPath()));
             return null;
         }
+
         return schematicFile;
     }
 

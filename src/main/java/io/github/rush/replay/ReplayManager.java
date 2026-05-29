@@ -49,7 +49,7 @@ public final class ReplayManager {
 
             Bukkit.getScheduler().runTask(plugin, () -> {
                 opt.ifPresentOrElse(
-                        file -> plugin.getGameManager().createReplayWorld(file, playback -> {
+                        file -> plugin.getGameManager().createReplayWorld(player, file, playback -> {
                             activePlaybacks.put(sessionId, playback);
 
                             final List<Player> pending = pendingViewers.remove(sessionId);

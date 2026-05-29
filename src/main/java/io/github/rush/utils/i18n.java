@@ -2,7 +2,6 @@ package io.github.rush.utils;
 
 import com.google.gson.Gson;
 import io.github.rush.Main;
-import io.github.rush.utils.RushLogger;
 
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;

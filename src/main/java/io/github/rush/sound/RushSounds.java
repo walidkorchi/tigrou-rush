@@ -1,11 +1,16 @@
 package io.github.rush.sound;
 
 import io.github.rush.Main;
+import io.github.rush.storage.ConfigManager;
 import io.github.rush.storage.PlayerSettingsManager;
+import io.github.rush.utils.RushLogger;
+import io.github.rush.utils.i18n;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.sound.Sound;
 import net.kyori.adventure.sound.SoundStop;
 import org.bukkit.entity.Player;
+
+import java.io.File;
 
 public enum RushSounds {
     LOBBY_MUSIC("tland:music.global.lobby", Sound.Source.MUSIC, true),
@@ -23,23 +28,15 @@ public enum RushSounds {
     private final Key key;
     private final Sound.Source source;
     private final boolean isMusic;
+    private long cachedDurationMs = -1;
+
+    private static final String SOUNDS_MERGE_ZIP =
+            "CraftEngine/generated/sounds_merge.zip";
 
     RushSounds(String key, Sound.Source source, boolean isMusic) {
         this.key = Key.key(key);
         this.source = source;
         this.isMusic = isMusic;
-    }
-
-    public Key key() {
-        return key;
-    }
-
-    public Sound.Source source() {
-        return source;
-    }
-
-    public boolean isMusic() {
-        return isMusic;
     }
 
     public void play(Player player) {
@@ -58,5 +55,24 @@ public enum RushSounds {
 
     public void stop(Player player) {
         player.stopSound(SoundStop.named(key));
+    }
+
+    public long getDurationMs() {
+        if (cachedDurationMs != -1)
+            return cachedDurationMs;
+
+        String oggPath = "assets/minecraft/sounds/" + key.value().replace('.', '/') + ".ogg";
+        File mergeZip = new File(Main.getInstance().getDataFolder().getParentFile(), SOUNDS_MERGE_ZIP);
+        long duration = ConfigManager.readOggDurationFromZip(mergeZip, oggPath);
+
+        if (duration <= 0) {
+            RushLogger.warn(i18n.log("internal.sound.duration_fallback", key.value()));
+            duration = 27_000L;
+        } else {
+            RushLogger.info(i18n.log("internal.sound.duration_detected", key.value(), duration / 1000));
+        }
+
+        cachedDurationMs = duration;
+        return duration;
     }
 }

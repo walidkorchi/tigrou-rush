@@ -8,7 +8,6 @@ import io.github.rush.game.GameRoom;
 import io.github.rush.game.GameState;
 import io.github.rush.abstracts.Team;
 import io.papermc.paper.datacomponent.DataComponentTypes;
-import io.papermc.paper.datacomponent.item.ItemLore;
 import io.papermc.paper.datacomponent.item.TooltipDisplay;
 import io.papermc.paper.registry.RegistryAccess;
 import io.papermc.paper.registry.RegistryKey;
@@ -138,8 +137,6 @@ public class TeamSelectionGUI {
             final ItemMeta meta = itemStack.getItemMeta();
             meta.displayName(i18n.txt("rush.team_color_name", color.name()));
             itemStack.setItemMeta(meta);
-            itemStack.setData(DataComponentTypes.LORE,
-                    ItemLore.lore(List.of(i18n.txt("rush.chooseTeam"))));
         }
 
         return new ItemWithAction(item, (element, click) -> {
