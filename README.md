@@ -28,8 +28,8 @@ You will likely encounter TypeScript code as well. It relies on the `dz.jtsgen.a
 
 #### 🎨 Textures
 
+- [ ] DefaultPlayerInventory : create a custom player inventory overriding the default one and remove 2x2 grid inventory.
 - [ ] ReplayFollowGUI : add a generic GUI to choose a player to teleport to in a replay.
-- [ ] TeamSelectionGUI : add colored tooltips for each team color.
 - [ ] PlayerSettingsGUI : create a GUI for the player to customize their settings.
 - [ ] GameHostPanelUI : create a GUI for the game host to manage the game room.
 - [ ] Allow game host players from their GameHostPanelUI to manage game participants (players/mannequins), hosts must be able to :

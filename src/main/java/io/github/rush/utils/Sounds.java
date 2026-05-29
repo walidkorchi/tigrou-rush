@@ -1,10 +1,8 @@
-package io.github.rush.sound;
+package io.github.rush.utils;
 
 import io.github.rush.Main;
 import io.github.rush.storage.ConfigManager;
 import io.github.rush.storage.PlayerSettingsManager;
-import io.github.rush.utils.RushLogger;
-import io.github.rush.utils.i18n;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.sound.Sound;
 import net.kyori.adventure.sound.SoundStop;
@@ -12,7 +10,7 @@ import org.bukkit.entity.Player;
 
 import java.io.File;
 
-public enum RushSounds {
+public enum Sounds {
     LOBBY_MUSIC("tland:music.global.lobby", Sound.Source.MUSIC, true),
     OVERTIME_INTRO("tland:music.global.overtime_intro_music", Sound.Source.MUSIC, true),
     OVERTIME_LOOP("tland:music.global.overtime_loop_music", Sound.Source.MUSIC, true),
@@ -30,10 +28,9 @@ public enum RushSounds {
     private final boolean isMusic;
     private long cachedDurationMs = -1;
 
-    private static final String SOUNDS_MERGE_ZIP =
-            "CraftEngine/generated/sounds_merge.zip";
+    private static final String SOUNDS_MERGE_ZIP = "CraftEngine/generated/sounds_merge.zip";
 
-    RushSounds(String key, Sound.Source source, boolean isMusic) {
+    Sounds(String key, Sound.Source source, boolean isMusic) {
         this.key = Key.key(key);
         this.source = source;
         this.isMusic = isMusic;

@@ -6,7 +6,7 @@ import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 
-public class MOTDListener implements Listener {
+public class MOTD implements Listener {
 
     private static final Component MOTD = MiniMessage.miniMessage().deserialize(
             "<color:#B8291B>[TR]</color>"

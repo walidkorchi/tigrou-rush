@@ -6,6 +6,7 @@ import com.mojang.brigadier.context.CommandContext;
 import io.github.rush.Main;
 import io.github.rush.game.GameManager;
 import io.github.rush.game.GameRoom;
+import io.github.rush.Hub;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
 import org.jspecify.annotations.NullMarked;
@@ -42,7 +43,7 @@ public class HubCommand {
                 }
             }
 
-            gameManager.resetPlayerHubState(player);
+            Hub.resetPlayer(player);
 
             return Command.SINGLE_SUCCESS;
         });

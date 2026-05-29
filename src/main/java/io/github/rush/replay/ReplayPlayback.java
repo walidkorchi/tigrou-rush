@@ -5,6 +5,7 @@ import io.github.rush.utils.ReplayUtils.ReplayFile;
 
 import io.github.rush.Main;
 import io.github.rush.game.Game;
+import io.github.rush.Hub;
 import io.github.rush.objects.TNT;
 import io.github.rush.abstracts.Team;
 import net.kyori.adventure.text.Component;
@@ -498,7 +499,7 @@ public final class ReplayPlayback {
         followerTargets.remove(player.getUniqueId());
         player.removePotionEffect(PotionEffectType.NIGHT_VISION);
 
-        Main.getInstance().getGameManager().resetPlayerHubState(player);
+        Hub.resetPlayer(player);
 
         return viewers.isEmpty();
     }
@@ -523,6 +524,6 @@ public final class ReplayPlayback {
         mannequins.clear();
         mannequinByPlayer.clear();
 
-        Main.getInstance().getGameManager().destroyReplayWorld(world);
+        Main.getInstance().getGameManager().destroyWorld(world);
     }
 }

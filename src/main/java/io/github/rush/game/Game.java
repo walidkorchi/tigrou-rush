@@ -11,9 +11,10 @@ import io.github.rush.entities.GameMannequin;
 import io.github.rush.entities.GameCombatant;
 import io.github.rush.entities.GamePlayer;
 import io.github.rush.Main;
+import io.github.rush.Hub;
 import io.github.rush.utils.i18n;
 import io.github.rush.guis.TeamSelectionGUI;
-import io.github.rush.sound.RushSounds;
+import io.github.rush.utils.Sounds;
 import io.github.rush.utils.ItemBuilder;
 import io.github.rush.objects.Island;
 import io.github.rush.utils.ReplayUtils.ReplayFile;
@@ -94,15 +95,6 @@ public class Game {
     private List<Team> islandAssignment;
     private List<Integer> islandSlotOrder;
 
-    public static List<Integer> islandSlotOrder(int islandCount) {
-        List<Integer> order = new ArrayList<>();
-        for (int s : Island.Layout.PREFERRED_ISLAND_ORDER) {
-            if (s < islandCount)
-                order.add(s);
-        }
-        return order;
-    }
-
     private static final int[] SIGNS = { 1, -1 };
     // Visual centres computed once per game by scanning island blocks outward from
     // paste origin.
@@ -125,7 +117,7 @@ public class Game {
 
     @Getter
     private final String worldName;
-    private GameLobbyCountdown lobbyCountdown;
+    private GameCountdown lobbyCountdown;
     private final Map<GameCombatant, Boolean> playersReady = new HashMap<>();
 
     @Setter
@@ -306,7 +298,7 @@ public class Game {
         Player player = gamePlayer.player();
 
         showToGameWorld(player);
-        Main.getInstance().getGameManager().resetPlayerHubState(player);
+        Hub.resetPlayer(player);
 
         player.sendMessage(Component.translatable("rush.spectatorModeQuit"));
     }
@@ -435,7 +427,7 @@ public class Game {
         if (state == GameState.WAITING) {
             if (areEnoughTeamsFull()) {
                 if (lobbyCountdown == null) {
-                    lobbyCountdown = new GameLobbyCountdown(this, false);
+                    lobbyCountdown = new GameCountdown(this, false);
                     lobbyCountdown.start();
                 }
             } else if (lobbyCountdown != null) {
@@ -444,7 +436,7 @@ public class Game {
                 broadcastMessage(Component.translatable("rush.not_enough_ready"));
             }
 
-            updateActionBar();
+            GameRoom.sendReadyActionBar(gameRoom);
         }
     }
 
@@ -466,7 +458,7 @@ public class Game {
             if (lobbyCountdown != null) {
                 lobbyCountdown.cancel();
             }
-            lobbyCountdown = new GameLobbyCountdown(this, true);
+            lobbyCountdown = new GameCountdown(this, true);
             lobbyCountdown.setCounter(15);
             lobbyCountdown.start();
         }
@@ -531,14 +523,14 @@ public class Game {
 
         for (GameCombatant participant : getPlayers()) {
             if (participant instanceof GamePlayer gp) {
-                RushSounds.OVERTIME_INTRO.play(gp.player());
+                Sounds.OVERTIME_INTRO.play(gp.player());
             }
         }
 
         overtimeMusicTask = Bukkit.getScheduler().runTaskTimer(Main.getInstance(), () -> {
             for (GameCombatant participant : getPlayers()) {
                 if (participant instanceof GamePlayer gp) {
-                    RushSounds.OVERTIME_LOOP.play(gp.player());
+                    Sounds.OVERTIME_LOOP.play(gp.player());
                 }
             }
         }, 160L, 800L);
@@ -734,7 +726,7 @@ public class Game {
                 .sorted(Comparator.comparingInt(t -> t.getColor().ordinal()))
                 .collect(Collectors.toList());
 
-        islandSlotOrder = islandSlotOrder(islandCount);
+        islandSlotOrder = Island.Layout.islandSlotOrder(islandCount);
 
         islandAssignment = new ArrayList<>(Collections.nCopies(islandCount, null));
 
@@ -757,7 +749,7 @@ public class Game {
                 broadcastMessage(Component.translatable("rush.overtime"));
                 for (GameCombatant participant : getPlayers()) {
                     if (participant instanceof GamePlayer gp) {
-                        RushSounds.BORDER_SHRINKING.play(gp.player());
+                        Sounds.BORDER_SHRINKING.play(gp.player());
                     }
                 }
                 playOvertimeMusic();
@@ -1006,7 +998,7 @@ public class Game {
         broadcastKillMessage(victim, playerTeam, killer, assists);
 
         if (victim instanceof GamePlayer deathPlayer) {
-            RushSounds.PLAYER_DIED.play(deathPlayer.player());
+            Sounds.PLAYER_DIED.play(deathPlayer.player());
         }
 
         if (recorder != null && victim instanceof GamePlayer dp) {
@@ -1026,13 +1018,13 @@ public class Game {
                 if (playerTeam.getPlayers().isEmpty()) {
                     for (GameCombatant p : getPlayers()) {
                         if (p instanceof GamePlayer tp) {
-                            RushSounds.TEAM_ELIMINATED.play(tp.player());
+                            Sounds.TEAM_ELIMINATED.play(tp.player());
                         }
                     }
                 } else {
                     for (GameCombatant p : playerTeam.getPlayers()) {
                         if (p instanceof GamePlayer tp) {
-                            RushSounds.TEAMMATE_ELIMINATED.play(tp.player());
+                            Sounds.TEAMMATE_ELIMINATED.play(tp.player());
                         }
                     }
                 }
@@ -1152,14 +1144,14 @@ public class Game {
         for (GameCombatant participant : getPlayers()) {
             if (participant instanceof GamePlayer gp) {
                 final Player player = gp.player();
-                RushSounds.WIN_CELEBRATE.play(player);
-                RushSounds.GAME_END_MUSIC.play(player);
+                Sounds.WIN_CELEBRATE.play(player);
+                Sounds.GAME_END_MUSIC.play(player);
             }
         }
         for (GamePlayer spectator : spectators) {
             final Player player = spectator.player();
-            RushSounds.WIN_CELEBRATE.play(player);
-            RushSounds.GAME_END_MUSIC.play(player);
+            Sounds.WIN_CELEBRATE.play(player);
+            Sounds.GAME_END_MUSIC.play(player);
         }
 
         clearAllEnderChests();
@@ -1470,7 +1462,7 @@ public class Game {
                         island.getX(), island.getZ(),
                         islandY,
                         dir, perpX, 12,
-                        Team.facingTowardsCenter(i), 2);
+                        Island.Layout.facingTowardsCenter(i), 2);
             } else {
                 continue;
             }
@@ -1495,12 +1487,6 @@ public class Game {
         spawnerTasks.forEach(BukkitTask::cancel);
         spawnerTasks.clear();
         generators.clear();
-    }
-
-    private void updateActionBar() {
-        if (gameRoom != null) {
-            GameRoom.sendReadyActionBar(gameRoom);
-        }
     }
 
     private void updatePlayerList() {

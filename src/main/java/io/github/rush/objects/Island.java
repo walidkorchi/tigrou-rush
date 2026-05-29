@@ -2,8 +2,10 @@ package io.github.rush.objects;
 
 import io.github.rush.game.GameRoom;
 import lombok.Getter;
+import org.bukkit.block.BlockFace;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -116,6 +118,50 @@ public class Island {
                             new IslandPosition(-diag, -diag, -45)  // NW
                     );
                 }
+            };
+        }
+
+        public static int computeIslandY(int maxHeight, int distanceHeightLimit) {
+            return maxHeight - distanceHeightLimit;
+        }
+
+        public static int[][] speedMerchantPositions(Island island, int[] dir, int perpX, int perpZ,
+                int speedOffset) {
+            int[][] positions = new int[2][2];
+            for (int i = 0; i < 2; i++) {
+                int sign = (i == 0) ? 1 : -1;
+                positions[i][0] = island.getX() + dir[0] * speedOffset + perpX * sign;
+                positions[i][1] = island.getZ() + dir[1] * speedOffset + perpZ * sign;
+            }
+            return positions;
+        }
+
+        public static int[] regularMerchantPos(int i, int islandX, int islandZ, int[] dir, int perpX, int perpZ,
+                int offset) {
+            final int sign = (i < 2) ? 1 : -1;
+            final int idx = (i % 2 == 0) ? 0 : 1;
+            return new int[] {
+                    islandX + dir[0] * offset + perpX * MERCHANT_SPREADS.get(idx) * sign,
+                    islandZ + dir[1] * offset + perpZ * MERCHANT_SPREADS.get(idx) * sign
+            };
+        }
+
+        public static List<Integer> islandSlotOrder(int islandCount) {
+            List<Integer> order = new ArrayList<>();
+            for (int s : PREFERRED_ISLAND_ORDER) {
+                if (s < islandCount)
+                    order.add(s);
+            }
+            return order;
+        }
+
+        public static BlockFace facingTowardsCenter(int islandIndex) {
+            return switch (islandIndex) {
+                case 0 -> BlockFace.SOUTH;
+                case 1 -> BlockFace.WEST;
+                case 2 -> BlockFace.NORTH;
+                case 3 -> BlockFace.EAST;
+                default -> BlockFace.NORTH;
             };
         }
     }

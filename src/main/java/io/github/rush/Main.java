@@ -13,6 +13,7 @@ import io.github.rush.replay.ReplayStorage;
 import io.github.rush.storage.PlayerSettingsManager;
 import io.github.rush.storage.*;
 import io.github.rush.storage.PlayerLevelManager.PlayerLevel;
+import io.github.rush.abstracts.ActionBar;
 import io.github.rush.abstracts.Generator;
 
 import com.maximde.hologramlib.HologramLib;
@@ -119,7 +120,8 @@ public class Main extends JavaPlugin {
         Bukkit.getPluginManager().registerEvents(new GameRules(this), this);
         Bukkit.getPluginManager().registerEvents(new PlayerActivity(this), this);
         Bukkit.getPluginManager().registerEvents(new TNT(this), this);
-        Bukkit.getPluginManager().registerEvents(new MOTDListener(), this);
+        Bukkit.getPluginManager().registerEvents(new MOTD(), this);
+        Bukkit.getPluginManager().registerEvents(new Chat(this), this);
 
         commandManager = new CommandManager();
         commandManager.registerAll(this);
@@ -128,6 +130,8 @@ public class Main extends JavaPlugin {
         // persist author particles animation + holograms between server restarts
         commandManager.getAuthorCommand().restoreExistingAuthors();
         commandManager.getLeaderboardCommand().restoreLeaderboards();
+
+        ActionBar.startTask(this);
 
         Bukkit.getScheduler().runTaskTimer(this, () -> {
             scoreboardManager.updateAll();

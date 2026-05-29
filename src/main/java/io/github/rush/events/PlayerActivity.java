@@ -1,6 +1,7 @@
 package io.github.rush.events;
 
 import io.github.rush.Main;
+import io.github.rush.abstracts.ActionBar;
 import io.github.rush.commands.AuthorCommand;
 import io.github.rush.game.Game;
 import io.github.rush.entities.GameMannequin;
@@ -12,21 +13,15 @@ import io.github.rush.replay.ReplayViewerMenuGUI;
 import io.github.rush.game.GameManager;
 import io.github.rush.game.GameRoom;
 import io.github.rush.game.GameState;
+import io.github.rush.Hub;
 import io.github.rush.abstracts.Team;
 import io.github.rush.guis.HostPanelGUI;
-import io.github.rush.sound.RushSounds;
+import io.github.rush.utils.Sounds;
 import java.util.UUID;
 import io.github.rush.guis.GUI;
 import io.github.rush.guis.PlayerSettingsGUI;
 import io.github.rush.guis.TeamSelectionGUI;
-import io.github.rush.storage.PlayerLevelManager;
-import io.github.rush.storage.PlayerLevelManager.PlayerLevel;
-import io.papermc.paper.event.player.AsyncChatEvent;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.event.HoverEvent;
-import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.text.minimessage.MiniMessage;
-import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Tag;
@@ -40,12 +35,12 @@ import org.bukkit.entity.Projectile;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
-import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.FoodLevelChangeEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.inventory.CraftItemEvent;
 import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
@@ -59,29 +54,16 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.Bukkit;
-import org.bukkit.GameMode;
 import org.bukkit.Sound;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.util.BoundingBox;
 
 public class PlayerActivity implements Listener {
 
     private final Main plugin;
 
-    // tolerance for floating-point imprecision in position tracking
-    private static final double EPSILON = 0.05;
-
     public PlayerActivity(Main plugin) {
         this.plugin = plugin;
-
-        plugin.getServer().getScheduler().runTaskTimer(plugin, this::sendActionBarToAll, 0L, 40L);
-    }
-
-    private void sendActionBarToAll() {
-        for (GameRoom room : plugin.getGameManager().getAllGameRooms()) {
-            GameRoom.sendReadyActionBar(room);
-        }
     }
 
     @EventHandler
@@ -104,13 +86,13 @@ public class PlayerActivity implements Listener {
                         () -> plugin.getGameManager().handleReconnect(player, room, reconnectData));
             } else {
                 // edge case: game ended while offline
-                plugin.getGameManager().resetPlayerHubState(player);
+                Hub.resetPlayer(player);
             }
         } else {
-            plugin.getGameManager().resetPlayerHubState(player);
+            Hub.resetPlayer(player);
         }
 
-        RushSounds.LOBBY_MUSIC.play(player);
+        Sounds.LOBBY_MUSIC.play(player);
     }
 
     @EventHandler
@@ -162,7 +144,7 @@ public class PlayerActivity implements Listener {
                             r.setHostUUID(nextHostUUID);
                             r.setHostName(nextHost.getName());
 
-                            nextHost.getInventory().setItem(8, plugin.getGameManager().createHostPanelItem());
+                            nextHost.getInventory().setItem(8, Hub.createHostPanelItem());
                             nextHost.sendMessage(Component.translatable("rush.room_host_transfer"));
                         } else {
                             plugin.getGameManager().removeGameRoom(r.getId());
@@ -189,7 +171,7 @@ public class PlayerActivity implements Listener {
                 room.removePlayer(player);
                 plugin.getGameManager().removePlayerFromGameRoom(player);
 
-                // edge case : room empty and waiting > room is removed
+                // edge case: room empty and waiting > room is removed
                 if (room.getPlayerCount() == 0 && room.isWaiting()) {
                     plugin.getGameManager().removeGameRoom(room.getId());
                 }
@@ -201,112 +183,38 @@ public class PlayerActivity implements Listener {
     }
 
     @EventHandler
-    public void onBlockBreak(BlockBreakEvent event) {
-        if (event.isCancelled())
-            return;
-
-        final Player player = event.getPlayer();
-        final Block block = event.getBlock();
-        final Material blockType = block.getType();
-        final String worldName = player.getWorld().getName();
-
-        final GameRoom breakRoom = Main.getInstance().getGameManager().getGameRoomByWorld(worldName);
-
-        if (breakRoom == null) {
-            return;
-        }
-
-        if (player.getGameMode() == GameMode.CREATIVE || player.getGameMode() == GameMode.SPECTATOR) {
-            return;
-        }
-
-        // sandstone/endstone are emancipated from island block protection logic
-        if (blockType == Material.SANDSTONE || blockType == Material.END_STONE) {
-            final Game game = breakRoom.getGame();
-
-            if (game != null) {
-                final Team breakerTeam = game.getPlayerTeam(new GamePlayer(player));
-
-                // anti-spleef for same team players and mannequins
-                for (Entity entity : block.getWorld().getNearbyEntities(block.getLocation(), 2, 2, 2)) {
-                    if (!(entity instanceof Player) && !(entity instanceof Mannequin)) {
-                        continue;
-                    }
-                    if (entity.equals(player) || !isStandingOn(entity, block)) {
-                        continue;
-                    }
-
-                    final Team entityTeam = game.getPlayerTeam(
-                            entity instanceof Player p
-                                    ? new GamePlayer(p)
-                                    : new GameMannequin((Mannequin) entity));
-
-                    if (breakerTeam != null && entityTeam != null && breakerTeam.equals(entityTeam)) {
-                        event.setCancelled(true);
-                        return;
-                    }
-                }
-            }
-
-            return;
-        }
-
-        event.setCancelled(true);
-    }
-
-    /**
-     * Checks if an entity is physically standing
-     * on a given block bounding boxes only
-     */
-    private boolean isStandingOn(Entity entity, Block block) {
-        final BoundingBox entityBox = entity.getBoundingBox();
-        final BoundingBox blockBox = block.getBoundingBox();
-
-        // skip empty bounding box (no collision shape)
-        if (blockBox.getVolume() == 0) {
-            return false;
-        }
-
-        final double feetY = entityBox.getMinY();
-        final double blockTopY = blockBox.getMaxY();
-
-        if (Math.abs(feetY - blockTopY) > EPSILON) {
-            return false;
-        }
-
-        // entity's hitbox must overlap the block horizontally
-        // (handles edge-standing on up to 4 blocks)
-        return entityBox.getMinX() < blockBox.getMaxX()
-                && entityBox.getMaxX() > blockBox.getMinX()
-                && entityBox.getMinZ() < blockBox.getMaxZ()
-                && entityBox.getMaxZ() > blockBox.getMinZ();
-    }
-
-    @EventHandler
     public void onPlayerDropItem(PlayerDropItemEvent event) {
         final Player player = event.getPlayer();
 
+        // prevents dropping replay controls from inventory
         if (plugin.getReplayManager() != null && plugin.getReplayManager().isWatching(player)) {
             event.setCancelled(true);
             return;
         }
 
-        if (isPlayerInQueue(player)) {
+        // prevents dropping team selection or host items
+        // from inventory when player is in queue in waiting lobby room
+        if (plugin.getGameManager().isPlayerInWaitingRoom(player)) {
             event.setCancelled(true);
             return;
         }
 
         // prevents dropping armor during game
-        if (isPlayerInGame(player)) {
-            if (isArmorItem(event.getItemDrop().getItemStack().getType())) {
-                event.setCancelled(true);
-            }
+        if (plugin.getGameManager().isPlayerInRunningGame(player)
+                && Hub.isUndroppableArmor(event.getItemDrop().getItemStack().getType())) {
+            event.setCancelled(true);
+            return;
+        }
+
+        if (!player.isOp() && Hub.isAtHub(player)) {
+            event.setCancelled(true);
+            return;
         }
     }
 
     @EventHandler
     public void onPlayerWorldChange(PlayerChangedWorldEvent event) {
-        sendActionBarToAll();
+        ActionBar.sendReadyToAll();
     }
 
     @EventHandler
@@ -315,37 +223,9 @@ public class PlayerActivity implements Listener {
         final String worldName = player.getWorld().getName();
 
         if (worldName.equals(plugin.getHubWorld()) && player.getLocation().getY() < 0) {
-            final Location lobby = plugin.getMainLobby();
-
-            if (lobby != null) {
-                player.setFallDistance(0);
-                player.teleport(lobby);
-            }
-
-            return;
-        }
-
-        final GameRoom room = plugin.getGameManager().getGameRoomByWorld(worldName);
-
-        if (room != null) {
-            if (room.isRunning()) {
-                final Game game = room.getGame();
-
-                if (game != null && !game.isSpectator(new GamePlayer(player))) {
-                    rescueFromVoid(player, game, room.getIslandY());
-                }
-            } else if (room.isWaiting()
-                    && player.getLocation().getY() < room.getIslandY() - Main.getInstance().getVoidThreshold()) {
-                player.setFallDistance(0);
-                player.teleport(room.getLobbyLocation());
-            }
-        }
-    }
-
-    private void rescueFromVoid(Player player, Game game, int islandY) {
-        if (player.getLocation().getY() < (islandY - Main.getInstance().getVoidThreshold())) {
             player.setFallDistance(0);
-            player.setHealth(0);
+            player.teleport(plugin.getMainLobby());
+            return;
         }
     }
 
@@ -431,7 +311,7 @@ public class PlayerActivity implements Listener {
     @EventHandler
     public void onHunger(FoodLevelChangeEvent event) {
         if (event.getEntity() instanceof Player player) {
-            if (isPlayerInQueue(player)) {
+            if (plugin.getGameManager().isPlayerInWaitingRoom(player)) {
                 event.setCancelled(true);
             }
         }
@@ -559,38 +439,16 @@ public class PlayerActivity implements Listener {
             }
         }
 
-        // Block interactive block access in hub for non-OP players
-        if (isHubPlayer(player) && !player.isOp()) {
-            Block block = event.getClickedBlock();
-            if (event.getAction() == Action.RIGHT_CLICK_BLOCK && block != null && isHubRestrictedBlock(block)) {
+        final GameRoom interactRoom = plugin.getGameManager().getGameRoomByWorld(player.getWorld().getName());
+
+        // prevent crop trampling + block interaction both
+        // in hub and WAITING GameRooms for non-OP players, regardless of game state
+        if (!player.isOp() && (interactRoom != null && interactRoom.isWaiting()) || Hub.isAtHub(player)) {
+            if (event.getAction() == Action.PHYSICAL || event.getAction() == Action.RIGHT_CLICK_BLOCK) {
                 event.setCancelled(true);
                 return;
             }
         }
-
-        // prevent crop trampling in hub for non-OP players, regardless of game state
-        if (isHubPlayer(player) && !player.isOp() && event.getAction() == Action.PHYSICAL) {
-            event.setCancelled(true);
-            return;
-        }
-
-        // Block interactive block access and crop trampling in WAITING GameRooms
-        if (!player.isOp()) {
-            GameRoom interactRoom = plugin.getGameManager().getGameRoomByWorld(player.getWorld().getName());
-            if (interactRoom != null && interactRoom.isWaiting()) {
-                if (event.getAction() == Action.RIGHT_CLICK_BLOCK) {
-                    Block block = event.getClickedBlock();
-                    if (block != null && isHubRestrictedBlock(block)) {
-                        event.setCancelled(true);
-                        return;
-                    }
-                } else if (event.getAction() == Action.PHYSICAL) {
-                    event.setCancelled(true);
-                    return;
-                }
-            }
-        }
-
     }
 
     @EventHandler
@@ -609,41 +467,41 @@ public class PlayerActivity implements Listener {
             return;
         }
 
-        if (isPlayerInQueue(player)) {
+        if (plugin.getGameManager().isPlayerInWaitingRoom(player)) {
             event.setCancelled(true);
             return;
         }
 
-        // 2x2 crafting grid disabled while in game
-        if (isPlayerInGame(player)) {
-            if (event.getView().getTopInventory().getType() == InventoryType.CRAFTING) {
-                if (event.getRawSlot() >= 0 && event.getRawSlot() <= 4) {
-                    event.setCancelled(true);
-                    return;
-                }
+        // disables 2x2 crafting grid in the entire server
+        if (event.getView().getTopInventory().getType() == InventoryType.CRAFTING) {
+            if (event.getRawSlot() >= 0 && event.getRawSlot() <= 4) {
+                event.setCancelled(true);
+                return;
             }
         }
 
-        // Prevent taking off armor during game
-        if (isPlayerInGame(player)) {
-            // Check if clicking on armor slots
+        // prevents taking off undropable armor during a game
+        if (plugin.getGameManager().isPlayerInRunningGame(player)) {
+            // edge case n1: if clicking on armor slots
             if (event.getSlotType() == InventoryType.SlotType.ARMOR) {
                 event.setCancelled(true);
                 return;
             }
-            // Check if shift-clicking armor into inventory (trying to unequip)
+
+            // edge case n2: if shift-clicking armor into inventory (trying to unequip)
             if (event.getAction() == InventoryAction.MOVE_TO_OTHER_INVENTORY) {
                 ItemStack currentItem = event.getCurrentItem();
-                if (currentItem != null && isArmorItem(currentItem.getType())) {
+                if (currentItem != null && Hub.isUndroppableArmor(currentItem.getType())) {
                     event.setCancelled(true);
                     return;
                 }
             }
-            // Prevent dropping armor via click
+
+            // edge case n3: dropping armor via click
             if (event.getAction() == InventoryAction.DROP_ONE_SLOT ||
                     event.getAction() == InventoryAction.DROP_ALL_SLOT) {
                 ItemStack currentItem = event.getCurrentItem();
-                if (currentItem != null && isArmorItem(currentItem.getType())) {
+                if (currentItem != null && Hub.isUndroppableArmor(currentItem.getType())) {
                     event.setCancelled(true);
                 }
             }
@@ -657,7 +515,7 @@ public class PlayerActivity implements Listener {
                 event.setCancelled(true);
                 return;
             }
-            if (isPlayerInQueue(player)) {
+            if (plugin.getGameManager().isPlayerInWaitingRoom(player)) {
                 event.setCancelled(true);
             }
         }
@@ -674,70 +532,33 @@ public class PlayerActivity implements Listener {
 
     @EventHandler
     public void onPlayerSwapHandItems(PlayerSwapHandItemsEvent event) {
-        Player player = event.getPlayer();
-        if (plugin.getReplayManager() != null && plugin.getReplayManager().isWatching(player)) {
+        if (Hub.isAtHub(event.getPlayer())) {
             event.setCancelled(true);
             return;
         }
-        if (isPlayerInQueue(player)) {
-            event.setCancelled(true);
-        }
-    }
-
-    private boolean isPlayerInQueue(Player player) {
-        if (player.isOp())
-            return false;
-
-        GameRoom queueRoom = plugin.getGameManager().getGameRoomByWorld(player.getWorld().getName());
-        return queueRoom != null && queueRoom.isWaiting();
-    }
-
-    private boolean isHubPlayer(Player player) {
-        return player.getWorld().getName().equals(plugin.getHubWorld());
-    }
-
-    private boolean isPlayerInGame(Player player) {
-        if (plugin.getGameManager() == null)
-            return false;
-        GameRoom room = plugin.getGameManager().getGameRoomByWorld(player.getWorld().getName());
-        return room != null && room.isRunning();
-    }
-
-    private boolean isArmorItem(Material material) {
-        String name = material.name();
-        return name.endsWith("_HELMET") ||
-                name.endsWith("_CHESTPLATE") ||
-                name.endsWith("_LEGGINGS") ||
-                name.endsWith("_BOOTS");
     }
 
     @EventHandler
     public void onPlayerDamage(EntityDamageEvent event) {
-        Entity dmgEntity = event.getEntity();
+        final Entity dmgEntity = event.getEntity();
 
-        // Cancel all damage in WAITING GameRooms (players and mannequins)
-        if (dmgEntity instanceof Player || dmgEntity instanceof Mannequin) {
-            GameRoom waitRoom = plugin.getGameManager().getGameRoomByWorld(dmgEntity.getWorld().getName());
-            if (waitRoom != null && waitRoom.isWaiting()) {
+        if (dmgEntity instanceof Player player) {
+            if (Hub.isAtHub(player)) {
                 event.setCancelled(true);
                 return;
             }
         }
+    }
 
-        if (!(dmgEntity instanceof Player player)) {
+    @EventHandler
+    public void onCraft(CraftItemEvent event) {
+        final Player player = (Player) event.getWhoClicked();
+        final Game game = Main.getInstance().getGameManager().getGameForPlayer(player);
+
+        if (game != null && game.getState() == GameState.STOPPED)
             return;
-        }
 
-        // Hub players are always invulnerable
-        if (isHubPlayer(player)) {
-            event.setCancelled(true);
-            return;
-        }
-
-        Game game = Main.getInstance().getGameManager().getGameForPlayer(player);
-        if (game != null && game.isProtected(player)) {
-            event.setCancelled(true);
-        }
+        event.setCancelled(true);
     }
 
     @EventHandler
@@ -785,107 +606,10 @@ public class PlayerActivity implements Listener {
         }
     }
 
-    @EventHandler
-    public void onAsyncPlayerChat(AsyncChatEvent event) {
-        Player player = event.getPlayer();
-
-        // World-scope: only same-world players receive the message
-        event.viewers().removeIf(
-                audience -> audience instanceof Player viewer && !viewer.getWorld().equals(player.getWorld()));
-
-        PlayerLevelManager levelManager = Main.getInstance().getPlayerLevelManager();
-        PlayerLevel playerLevel = levelManager.loadPlayerLevel(player.getUniqueId());
-
-        Component rankComponent = MiniMessage.miniMessage().deserialize(playerLevel.getFormattedRank());
-
-        int ri = playerLevel.getRankIndex();
-        Component hoverText;
-        if (ri >= 0) {
-            String rankName = PlayerLevel.getPrestigeName(ri) + " "
-                    + PlayerLevel.getGemName(ri) + " "
-                    + PlayerLevel.getLevelInRank(ri);
-            hoverText = Component.text(rankName, NamedTextColor.GOLD)
-                    .append(Component.newline())
-                    .append(Component.text("XP: ", NamedTextColor.GRAY))
-                    .append(Component.text(String.format("%,d", playerLevel.getTotalXP()), NamedTextColor.YELLOW));
-        } else {
-            hoverText = Component.text("Non classé", NamedTextColor.GRAY)
-                    .append(Component.newline())
-                    .append(Component.text("XP: ", NamedTextColor.GRAY))
-                    .append(Component.text(String.format("%,d", playerLevel.getTotalXP()), NamedTextColor.YELLOW));
-        }
-        rankComponent = rankComponent.hoverEvent(HoverEvent.showText(hoverText));
-
-        Component rankBadge = Component.text("[", NamedTextColor.GRAY)
-                .append(rankComponent)
-                .append(Component.text("]", NamedTextColor.GRAY));
-
-        String message = PlainTextComponentSerializer.plainText().serialize(event.message());
-        boolean isGlobal = message.startsWith("@");
-        if (isGlobal) {
-            message = message.substring(1).trim();
-        }
-
-        Component tail = Component.text(" > ", NamedTextColor.WHITE)
-                .append(Component.text(message, NamedTextColor.WHITE));
-
-        Component formatComponent;
-
-        if (isPlayerInQueue(player)) {
-            formatComponent = rankBadge
-                    .append(Component.text(" [", NamedTextColor.GRAY))
-                    .append(Component.text("Lobby", NamedTextColor.BLUE))
-                    .append(Component.text("] ", NamedTextColor.GRAY))
-                    .append(player.displayName())
-                    .append(tail);
-        } else {
-            Game game = Main.getInstance().getGameManager().getGameForPlayer(player);
-            Team team = (game != null && game.getState() == GameState.RUNNING)
-                    ? game.getPlayerTeam(new GamePlayer(player))
-                    : null;
-
-            if (team != null) {
-                Team.Color color = team.getColor();
-
-                formatComponent = rankBadge
-                        .append(Component.text(" [", NamedTextColor.GRAY))
-                        .append(Component.text(color.name(), color.getTextColor()))
-                        .append(Component.text("] ", NamedTextColor.GRAY))
-                        .append(player.displayName())
-                        .append(tail);
-
-                if (!isGlobal) {
-                    event.setCancelled(true);
-                    for (Player recipient : plugin.getServer().getOnlinePlayers()) {
-                        Team recipientTeam = game.getPlayerTeam(new GamePlayer(recipient));
-                        if (recipientTeam != null && recipientTeam.equals(team)) {
-                            recipient.sendMessage(formatComponent);
-                        }
-                    }
-                    return;
-                }
-            } else {
-                formatComponent = rankBadge
-                        .append(Component.text(" ", NamedTextColor.WHITE))
-                        .append(player.displayName())
-                        .append(tail);
-            }
-        }
-
-        event.renderer((source, sourceDisplayName, msg, viewer) -> formatComponent);
-    }
-
     private boolean isGlass(Material material) {
         String name = material.name();
         return material == Material.GLASS
                 || material == Material.TINTED_GLASS
                 || name.endsWith("_STAINED_GLASS");
-    }
-
-    private boolean isHubRestrictedBlock(Block block) {
-        Material material = block.getType();
-        return block.getState() instanceof Container
-                || Tag.DOORS.isTagged(material)
-                || Tag.TRAPDOORS.isTagged(material);
     }
 }

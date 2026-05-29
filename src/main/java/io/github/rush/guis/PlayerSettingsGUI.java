@@ -4,7 +4,7 @@ import io.github.rush.Main;
 import io.github.rush.utils.i18n;
 import io.github.rush.storage.PlayerSettingsManager;
 import io.github.rush.storage.PlayerSettingsManager.PlayerSettings;
-import io.github.rush.sound.RushSounds;
+import io.github.rush.utils.Sounds;
 import io.github.rush.utils.ItemBuilder;
 import org.bukkit.Material;
 import net.kyori.adventure.text.Component;
@@ -38,9 +38,9 @@ public class PlayerSettingsGUI {
             settingsManager.setMusicEnabled(p.getUniqueId(), newState);
 
             if (newState) {
-                RushSounds.LOBBY_MUSIC.play(p);
+                Sounds.LOBBY_MUSIC.play(p);
             } else {
-                RushSounds.LOBBY_MUSIC.stop(p);
+                Sounds.LOBBY_MUSIC.stop(p);
             }
 
             openPlayerSettings(p);

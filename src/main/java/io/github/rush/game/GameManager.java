@@ -22,6 +22,7 @@ import io.github.rush.Main;
 import io.github.rush.storage.ConfigManager;
 import io.github.rush.utils.i18n;
 import io.github.rush.utils.RushLogger;
+import io.github.rush.Hub;
 import io.github.rush.guis.GUI;
 import io.github.rush.guis.HostConfigGUI;
 import io.github.rush.guis.TeamSelectionGUI;
@@ -29,8 +30,7 @@ import io.github.rush.objects.Island;
 import io.github.rush.utils.ItemBuilder;
 
 import io.github.rush.utils.VoidWorld;
-import io.papermc.paper.datacomponent.DataComponentTypes;
-import io.papermc.paper.datacomponent.item.ItemLore;
+
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -46,15 +46,13 @@ import org.bukkit.GameRule;
 import org.bukkit.entity.Villager;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.inventory.meta.SkullMeta;
 
 import io.github.rush.entities.Merchant;
 import io.github.rush.entities.MerchantType;
 import io.github.rush.utils.ReplayUtils.ReplayFile;
 import io.github.rush.utils.ReplayUtils.ReplayHeader;
 import io.github.rush.replay.ReplayPlayback;
-import io.github.rush.sound.RushSounds;
+import io.github.rush.utils.Sounds;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -90,10 +88,6 @@ public class GameManager {
      * @param wasSpectator  True if the player was a spectator at disconnect time
      */
     public record ReconnectData(String roomId, String teamColorName, boolean wasSpectator) {
-    }
-
-    private int computeIslandY(World world) {
-        return world.getMaxHeight() - plugin.getConfig().getInt("distance-height-limit");
     }
 
     public GameManager(Main plugin) {
@@ -210,7 +204,7 @@ public class GameManager {
                             onlineHost.teleport(lobbyLocation);
                             onlineHost.getInventory().clear();
                             onlineHost.getInventory().setItem(0, TeamSelectionGUI.createBannerItem());
-                            onlineHost.getInventory().setItem(8, createHostPanelItem());
+                            onlineHost.getInventory().setItem(8, Hub.createHostPanelItem());
 
                             bar.stop(plugin);
                         });
@@ -234,7 +228,7 @@ public class GameManager {
 
         final World world = room.getWorld();
         if (world != null) {
-            destroyWorld(world, false);
+            destroyWorld(world);
         }
     }
 
@@ -265,10 +259,6 @@ public class GameManager {
             RushLogger.error(i18n.log("internal.game_manager.schematic_unknown_format", schematicFile.getPath()));
             return;
         }
-    }
-
-    public ItemStack createHostPanelItem() {
-        return ItemBuilder.of(Material.NETHER_STAR).name(i18n.txt("rush.host_panel_name")).build();
     }
 
     private World createVoidWorld(String worldName) {
@@ -364,6 +354,17 @@ public class GameManager {
         return null;
     }
 
+    public boolean isPlayerInWaitingRoom(Player player) {
+        GameRoom room = getGameRoomByWorld(player.getWorld().getName());
+        return room != null && room.isWaiting();
+    }
+
+    public boolean isPlayerInRunningGame(Player player) {
+        if (gameRooms.isEmpty()) return false;
+        GameRoom room = getGameRoomByWorld(player.getWorld().getName());
+        return room != null && room.isRunning();
+    }
+
     public void removeGameRoom(String id) {
         final GameRoom room = gameRooms.remove(id);
 
@@ -373,29 +374,27 @@ public class GameManager {
             final World world = room.getWorld();
 
             for (Player player : new ArrayList<>(world.getPlayers())) {
-                resetPlayerHubState(player);
+                Hub.resetPlayer(player);
             }
 
             if (room.getGame() != null) {
                 room.getGame().stop();
             }
 
-            destroyWorld(world, true);
+            destroyWorld(world);
         }
     }
 
-    private void destroyWorld(World world, boolean log) {
+    public void destroyWorld(World world) {
         Bukkit.unloadWorld(world, false);
-        if (log) {
-            RushLogger.info(i18n.log("internal.game_manager.world_unloaded", world.getName()));
-        }
-        File worldFolder = new File(Bukkit.getWorldContainer(), world.getName());
+        RushLogger.info(i18n.log("internal.game_manager.world_unloaded", world.getName()));
+
+        final File worldFolder = new File(Bukkit.getWorldContainer(), world.getName());
+
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             ConfigManager.deleteDirectory(worldFolder);
-            if (log) {
-                RushLogger.info(i18n.log("internal.game_manager.world_folder_deleted",
-                        worldFolder.getAbsolutePath()));
-            }
+            RushLogger.info(i18n.log("internal.game_manager.world_folder_deleted",
+                    worldFolder.getAbsolutePath()));
         });
     }
 
@@ -459,11 +458,6 @@ public class GameManager {
             actionLine = "rush.room_action_join";
         }
 
-        final ItemStack item = new ItemStack(material);
-        final ItemMeta meta = item.getItemMeta();
-        meta.displayName(room.getDisplayName());
-        item.setItemMeta(meta);
-
         final List<Component> lore = new ArrayList<>(List.of(
                 Component.translatable("rush.room_lore_host", Component.text(room.getHostName())),
                 Component.translatable("rush.room_lore_status", Component.translatable(status)),
@@ -478,22 +472,21 @@ public class GameManager {
             lore.add(Component.translatable("rush.room_admin_delete_hint"));
         }
 
-        item.setData(DataComponentTypes.LORE, ItemLore.lore(lore));
-
-        return item;
+        return ItemBuilder.of(material)
+                .name(room.getDisplayName())
+                .lore(lore.toArray(new Component[0]))
+                .build();
     }
 
     private ItemStack createReplayItem(ReplayHeader header) {
-        LocalDateTime dt = LocalDateTime.ofInstant(
+        final LocalDateTime dt = LocalDateTime.ofInstant(
                 Instant.ofEpochMilli(header.startTimestamp()), ZoneId.systemDefault());
-        String date = String.format("%02d/%02d/%04d %02d:%02d",
+        final String date = String.format("%02d/%02d/%04d %02d:%02d",
                 dt.getDayOfMonth(), dt.getMonthValue(), dt.getYear(),
                 dt.getHour(), dt.getMinute());
-
-        long totalSeconds = header.durationMs() / 1000;
-        String duration = String.format("%02d:%02d", totalSeconds / 60, totalSeconds % 60);
-
-        String winner = header.winnerTeamColorName() != null ? header.winnerTeamColorName() : "Aucun";
+        final long totalSeconds = header.durationMs() / 1000;
+        final String duration = String.format("%02d:%02d", totalSeconds / 60, totalSeconds % 60);
+        final String winner = header.winnerTeamColorName() != null ? header.winnerTeamColorName() : "Aucun";
 
         return ItemBuilder.of(Material.ORANGE_WOOL)
                 .name(i18n.txt("rush.replay_item_name", header.hostName()))
@@ -522,14 +515,18 @@ public class GameManager {
                 .build();
         gui.addItem(11, confirmItem, p -> {
             p.closeInventory();
+
             if (getGameRoom(room.getId()) == null) {
                 p.sendMessage(Component.translatable("rush.room_not_found"));
                 return;
             }
+
             for (Player roomPlayer : new ArrayList<>(room.getWorld().getPlayers())) {
                 roomPlayer.sendMessage(Component.translatable("rush.room_admin_deleted"));
             }
+
             removeGameRoom(room.getId());
+
             p.sendMessage(Component.translatable("rush.room_deleted", Component.text(room.getHostName())));
         });
 
@@ -544,23 +541,6 @@ public class GameManager {
         gui.openGUI(admin);
     }
 
-    public void resetPlayerHubState(Player player) {
-        player.teleport(Main.getInstance().getMainLobby());
-        player.setAllowFlight(false);
-        player.setFallDistance(0);
-        player.setGameMode(GameMode.ADVENTURE);
-        Game.resetPlayerHealth(player);
-        restoreHubInventory(player);
-    }
-
-    public void restoreHubInventory(Player player) {
-        player.getInventory().clear();
-        player.getInventory().setItem(0, createCompassItem());
-        player.getInventory().setItem(1, createPlayerSkullItem(player));
-        player.getInventory().setItem(7, createGameHostItem());
-        player.getInventory().setItem(8, createSettingsItem());
-    }
-
     public void recordDisconnect(UUID uuid, ReconnectData data) {
         reconnectDataMap.put(uuid, data);
     }
@@ -572,7 +552,7 @@ public class GameManager {
     public void handleReconnect(Player player, GameRoom room, ReconnectData data) {
         // edge case: game ended before the reconnect task ran — send to hub
         if (!player.isOnline() || !room.isRunning()) {
-            resetPlayerHubState(player);
+            Hub.resetPlayer(player);
         }
 
         final Game game = room.getGame();
@@ -615,41 +595,6 @@ public class GameManager {
         }
     }
 
-    public ItemStack createPlayerSkullItem(Player player) {
-        final ItemStack skull = new ItemStack(Material.PLAYER_HEAD);
-        final SkullMeta meta = (SkullMeta) skull.getItemMeta();
-        meta.setOwningPlayer(player);
-        meta.displayName(i18n.txt("rush.skull_name", player.getName()));
-        skull.setItemMeta(meta);
-        skull.setData(DataComponentTypes.LORE,
-                ItemLore.lore(List.of(i18n.txt("rush.skull_lore1"))));
-        return skull;
-    }
-
-    public ItemStack createCompassItem() {
-        return ItemBuilder.of(Material.COMPASS)
-                .name(i18n.txt("rush.compass_name"))
-                .lore(
-                        Component.translatable("rush.compass_lore1"),
-                        Component.translatable("rush.compass_lore2"))
-                .build();
-    }
-
-    public ItemStack createSettingsItem() {
-        return ItemBuilder.of(Material.REPEATER)
-                .name(i18n.txt("rush.settings_name"))
-                .build();
-    }
-
-    public ItemStack createGameHostItem() {
-        return ItemBuilder.of(Material.BEACON)
-                .name(i18n.txt("rush.create_game_name"))
-                .lore(
-                        Component.translatable("rush.create_game_lore1"),
-                        Component.translatable("rush.create_game_lore2"))
-                .build();
-    }
-
     /**
      * Opens the HostConfigGUI for a player, creating a fresh builder if needed.
      */
@@ -678,7 +623,7 @@ public class GameManager {
         float facingYaw = Island.Layout.YAW_VALUES[islandIndex];
 
         // Spawn speed villagers (2) — one directly behind each ender chest
-        for (int[] pos : speedMerchantPositions(island, dir, perpX, perpZ, speedOffset)) {
+        for (int[] pos : Island.Layout.speedMerchantPositions(island, dir, perpX, perpZ, speedOffset)) {
             Location speedLoc = new Location(world, pos[0] + 0.5, islandY + 0.5, pos[1] + 0.5,
                     facingYaw, 0);
             spawnMerchant(world, speedLoc, MerchantType.SPEED);
@@ -687,7 +632,8 @@ public class GameManager {
         // Spawn regular villagers (4)
         MerchantType[] regularTypes = MerchantType.firstN(4);
         for (int i = 0; i < 4; i++) {
-            int[] pos = regularMerchantPos(i, island.getX(), island.getZ(), dir, perpX, perpZ, regularOffset);
+            int[] pos = Island.Layout.regularMerchantPos(i, island.getX(), island.getZ(), dir, perpX, perpZ,
+                    regularOffset);
             Location villagerLoc = new Location(world, pos[0] + 0.5, islandY + 1, pos[1] + 0.5,
                     facingYaw, 0);
             spawnMerchant(world, villagerLoc, regularTypes[i]);
@@ -708,27 +654,6 @@ public class GameManager {
             locations.add(new Location(world, cx, y, cz));
         }
         return locations;
-    }
-
-    public static int[][] speedMerchantPositions(Island island, int[] dir, int perpX, int perpZ,
-            int speedOffset) {
-        int[][] positions = new int[2][2];
-        for (int i = 0; i < 2; i++) {
-            int sign = (i == 0) ? 1 : -1;
-            positions[i][0] = island.getX() + dir[0] * speedOffset + perpX * sign;
-            positions[i][1] = island.getZ() + dir[1] * speedOffset + perpZ * sign;
-        }
-        return positions;
-    }
-
-    public static int[] regularMerchantPos(int i, int islandX, int islandZ, int[] dir, int perpX, int perpZ,
-            int offset) {
-        final int sign = (i < 2) ? 1 : -1;
-        final int idx = (i % 2 == 0) ? 0 : 1;
-        return new int[] {
-                islandX + dir[0] * offset + perpX * Island.Layout.MERCHANT_SPREADS.get(idx) * sign,
-                islandZ + dir[1] * offset + perpZ * Island.Layout.MERCHANT_SPREADS.get(idx) * sign
-        };
     }
 
     private static void spawnMerchant(World world, Location location, MerchantType type) {
@@ -791,7 +716,8 @@ public class GameManager {
         }
 
         final World finalWorld = world;
-        final int islandY = computeIslandY(world);
+        final int islandY = Island.Layout.computeIslandY(world.getMaxHeight(),
+                plugin.getConfig().getInt("distance-height-limit"));
         final int islandOffset = plugin.getConfig().getInt("islandOffset");
         GameRoom.IslandType islandType = GameRoom.IslandType.FOUR_ISLANDS;
 
@@ -844,7 +770,8 @@ public class GameManager {
     }
 
     private void populateReplayWorld(World world, ReplayFile file, List<Island> islands) {
-        int islandY = computeIslandY(world);
+        int islandY = Island.Layout.computeIslandY(world.getMaxHeight(),
+                Main.getInstance().getConfig().getInt("distance-height-limit"));
 
         Map<String, String> teamColors = file.header().teamColorsByPlayerUuid();
         if (teamColors == null || teamColors.isEmpty())
@@ -857,7 +784,7 @@ public class GameManager {
 
         Map<Integer, String> islandToTeam = new HashMap<>();
         int teamIdx = 0;
-        for (int slot : Game.islandSlotOrder(islands.size())) {
+        for (int slot : Island.Layout.islandSlotOrder(islands.size())) {
             if (slot < islands.size() && teamIdx < orderedTeams.size()) {
                 islandToTeam.put(slot, orderedTeams.get(teamIdx));
                 teamIdx++;
@@ -889,18 +816,9 @@ public class GameManager {
             final int[] dir = Island.Layout.ISLAND_DIRECTIONS[slot];
 
             placeIslandEnderChests(world, island.getX(), island.getZ(), islandY, dir, dir[1], enderChestOffset,
-                    Team.facingTowardsCenter(slot), 2);
+                    Island.Layout.facingTowardsCenter(slot), 2);
             placeIslandMerchants(world, island, slot, islandY);
         }
-    }
-
-    /**
-     * Unloads and deletes a replay world created by createReplayWorld.
-     */
-    public void destroyReplayWorld(World world) {
-        if (world == null)
-            return;
-        destroyWorld(world, false);
     }
 
     /**
@@ -927,16 +845,16 @@ public class GameManager {
     public void onGameRoomEnded(GameRoom room) {
         RushLogger.info(i18n.log("internal.game_manager.game_ended", room.getId()));
 
-        final long teleportDelay = ((RushSounds.GAME_END_MUSIC.getDurationMs() / 1000) + 3L) * 20L;
+        final long teleportDelay = ((Sounds.GAME_END_MUSIC.getDurationMs() / 1000) + 3L) * 20L;
 
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             for (GameCombatant participant : room.getGame().getPlayers()) {
                 if (participant instanceof GamePlayer gp) {
-                    resetPlayerHubState(gp.player());
+                    Hub.resetPlayer(gp.player());
                 }
             }
             for (GamePlayer gp : room.getGame().getSpectators()) {
-                resetPlayerHubState(gp.player());
+                Hub.resetPlayer(gp.player());
             }
         }, teleportDelay);
 

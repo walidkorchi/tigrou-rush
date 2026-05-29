@@ -124,10 +124,8 @@ public class GameRoom {
     }
 
     public int getIslandY() {
-        if (islandY == 0) {
-            islandY = world.getMaxHeight() - Main.getInstance().getConfig().getInt("distance-height-limit", 12);
-        }
-
+        if (islandY == 0)
+            islandY = world.getMaxHeight() - Main.getInstance().getConfig().getInt("distance-height-limit");
         return islandY;
     }
 
