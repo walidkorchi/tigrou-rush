@@ -50,9 +50,11 @@ public class GameRules implements Listener {
         this.plugin = plugin;
     }
 
+    // TODO: make this YML configurable
     private static final Set<Material> PLACEABLE_BLOCKS = Set.of(
             Material.SANDSTONE, Material.END_STONE, Material.TNT);
 
+    // TODO: make this YML configurable
     static final Set<Material> BREAKABLE_BLOCKS = Set.of(
             Material.SANDSTONE, Material.END_STONE, Material.TNT);
 
@@ -199,7 +201,8 @@ public class GameRules implements Listener {
                 final Game game = room.getGame();
 
                 if (game != null && !game.isSpectator(new GamePlayer(player))) {
-                    final int voidDeathThreshold = (room.getIslandY() - Main.getInstance().getVoidThreshold());
+                    final int voidDeathThreshold = (room.getIslandY()
+                            - Main.getInstance().getConfig().getInt("void-threshold"));
 
                     if (player.getLocation().getY() < voidDeathThreshold) {
                         player.setFallDistance(0);
@@ -333,7 +336,8 @@ public class GameRules implements Listener {
 
         if (room != null && room.getGame() != null && room.getGame().getState() == GameState.RUNNING)
             return room.getGame();
-        else return null;
+        else
+            return null;
     }
 
 }

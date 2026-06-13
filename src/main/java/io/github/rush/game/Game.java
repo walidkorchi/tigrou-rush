@@ -52,6 +52,7 @@ import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.EquipmentSlotGroup;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.CompassMeta;
+import org.bukkit.inventory.meta.LeatherArmorMeta;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitTask;
@@ -153,12 +154,17 @@ public class Game {
         }
     }
 
+    /**
+     * Returns the total number of participants across all teams and the free-player
+     * pool.
+     */
     public int getTotalPlayerCount() {
         return getPlayers().size();
     }
 
     /**
-     * Unsubscribe a game participant from the game room, and updates the tablist.
+     * Unsubscribe a game participant from the game room
+     * Updates the tablist to all previous team players
      */
     public void removePlayer(GameCombatant participant) {
         freePlayers.remove(participant);
@@ -181,15 +187,17 @@ public class Game {
      * Notifies a message to all team players
      * Updates the player list
      * Checks if current game room is auto-startable
-     *
-     * @param player - the player to join the team
-     * @param color  - the color of the team to join
-     * @return boolean - evaluates if the player was successfully added to the team
      */
     public boolean joinTeam(GameCombatant participant, Team.Color color) {
         final Team team = teams.get(color.name());
 
         if (team == null) {
+            return false;
+        }
+
+        // Reject before touching any state — player already in the team counts as a
+        // no-op re-join, not full.
+        if (!team.isInTeam(participant) && team.getPlayers().size() >= team.getMaxPlayers()) {
             return false;
         }
 
@@ -200,12 +208,8 @@ public class Game {
             }
         }
 
-        final Boolean added = team.addPlayer(participant);
-
-        if (freePlayers.contains(participant)) {
-            freePlayers.remove(participant);
-        }
-
+        team.addPlayer(participant);
+        freePlayers.remove(participant);
         playersReady.put(participant, true);
         playerTeamColors.put(participant.uniqueId(), color);
 
@@ -220,9 +224,14 @@ public class Game {
         updatePlayerList();
         checkStartCondition();
 
-        return added;
+        return true;
     }
 
+    /**
+     * Removes the participant from whichever team they currently belong to
+     * Moves them back to the free-player pool and marks them as not ready
+     * Updates the player list if the participant is a real player
+     */
     public void leaveTeam(GameCombatant participant) {
         for (Team team : teams.values()) {
             if (team.isInTeam(participant)) {
@@ -242,16 +251,27 @@ public class Game {
         }
     }
 
+    /** Returns true if the participant has been explicitly marked as ready. */
     public boolean isPlayerReady(GameCombatant participant) {
         Boolean ready = playersReady.get(participant);
         return ready != null && ready;
     }
 
+    /**
+     * Transitions a player whose bed has been destroyed into spectator mode
+     * Removes them from their team and the free-player pool
+     * Notifies them that spectator mode has been entered
+     */
     public void addSpectator(GamePlayer gamePlayer) {
         addSpectator(gamePlayer, false);
         gamePlayer.player().sendMessage(Component.translatable("rush.spectatorModeEnteredAfterBedDestroyed"));
     }
 
+    /**
+     * Adds an external observer (e.g. host or staff) into spectator mode without
+     * removing them from any team
+     * Notifies them that they are now viewing the game
+     */
     public void addObserver(GamePlayer gamePlayer) {
         addSpectator(gamePlayer, true);
         gamePlayer.player().sendMessage(Component.translatable("rush.spectator_viewing"));
@@ -284,14 +304,20 @@ public class Game {
         updatePlayerList();
     }
 
+    /** Returns true if the player is currently in the spectator set. */
     public boolean isSpectator(GamePlayer gamePlayer) {
         return spectators.contains(gamePlayer);
     }
 
+    /** Returns an unmodifiable view of all current spectators. */
     public Collection<GamePlayer> getSpectators() {
         return Collections.unmodifiableCollection(spectators);
     }
 
+    /**
+     * Removes a player from spectator mode, makes them visible to all, resets their
+     * state, and notifies them.
+     */
     public void removeSpectator(GamePlayer gamePlayer) {
         spectators.remove(gamePlayer);
 
@@ -303,12 +329,19 @@ public class Game {
         player.sendMessage(Component.translatable("rush.spectatorModeQuit"));
     }
 
+    /** Returns true if the player currently has respawn protection active. */
     public boolean isProtected(Player player) {
         return protectedPlayers.contains(player);
     }
 
+    /**
+     * Applies timed respawn protection: sets adventure mode, suppresses movement,
+     * hides the player from all others
+     * Shows a countdown in the action bar and auto-removes protection after the
+     * configured duration
+     */
     public void addProtection(Player player) {
-        final int protectionTime = Main.getInstance().getRespawnProtectionTime();
+        final int protectionTime = Main.getInstance().getConfig().getInt("respawn-protection");
 
         if (protectionTime <= 0)
             return;
@@ -367,6 +400,10 @@ public class Game {
         }, protectionTime * 20L);
     }
 
+    /**
+     * Lifts respawn protection: restores survival mode, removes slowness and jump
+     * suppression, and makes the player visible again
+     */
     public void removeProtection(Player player) {
         protectedPlayers.remove(player);
 
@@ -406,6 +443,10 @@ public class Game {
         killTracker.reset();
     }
 
+    /**
+     * Removes any extra-hearts modifier and resets health, hunger, and saturation
+     * to their defaults.
+     */
     public static void resetPlayerHealth(Player player) {
         final AttributeInstance maxHealth = player.getAttribute(Attribute.MAX_HEALTH);
 
@@ -418,11 +459,19 @@ public class Game {
         player.setSaturation(20f);
     }
 
+    /**
+     * Marks the participant as ready or not ready, then re-evaluates the start
+     * condition.
+     */
     public void setPlayerReady(GameCombatant participant, boolean ready) {
         playersReady.put(participant, ready);
         checkStartCondition();
     }
 
+    /**
+     * Starts the lobby countdown if enough teams are full, or cancels it and
+     * notifies players if they no longer are
+     */
     public void checkStartCondition() {
         if (state == GameState.WAITING) {
             if (areEnoughTeamsFull()) {
@@ -440,6 +489,10 @@ public class Game {
         }
     }
 
+    /**
+     * Returns true if at least {@code minTeams} teams each have enough ready
+     * players to fill their slots.
+     */
     public boolean areEnoughTeamsFull() {
         final long fullReadyTeams = teams.values().stream()
                 .filter(t -> t.getPlayers().stream()
@@ -453,6 +506,10 @@ public class Game {
         return teams.values().stream().findFirst().map(Team::getMaxPlayers).orElse(1);
     }
 
+    /**
+     * Cancels any running countdown and starts an accelerated 15-second countdown
+     * regardless of team readiness.
+     */
     public void forceStart() {
         if (state == GameState.WAITING) {
             if (lobbyCountdown != null) {
@@ -464,6 +521,11 @@ public class Game {
         }
     }
 
+    /**
+     * Assigns any unassigned free players to the smallest available teams, then
+     * re-checks the start condition
+     * Used to fill gaps before a host-triggered start
+     */
     public void autoStart() {
         if (state == GameState.WAITING) {
             final List<GameCombatant> unassigned = freePlayers.stream()
@@ -498,14 +560,29 @@ public class Game {
         return gameRoom.getConfig().overtimeDuration() * 60;
     }
 
+    /**
+     * Returns true if the game clock has reached or exceeded the configured
+     * overtime threshold.
+     */
     public boolean isOvertime() {
         return gameTime >= getOvertimeSeconds();
     }
 
+    /** Delegates to {@link GameRoomConfig#isMDT()}. */
+    public boolean isMDT() {
+        return gameRoom != null && gameRoom.getConfig().isMDT();
+    }
+
+    /** Returns the elapsed game time formatted as {@code MM:SS}. */
     public String getFormattedTime() {
         return String.format("%02d:%02d", gameTime / 60, gameTime % 60);
     }
 
+    /**
+     * Advances the game clock by one second
+     * Triggers overtime broadcast, replay phase marker, and music loop on the first
+     * tick that crosses the threshold
+     */
     public void incrementGameTime() {
         gameTime++;
         if (gameTime == getOvertimeSeconds()) {
@@ -536,6 +613,12 @@ public class Game {
         }, 160L, 800L);
     }
 
+    /**
+     * Returns true if the location falls inside the forbidden corridor between two
+     * active islands
+     * Only active in 2-team games before overtime; island platforms are always
+     * exempt
+     */
     public boolean isBlockInForbiddenZone(Location location) {
         if (isOvertime() || islandAssignment == null) {
             return false;
@@ -566,9 +649,13 @@ public class Game {
                 location.getX(), location.getZ(),
                 teamA.getSpawnLocation().getX(), teamA.getSpawnLocation().getZ(),
                 teamB.getSpawnLocation().getX(), teamB.getSpawnLocation().getZ(),
-                islandCount);
+                getAllIslandPositions());
     }
 
+    /**
+     * Returns true if the block sits directly above any team's ender chest resource
+     * spawner.
+     */
     public boolean isBlockOnResourceSpawn(Location location) {
         int bx = location.getBlockX();
         int by = location.getBlockY();
@@ -585,6 +672,10 @@ public class Game {
         return false;
     }
 
+    /**
+     * Returns true if the block is within the configured protection radius of any
+     * regular merchant on any island.
+     */
     public boolean isBlockNearRegularMerchant(Location location) {
         World world = location.getWorld();
         if (world == null)
@@ -606,9 +697,8 @@ public class Game {
         if (by < islandY + 1 - radius || by > islandY + 2 + radius)
             return false;
 
-        for (int islandIndex = 0; islandIndex < islands.size(); islandIndex++) {
-            Island island = islands.get(islandIndex);
-            int[] dir = Island.Layout.ISLAND_DIRECTIONS[islandIndex];
+        for (Island island : islands) {
+            int[] dir = new int[] { island.getDirX(), island.getDirZ() };
             int perpX = dir[1];
             int perpZ = -dir[0];
             int baseX = island.getX() + dir[0] * regularOffset;
@@ -627,6 +717,10 @@ public class Game {
         return false;
     }
 
+    /**
+     * Returns true if the block lies on the ring bridge path connecting islands, or
+     * on any island platform itself.
+     */
     public boolean isBlockInRingPath(Location location) {
         final List<Island> allIslands = getAllIslandPositions();
         if (allIslands.isEmpty())
@@ -684,13 +778,13 @@ public class Game {
     private double[] computeIslandVisualCenter(Island island, World world, int islandY) {
         final double ix = island.getX();
         final double iz = island.getZ();
-        final double len = Math.sqrt(ix * ix + iz * iz);
-        if (len == 0.0)
-            return new double[] { ix, iz };
 
-        // Unit vector pointing away from map centre (outward through the island)
-        final double radX = ix / len;
-        final double radZ = iz / len;
+        // Use the island's stored outward cardinal direction rather than normalising
+        // the position vector. For 4-island these are identical, but for 8-island the
+        // position is offset perpendicular to the cardinal axis (the spread) so
+        // normalising it would produce a diagonal scan that misses the actual island.
+        final double radX = island.getDirX();
+        final double radZ = island.getDirZ();
 
         // Walk outward from the paste origin; remember the farthest non-air block
         int lastOffset = 0;
@@ -707,6 +801,10 @@ public class Game {
         return new double[] { ix + halfDepth * radX, iz + halfDepth * radZ };
     }
 
+    /**
+     * Returns all island positions sorted in cyclic (N→E→S→W) order by angle from
+     * the map centroid.
+     */
     public List<Island> getAllIslandPositions() {
         List<Island> raw = gameRoom.getIslands();
         if (raw == null || raw.isEmpty())
@@ -735,6 +833,13 @@ public class Game {
         }
     }
 
+    /**
+     * Transitions the game from WAITING to RUNNING
+     * Assigns islands, places beds (and extra beds if configured), teleports and
+     * equips all players
+     * Starts resource generators, compass tracker, mannequin void-check, game
+     * cycle, and replay recorder
+     */
     public void start() {
         if (state == GameState.WAITING) {
             if (lobbyCountdown != null) {
@@ -762,12 +867,16 @@ public class Game {
                 final Team team = islandAssignment.get(i);
 
                 if (team != null) {
-                    team.placeBed(i);
+                    team.placeBed(islands.get(i));
                 }
             }
 
             if (gameRoom.getConfig().extraHearts()) {
-                Set<Team.Color> takenColors = teams.values().stream()
+                // Only exclude colors already assigned to active islands — teams with no
+                // players are never assigned, so using teams.values() would always drain
+                // the full 16-color pool and produce an empty extra-colors list.
+                Set<Team.Color> takenColors = islandAssignment.stream()
+                        .filter(t -> t != null)
                         .map(Team::getColor)
                         .collect(Collectors.toSet());
                 List<Team.Color> extraColors = randomExtraBedColors(takenColors);
@@ -823,6 +932,10 @@ public class Game {
         }
     }
 
+    /**
+     * Returns a shuffled list of all team colors not present in {@code taken}, used
+     * for placing neutral extra beds.
+     */
     public static List<Team.Color> randomExtraBedColors(Collection<Team.Color> taken) {
         List<Team.Color> available = new ArrayList<>(List.of(Team.Color.values()));
         available.removeAll(taken);
@@ -831,15 +944,19 @@ public class Game {
     }
 
     private void placeExtraBed(int islandIndex, List<Team.Color> extraColors) {
-        if (islands == null || islandIndex >= islands.size())
+        if (islands == null || islandIndex >= islands.size() || extraColors.isEmpty())
             return;
         final World gameWorld = gameRoom.getWorld();
         if (gameWorld == null)
             return;
-        Team.placeIslandBed(gameWorld, islands.get(islandIndex), islandIndex,
+        Team.placeIslandBed(gameWorld, islands.get(islandIndex),
                 gameRoom.getIslandY(), extraColors.get(islandIndex % extraColors.size()));
     }
 
+    /**
+     * Handles destruction of a neutral extra bed: rewards the destroyer with XP,
+     * broadcasts the event, and records it in the replay
+     */
     public void onExtraBedDestroyed(Player destroyer) {
         rewardDestroyer(destroyer);
         broadcastMessage(Component.translatable("rush.neutral_bed_destroyed",
@@ -873,7 +990,7 @@ public class Game {
         if (gameRoom == null || !gameRoom.getConfig().extraHearts())
             return;
 
-        if (gameRoom.getConfig().maxTeams() <= 2)
+        if (isMDT())
             return;
 
         final int maxHearts = Main.getInstance().getConfig().getInt("maxBedsGrantHearts");
@@ -909,10 +1026,18 @@ public class Game {
         }
     }
 
+    /**
+     * Applies the team's colored leather armor set and starting tool to the given
+     * combatant.
+     */
     public void equipEntity(GameCombatant combatant, Team team) {
         equipWithTeamArmor(combatant.equipment(), team.getColor().getColor());
     }
 
+    /**
+     * Applies a pre-built team armor set (helmet, leggings, boots, tool) to the
+     * given equipment slots.
+     */
     public static void equipWithTeamArmor(EntityEquipment equipment, Color color) {
         final ItemStack[] armorAndTool = createTeamArmorAndTool(color);
         equipment.setHelmet(armorAndTool[0]);
@@ -921,32 +1046,44 @@ public class Game {
         equipment.setItem(EquipmentSlot.HAND, armorAndTool[3]);
     }
 
+    /**
+     * Creates and returns {@code [helmet, leggings, boots, pickaxe]} dyed in the
+     * given team color, each with Protection I or Efficiency I.
+     */
     public static ItemStack[] createTeamArmorAndTool(Color color) {
-        final ItemStack helmet = ItemBuilder.of(Material.LEATHER_HELMET)
-                .color(color)
+        final ItemStack helmet = ItemBuilder.<LeatherArmorMeta>of(Material.LEATHER_HELMET)
+                .meta(m -> m.setColor(color))
                 .addEnchant(Enchantment.PROTECTION, 1, true)
                 .build();
-        final ItemStack leggings = ItemBuilder.of(Material.LEATHER_LEGGINGS)
-                .color(color)
+        final ItemStack leggings = ItemBuilder.<LeatherArmorMeta>of(Material.LEATHER_LEGGINGS)
+                .meta(m -> m.setColor(color))
                 .addEnchant(Enchantment.PROTECTION, 1, true)
                 .build();
-        final ItemStack boots = ItemBuilder.of(Material.LEATHER_BOOTS)
-                .color(color)
+        final ItemStack boots = ItemBuilder.<LeatherArmorMeta>of(Material.LEATHER_BOOTS)
+                .meta(m -> m.setColor(color))
                 .addEnchant(Enchantment.PROTECTION, 1, true)
                 .build();
-        final ItemStack pickaxe = ItemBuilder.of(Material.WOODEN_PICKAXE)
+        final ItemStack pickaxe = ItemBuilder.<LeatherArmorMeta>of(Material.WOODEN_PICKAXE)
                 .name(i18n.txt("rush.item_pickaxe"))
                 .addEnchant(Enchantment.EFFICIENCY, 1, true)
                 .build();
         return new ItemStack[] { helmet, leggings, boots, pickaxe };
     }
 
+    /**
+     * Handles a participant death: clears inventory, determines respawn location
+     * (bed → spawn → lobby fallback)
+     * Triggers kill/assist tracking, updates statistics, records the event in the
+     * replay, and schedules respawn
+     * If the victim's bed is destroyed and they have no remaining lives,
+     * transitions them to spectator mode
+     */
     public void onPlayerDeath(GameCombatant victim, Player bukkitKiller) {
         final Team playerTeam = getPlayerTeam(victim);
 
-        if (victim instanceof GamePlayer gp) {
+        if (victim instanceof GamePlayer gp)
             gp.player().getInventory().clear();
-        } else {
+        else {
             final EntityEquipment equipment = victim.equipment();
             equipment.clear();
             equipment.setArmorContents(null);
@@ -997,9 +1134,7 @@ public class Game {
 
         broadcastKillMessage(victim, playerTeam, killer, assists);
 
-        if (victim instanceof GamePlayer deathPlayer) {
-            Sounds.PLAYER_DIED.play(deathPlayer.player());
-        }
+        broadcastSound(Sounds.PLAYER_DIED);
 
         if (recorder != null && victim instanceof GamePlayer dp) {
             recorder.recordDeath(dp.uniqueId());
@@ -1016,11 +1151,10 @@ public class Game {
 
             if (playerTeam != null) {
                 if (playerTeam.getPlayers().isEmpty()) {
-                    for (GameCombatant p : getPlayers()) {
-                        if (p instanceof GamePlayer tp) {
-                            Sounds.TEAM_ELIMINATED.play(tp.player());
-                        }
-                    }
+                    broadcastMessage(Component.translatable("rush.team_eliminated",
+                            Component.text(playerTeam.getColor().name())
+                                    .color(playerTeam.getColor().getTextColor())));
+                    broadcastSound(Sounds.TEAM_ELIMINATED);
                 } else {
                     for (GameCombatant p : playerTeam.getPlayers()) {
                         if (p instanceof GamePlayer tp) {
@@ -1063,6 +1197,12 @@ public class Game {
         broadcastMessage(Component.translatable("rush.kill_with_killer", victimDisplay, killersDisplay));
     }
 
+    /**
+     * Marks the team's bed as destroyed, broadcasts the event with dragon growl,
+     * rewards the destroyer
+     * Shows a title to the affected team and checks whether the game-over condition
+     * is now met
+     */
     public void onBedDestroyed(Team team, Player destroyer) {
         team.setBedDestroyed(true);
 
@@ -1089,7 +1229,9 @@ public class Game {
 
         for (GameCombatant participant : team.getPlayers()) {
             if (participant instanceof GamePlayer gp) {
-                gp.player().sendMessage(Component.translatable("rush.bed_destroyed"));
+                gp.player().showTitle(Title.title(
+                        Component.translatable("rush.bed_destroyed_title"),
+                        Component.translatable("rush.bed_destroyed_subtitle")));
             }
         }
 
@@ -1277,57 +1419,20 @@ public class Game {
         }
     }
 
-    public void forceStop() {
-        state = GameState.STOPPED;
-
-        runningTasks.forEach(BukkitTask::cancel);
-        runningTasks.clear();
-        stopGenerators();
-
+    private void broadcastSound(Sounds sound) {
         for (GameCombatant participant : getPlayers()) {
-            removePlayer(participant);
-
-            if (lobby != null) {
-                participant.teleport(lobby);
-            }
-
-            participant.equipment().clear();
-            participant.equipment().setArmorContents(null);
-
             if (participant instanceof GamePlayer gp) {
-                Player player = gp.player();
-                player.setGameMode(GameMode.ADVENTURE);
-                resetPlayerHealth(player);
-                player.getInventory().setItem(0, TeamSelectionGUI.createBannerItem());
+                sound.play(gp.player());
             }
         }
-
-        for (GamePlayer spectator : new ArrayList<>(spectators)) {
-            removeSpectator(spectator);
-            Player player = spectator.player();
-
-            if (lobby != null) {
-                player.teleport(lobby);
-            }
-
-            player.getInventory().setItem(0, TeamSelectionGUI.createBannerItem());
+        for (GamePlayer spectator : spectators) {
+            sound.play(spectator.player());
         }
-
-        for (Team team : teams.values()) {
-            team.reset();
-        }
-
-        clearAllEnderChests();
-        clearGameState();
-
-        cycle.onGameEnd();
-
-        state = GameState.WAITING;
     }
 
     private void startCompassTracker() {
-        BukkitTask task = Bukkit.getScheduler().runTaskTimer(Main.getInstance(), () -> {
-            List<GameCompassTracker.Candidate> candidates = teams.values().stream()
+        final BukkitTask task = Bukkit.getScheduler().runTaskTimer(Main.getInstance(), () -> {
+            final List<GameCompassTracker.Candidate> candidates = teams.values().stream()
                     .flatMap(t -> t.getPlayers().stream()
                             .filter(GamePlayer.class::isInstance)
                             .map(e -> {
@@ -1341,39 +1446,41 @@ public class Game {
                     .toList();
 
             for (Team team : teams.values()) {
-                UUID teamId = UUID.nameUUIDFromBytes(team.getColor().name().getBytes());
+                final UUID teamId = UUID.nameUUIDFromBytes(team.getColor().name().getBytes());
+
                 for (GameCombatant participant : team.getPlayers()) {
                     if (!(participant instanceof GamePlayer gp))
                         continue;
-                    Player holder = gp.player();
-                    if (holder.getInventory().getItemInMainHand().getType() != Material.COMPASS)
-                        continue;
 
-                    GameCompassTracker.Candidate nearest = GameCompassTracker.findNearestEnemy(
+                    final Player holder = gp.player();
+                    final Boolean isCompass = holder.getInventory().getItemInMainHand().getType() == Material.COMPASS;
+                    final GameCompassTracker.Candidate nearest = GameCompassTracker.findNearestEnemy(
                             holder.getLocation().getX(),
                             holder.getLocation().getY(),
                             holder.getLocation().getZ(),
                             teamId, candidates);
 
-                    if (nearest == null)
+                    if (!isCompass || nearest == null)
                         continue;
 
-                    ItemStack compass = holder.getInventory().getItemInMainHand();
-                    CompassMeta meta = (CompassMeta) compass.getItemMeta();
+                    final Location loc = new Location(holder.getWorld(), nearest.x(), nearest.y(), nearest.z());
 
-                    meta.setLodestone(new Location(
-                            holder.getWorld(), nearest.x(), nearest.y(), nearest.z()));
-                    meta.setLodestoneTracked(false);
-                    compass.setItemMeta(meta);
+                    ItemBuilder.<CompassMeta>of(holder.getInventory().getItemInMainHand())
+                            .meta(m -> {
+                                m.setLodestone(loc);
+                                m.setLodestoneTracked(false);
+                            })
+                            .build();
                 }
             }
         }, 20L, 20L);
+
         runningTasks.add(task);
     }
 
     private void startMannequinVoidCheck() {
         final int islandY = gameRoom.getIslandY();
-        final double voidThreshold = islandY - Main.getInstance().getVoidThreshold();
+        final double voidThreshold = islandY - Main.getInstance().getConfig().getInt("void-threshold");
 
         final BukkitTask task = Bukkit.getScheduler().runTaskTimer(Main.getInstance(), () -> {
             for (Team team : teams.values()) {
@@ -1391,18 +1498,27 @@ public class Game {
         runningTasks.add(task);
     }
 
+    /**
+     * Handles a mannequin death with deduplication guard to prevent concurrent
+     * re-entry
+     * Restores the mannequin's health, runs standard death logic, then schedules a
+     * 1-tick delayed respawn at the bed or spawn
+     * If the team's bed is destroyed, removes the mannequin permanently instead
+     */
     public void handleMannequinDeath(Mannequin mannequin, Player killer) {
-        if (!mannequinsBeingRescued.add(mannequin.getUniqueId())) {
+        if (!mannequinsBeingRescued.add(mannequin.getUniqueId()))
             return;
-        }
 
         GameMannequin gm = new GameMannequin(mannequin);
+
         mannequin.setHealth(mannequin.getAttribute(Attribute.MAX_HEALTH).getValue());
         onPlayerDeath(gm, killer);
 
         final Team team = getPlayerTeam(gm);
+
         if (team == null || team.isBedDestroyed()) {
             mannequinsBeingRescued.remove(mannequin.getUniqueId());
+            mannequin.remove();
             return;
         }
 
@@ -1427,7 +1543,7 @@ public class Game {
     }
 
     private void addMannequinProtection(Mannequin mannequin) {
-        final int protectionTicks = Main.getInstance().getRespawnProtectionTime() * 20;
+        final int protectionTicks = Main.getInstance().getConfig().getInt("respawn-protection") * 20;
         if (protectionTicks <= 0)
             return;
 
@@ -1443,41 +1559,39 @@ public class Game {
     }
 
     private void startGenerators() {
-        final int islandY = gameRoom.getIslandY();
         final World gameWorld = gameRoom.getWorld();
 
         for (int i = 0; i < islandAssignment.size(); i++) {
-            Team team = islandAssignment.get(i);
+            final Team team = islandAssignment.get(i);
 
             List<Location> chestLocations;
+
             if (team != null) {
-                team.placeEnderChests(i);
+                team.placeEnderChests(islands.get(i));
                 chestLocations = team.getEnderChestLocations();
             } else if (islands != null && i < islands.size() && gameWorld != null) {
-                Island island = islands.get(i);
-                int[] dir = Island.Layout.ISLAND_DIRECTIONS[i];
-                int perpX = dir[1];
+                final Island chestIsland = islands.get(i);
+                final int[] dir = new int[] { chestIsland.getDirX(), chestIsland.getDirZ() };
+
                 chestLocations = GameManager.placeIslandEnderChests(
                         gameWorld,
-                        island.getX(), island.getZ(),
-                        islandY,
-                        dir, perpX, 12,
-                        Island.Layout.facingTowardsCenter(i), 2);
-            } else {
+                        chestIsland.getX(), chestIsland.getZ(),
+                        gameRoom.getIslandY(),
+                        dir, dir[1], 12,
+                        chestIsland.getFacing(), 2);
+            } else
                 continue;
-            }
 
             for (Location chestLocation : chestLocations) {
                 for (Generator.Type type : Generator.Type.values()) {
-                    Generator spawner = new Generator(this, type, chestLocation);
-                    generators.add(spawner);
+                    final Generator spawner = new Generator(this, type, chestLocation);
 
-                    BukkitTask task = Bukkit.getScheduler().runTaskTimer(
+                    generators.add(spawner);
+                    spawnerTasks.add(Bukkit.getScheduler().runTaskTimer(
                             Main.getInstance(),
                             spawner,
                             spawner.getType().getSpawnIntervalTicks(),
-                            spawner.getType().getSpawnIntervalTicks());
-                    spawnerTasks.add(task);
+                            spawner.getType().getSpawnIntervalTicks()));
                 }
             }
         }
@@ -1499,16 +1613,26 @@ public class Game {
         }
     }
 
+    /**
+     * Returns the count of teams of a game room regardless of its phase.
+     */
     public int getTeamCount() {
         return (int) teams.values().stream()
                 .filter(t -> !t.getPlayers().isEmpty())
                 .count();
     }
 
+    /**
+     * Returns the number of participants currently marked as ready.
+     */
     public long getPlayersReadyCount() {
         return playersReady.values().stream().filter(r -> r).count();
     }
 
+    /**
+     * Returns all participants in the game: free players plus every player assigned
+     * to a team.
+     */
     public List<GameCombatant> getPlayers() {
         final List<GameCombatant> allPlayers = new ArrayList<>(freePlayers);
         for (Team team : teams.values()) {
@@ -1517,6 +1641,10 @@ public class Game {
         return allPlayers;
     }
 
+    /**
+     * Returns the Team instance from a player who is a game participant from
+     * available teams list of a running game.
+     */
     public Team getPlayerTeam(GameCombatant participant) {
         for (Team team : teams.values()) {
             if (team.isInTeam(participant)) {
@@ -1526,15 +1654,24 @@ public class Game {
         return null;
     }
 
+    /**
+     * Returns the Team instance from team's color name
+     * Useful when the color is binded to team's bed or the actual team's name.
+     */
     public Team getTeam(String name) {
         return teams.get(name);
     }
 
+    /**
+     * Returns the in-memory statistic entry for the player, loading it from the
+     * persistence layer on first access.
+     */
     public PlayerStatistic getPlayerStatistic(Player player) {
         return playerStats.computeIfAbsent(player,
                 p -> Main.getInstance().getPlayerStatisticManager().loadStatistic(p.getUniqueId()));
     }
 
+    /** Persists all in-memory player statistics to the backing store. */
     public void saveStats() {
         for (PlayerStatistic stat : playerStats.values()) {
             Main.getInstance().getPlayerStatisticManager().saveStatistic(stat);
@@ -1548,10 +1685,16 @@ public class Game {
         }
     }
 
+    /**
+     * Increments team players' winstreaks by one if winning
+     * If not, their streak gets reset starting their progress from zero
+     *
+     * @param winner
+     */
     private void updateWinStreaks(Team winner) {
         for (GameCombatant participant : getPlayers()) {
             if (participant instanceof GamePlayer gp) {
-                Player player = gp.player();
+                final Player player = gp.player();
                 final PlayerStatistic stats = getPlayerStatistic(player);
                 final Team playerTeam = getPlayerTeam(new GamePlayer(player));
 

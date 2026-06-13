@@ -2,6 +2,7 @@ package io.github.rush.abstracts;
 
 import io.github.rush.game.Game;
 import io.github.rush.game.GameState;
+import io.github.rush.utils.ItemBuilder;
 import lombok.Getter;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -64,6 +65,7 @@ public class Generator implements Runnable {
             for (Map<?, ?> entry : section.getMapList("item")) {
                 final String typeName = (String) entry.get("type");
                 final int amount = entry.containsKey("amount") ? ((Number) entry.get("amount")).intValue() : 1;
+
                 if (typeName != null) {
                     final Material mat = Material.getMaterial(typeName);
                     if (mat != null)
@@ -118,7 +120,7 @@ public class Generator implements Runnable {
             final double spread = type.getSpread();
 
             for (Type.ResourceDrop drop : type.getDrops()) {
-                final ItemStack itemStack = new ItemStack(drop.material(), drop.amount());
+                final ItemStack itemStack = ItemBuilder.of(drop.material()).amount(drop.amount()).build();
                 final Location dropLocation = location.clone();
 
                 dropLocation.setY(dropLocation.getY() + 1.0);

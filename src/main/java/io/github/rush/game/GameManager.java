@@ -16,7 +16,10 @@ import com.sk89q.worldedit.function.operation.Operation;
 import com.sk89q.worldedit.function.operation.Operations;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.math.transform.AffineTransform;
+import com.sk89q.worldedit.function.pattern.Pattern;
+import com.sk89q.worldedit.regions.CuboidRegion;
 import com.sk89q.worldedit.session.ClipboardHolder;
+import com.sk89q.worldedit.world.block.BlockTypes;
 
 import io.github.rush.Main;
 import io.github.rush.storage.ConfigManager;
@@ -24,6 +27,7 @@ import io.github.rush.utils.i18n;
 import io.github.rush.utils.RushLogger;
 import io.github.rush.Hub;
 import io.github.rush.guis.GUI;
+import io.github.rush.guis.ConfirmationGUI;
 import io.github.rush.guis.HostConfigGUI;
 import io.github.rush.guis.TeamSelectionGUI;
 import io.github.rush.objects.Island;
@@ -47,6 +51,8 @@ import org.bukkit.entity.Villager;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
+import io.github.rush.inventories.HubInventory;
+import io.github.rush.inventories.GamePlayerInventory;
 import io.github.rush.entities.Merchant;
 import io.github.rush.entities.MerchantType;
 import io.github.rush.utils.ReplayUtils.ReplayFile;
@@ -75,6 +81,7 @@ public class GameManager {
     private final Map<UUID, GameRoomConfig.Builder> pendingConfigs = new HashMap<>();
     private final Map<UUID, ReconnectData> reconnectDataMap = new HashMap<>();
     private final Map<UUID, ReplayFile> pendingArchives = new HashMap<>();
+    private final Map<String, BlockVector3[]> lobbyBounds = new HashMap<>();
 
     private int worldCounter = 0;
 
@@ -125,7 +132,7 @@ public class GameManager {
                 if (gameWorld != null) {
                     bar.update(i18n.raw("rush.loading_init"), 1);
 
-                    Location lobbyLocation = new Location(gameWorld, 0, 0, 0);
+                    final Location lobbyLocation = new Location(gameWorld, 0, 0, 0);
                     final GameRoom room = new GameRoom(host.getName(), hostUUID, gameWorld, config, lobbyLocation);
 
                     room.getGame().setState(GameState.CREATING);
@@ -147,15 +154,21 @@ public class GameManager {
 
                             if (fmt != null) {
                                 try (ClipboardReader reader = fmt.getReader(new FileInputStream(waitingRoomFile));
-                                        final ClipboardHolder holder = new ClipboardHolder(reader.read())) {
+                                        ClipboardHolder holder = new ClipboardHolder(reader.read());
+                                        EditSession editSession = WorldEdit.getInstance()
+                                                .newEditSession(BukkitAdapter.adapt(gameWorld))) {
 
                                     waitingTarget = BlockVector3.at(0, holder.getClipboard().getOrigin().getY(), 0);
 
-                                    final EditSession editSession = WorldEdit.getInstance()
-                                            .newEditSession(BukkitAdapter.adapt(gameWorld));
-
                                     Operations.complete(holder.createPaste(editSession)
                                             .to(waitingTarget).ignoreAirBlocks(false).build());
+
+                                    BlockVector3 pasteOffset = waitingTarget
+                                            .subtract(holder.getClipboard().getOrigin());
+                                    lobbyBounds.put(room.getId(), new BlockVector3[] {
+                                            holder.getClipboard().getRegion().getMinimumPoint().add(pasteOffset),
+                                            holder.getClipboard().getRegion().getMaximumPoint().add(pasteOffset)
+                                    });
                                 } catch (IOException | WorldEditException e) {
                                     RushLogger.error(i18n.log(
                                             "internal.game_manager.schematic_paste_failed", e.getMessage()));
@@ -180,8 +193,8 @@ public class GameManager {
                         Bukkit.getScheduler().runTask(plugin, () -> {
                             final List<Island> islands = room.getIslands();
 
-                            for (int i = 0; i < islands.size(); i++) {
-                                spawnMerchantsForIsland(room, islands.get(i), i);
+                            for (Island island : islands) {
+                                spawnMerchantsForIsland(room, island);
                             }
 
                             lobbyLocation.setX(finalWaitingTarget.getX());
@@ -202,9 +215,7 @@ public class GameManager {
                             playerGameRoomMap.put(onlineHost, room);
 
                             onlineHost.teleport(lobbyLocation);
-                            onlineHost.getInventory().clear();
-                            onlineHost.getInventory().setItem(0, TeamSelectionGUI.createBannerItem());
-                            onlineHost.getInventory().setItem(8, Hub.createHostPanelItem());
+                            GamePlayerInventory.give(onlineHost);
 
                             bar.stop(plugin);
                         });
@@ -240,14 +251,14 @@ public class GameManager {
             // thread — FAWE's DiskOptimizedClipboard ties its MappedByteBuffer to the
             // loading thread, so both operations must share it.
             try (ClipboardReader reader = format.getReader(new FileInputStream(schematicFile));
-                    final ClipboardHolder holder = new ClipboardHolder(reader.read())) {
+                    ClipboardHolder holder = new ClipboardHolder(reader.read());
+                    EditSession editSession = WorldEdit.getInstance().newEditSession(BukkitAdapter.adapt(world))) {
 
                 if (rotation != 0) {
                     AffineTransform transform = new AffineTransform().rotateY(rotation);
                     holder.setTransform(holder.getTransform().combine(transform));
                 }
 
-                final EditSession editSession = WorldEdit.getInstance().newEditSession(BukkitAdapter.adapt(world));
                 final Operation operation = holder.createPaste(editSession).to(target).ignoreAirBlocks(false).build();
 
                 Operations.complete(operation);
@@ -306,11 +317,16 @@ public class GameManager {
             return;
         }
 
+        if (room.isLocked() && !player.getUniqueId().equals(room.getHostUUID())) {
+            player.sendMessage(i18n.txt("rush.room_locked"));
+            return;
+        }
+
         playerGameRoomMap.put(player, room);
         room.getJoinOrder().add(player.getUniqueId());
         player.teleport(room.getLobbyLocation());
         player.getInventory().clear();
-        player.getInventory().setItem(0, TeamSelectionGUI.createBannerItem());
+        player.getInventory().setItem(0, GamePlayerInventory.createBannerItem());
 
         player.sendMessage(Component.translatable("rush.room_joined", Component.text(room.getHostName())));
     }
@@ -360,7 +376,8 @@ public class GameManager {
     }
 
     public boolean isPlayerInRunningGame(Player player) {
-        if (gameRooms.isEmpty()) return false;
+        if (gameRooms.isEmpty())
+            return false;
         GameRoom room = getGameRoomByWorld(player.getWorld().getName());
         return room != null && room.isRunning();
     }
@@ -391,11 +408,19 @@ public class GameManager {
 
         final File worldFolder = new File(Bukkit.getWorldContainer(), world.getName());
 
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+        if (plugin.isEnabled()) {
+            Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+                ConfigManager.deleteDirectory(worldFolder);
+                RushLogger.info(i18n.log("internal.game_manager.world_folder_deleted",
+                        worldFolder.getAbsolutePath()));
+            });
+        } else {
+            // Plugin is disabling (server shutdown) — scheduler rejects new tasks,
+            // so delete the world folder synchronously on the main thread instead.
             ConfigManager.deleteDirectory(worldFolder);
             RushLogger.info(i18n.log("internal.game_manager.world_folder_deleted",
                     worldFolder.getAbsolutePath()));
-        });
+        }
     }
 
     /**
@@ -431,8 +456,14 @@ public class GameManager {
             if (slot >= rows * 9)
                 break;
             final ReplayHeader targetReplay = replay;
-            gui.addItem(slot, createReplayItem(replay),
-                    p -> Main.getInstance().getReplayManager().joinReplay(p, targetReplay));
+            if (isAdmin) {
+                gui.addItem(slot, createReplayItem(replay, true),
+                        p -> Main.getInstance().getReplayManager().joinReplay(p, targetReplay),
+                        p -> openDeleteReplayConfirmation(p, targetReplay));
+            } else {
+                gui.addItem(slot, createReplayItem(replay, false),
+                        p -> Main.getInstance().getReplayManager().joinReplay(p, targetReplay));
+            }
             slot++;
         }
 
@@ -459,17 +490,16 @@ public class GameManager {
         }
 
         final List<Component> lore = new ArrayList<>(List.of(
-                Component.translatable("rush.room_lore_host", Component.text(room.getHostName())),
-                Component.translatable("rush.room_lore_status", Component.translatable(status)),
-                Component.translatable("rush.room_lore_map", Component.text(room.getConfig().mapType().displayName())),
-                Component.translatable("rush.room_lore_players",
-                        Component.text(room.getPlayerCount()), Component.text(room.getMaxPlayers())),
+                i18n.txt("rush.room_lore_host", room.getHostName()),
+                i18n.txt("rush.room_lore_status", i18n.raw(status)),
+                i18n.txt("rush.room_lore_map", room.getConfig().mapType().displayName()),
+                i18n.txt("rush.room_lore_players", room.getPlayerCount(), room.getMaxPlayers()),
                 Component.empty(),
-                Component.translatable(actionLine)));
+                i18n.txt(actionLine)));
 
         if (isAdmin) {
             lore.add(Component.empty());
-            lore.add(Component.translatable("rush.room_admin_delete_hint"));
+            lore.add(i18n.txt("rush.room_admin_delete_hint"));
         }
 
         return ItemBuilder.of(material)
@@ -478,7 +508,7 @@ public class GameManager {
                 .build();
     }
 
-    private ItemStack createReplayItem(ReplayHeader header) {
+    private ItemStack createReplayItem(ReplayHeader header, boolean isAdmin) {
         final LocalDateTime dt = LocalDateTime.ofInstant(
                 Instant.ofEpochMilli(header.startTimestamp()), ZoneId.systemDefault());
         final String date = String.format("%02d/%02d/%04d %02d:%02d",
@@ -488,57 +518,73 @@ public class GameManager {
         final String duration = String.format("%02d:%02d", totalSeconds / 60, totalSeconds % 60);
         final String winner = header.winnerTeamColorName() != null ? header.winnerTeamColorName() : "Aucun";
 
+        final List<Component> lore = new ArrayList<>(List.of(
+                i18n.txt("rush.replay_item_host", header.hostName()),
+                i18n.txt("rush.replay_item_date", date),
+                i18n.txt("rush.replay_item_duration", duration),
+                i18n.txt("rush.replay_item_winner", winner),
+                i18n.txt("rush.replay_item_players", header.participantNames().size()),
+                Component.empty(),
+                i18n.txt("rush.replay_item_click")));
+
+        if (isAdmin) {
+            lore.add(Component.empty());
+            lore.add(i18n.txt("rush.replay_admin_delete_hint"));
+        }
+
         return ItemBuilder.of(Material.ORANGE_WOOL)
                 .name(i18n.txt("rush.replay_item_name", header.hostName()))
-                .lore(
-                        Component.translatable("rush.replay_item_host", Component.text(header.hostName())),
-                        Component.translatable("rush.replay_item_date", Component.text(date)),
-                        Component.translatable("rush.replay_item_duration", Component.text(duration)),
-                        Component.translatable("rush.replay_item_winner", Component.text(winner)),
-                        Component.translatable("rush.replay_item_players",
-                                Component.text(header.participantNames().size())),
-                        Component.empty(),
-                        Component.translatable("rush.replay_item_click"))
+                .lore(lore.toArray(new Component[0]))
                 .build();
     }
 
     public void openDeleteConfirmation(Player admin, GameRoom room) {
-        final GUI gui = new GUI(Component.translatable("rush.delete_confirm_title"), 3);
-
-        gui.addItem(13, createGameRoomItem(room, false));
-
         final ItemStack confirmItem = ItemBuilder.of(Material.BARRIER)
                 .name(i18n.txt("rush.delete_confirm_name"))
                 .lore(
                         Component.translatable("rush.delete_confirm_lore1"),
                         Component.translatable("rush.delete_confirm_lore2"))
                 .build();
-        gui.addItem(11, confirmItem, p -> {
-            p.closeInventory();
-
-            if (getGameRoom(room.getId()) == null) {
-                p.sendMessage(Component.translatable("rush.room_not_found"));
-                return;
-            }
-
-            for (Player roomPlayer : new ArrayList<>(room.getWorld().getPlayers())) {
-                roomPlayer.sendMessage(Component.translatable("rush.room_admin_deleted"));
-            }
-
-            removeGameRoom(room.getId());
-
-            p.sendMessage(Component.translatable("rush.room_deleted", Component.text(room.getHostName())));
-        });
-
         final ItemStack cancelItem = ItemBuilder.of(Material.LIME_CONCRETE)
                 .name(i18n.txt("rush.delete_cancel"))
                 .build();
-        gui.addItem(15, cancelItem, p -> {
-            p.closeInventory();
-            openGameList(p);
-        });
 
-        gui.openGUI(admin);
+        ConfirmationGUI.of(createGameRoomItem(room, false))
+                .confirm(confirmItem, p -> {
+                    if (getGameRoom(room.getId()) == null) {
+                        p.sendMessage(Component.translatable("rush.room_not_found"));
+                        return;
+                    }
+                    for (Player roomPlayer : new ArrayList<>(room.getWorld().getPlayers())) {
+                        roomPlayer.sendMessage(Component.translatable("rush.room_admin_deleted"));
+                    }
+                    removeGameRoom(room.getId());
+                    p.sendMessage(Component.translatable("rush.room_deleted",
+                            Component.text(room.getHostName())));
+                })
+                .cancel(cancelItem, p -> openGameList(p))
+                .open(admin);
+    }
+
+    public void openDeleteReplayConfirmation(Player admin, ReplayHeader replay) {
+        final ItemStack confirmItem = ItemBuilder.of(Material.BARRIER)
+                .name(i18n.txt("rush.replay_delete_confirm_name"))
+                .lore(
+                        Component.translatable("rush.replay_delete_confirm_lore1"),
+                        Component.translatable("rush.replay_delete_confirm_lore2"))
+                .build();
+        final ItemStack cancelItem = ItemBuilder.of(Material.LIME_CONCRETE)
+                .name(i18n.txt("rush.replay_delete_cancel"))
+                .build();
+
+        ConfirmationGUI.of(createReplayItem(replay, false))
+                .confirm(confirmItem, p -> {
+                    Main.getInstance().getReplayStorage().delete(replay.sessionId());
+                    p.sendMessage(i18n.txt("rush.replay_deleted", replay.hostName()));
+                    openGameList(p);
+                })
+                .cancel(cancelItem, p -> openGameList(p))
+                .open(admin);
     }
 
     public void recordDisconnect(UUID uuid, ReconnectData data) {
@@ -608,35 +654,33 @@ public class GameManager {
         pendingConfigs.remove(player.getUniqueId());
     }
 
-    private void spawnMerchantsForIsland(GameRoom room, Island island, int islandIndex) {
-        placeIslandMerchants(room.getWorld(), island, islandIndex, room.getIslandY());
+    private void spawnMerchantsForIsland(GameRoom room, Island island) {
+        placeIslandMerchants(room.getWorld(), island, room.getIslandY());
     }
 
-    public static void placeIslandMerchants(World world, Island island, int islandIndex,
-            int islandY) {
+    public static void placeIslandMerchants(World world, Island island, int islandY) {
         int speedOffset = Main.getInstance().getConfig().getInt("villagerSpeedOffset");
         int regularOffset = Main.getInstance().getConfig().getInt("villagerRegularOffset", speedOffset - 1);
 
-        int[] dir = Island.Layout.ISLAND_DIRECTIONS[islandIndex];
+        int[] dir = new int[] { island.getDirX(), island.getDirZ() };
         int perpX = dir[1];
         int perpZ = -dir[0];
-        float facingYaw = Island.Layout.YAW_VALUES[islandIndex];
+        float facingYaw = island.getMerchantYaw();
 
         // Spawn speed villagers (2) — one directly behind each ender chest
         for (int[] pos : Island.Layout.speedMerchantPositions(island, dir, perpX, perpZ, speedOffset)) {
-            Location speedLoc = new Location(world, pos[0] + 0.5, islandY + 0.5, pos[1] + 0.5,
-                    facingYaw, 0);
-            spawnMerchant(world, speedLoc, MerchantType.SPEED);
+            final Location loc = new Location(world, pos[0] + 0.5, islandY + 0.5, pos[1] + 0.5, facingYaw, 0);
+            spawnMerchant(world, loc, MerchantType.SPEED);
         }
 
         // Spawn regular villagers (4)
         MerchantType[] regularTypes = MerchantType.firstN(4);
         for (int i = 0; i < 4; i++) {
-            int[] pos = Island.Layout.regularMerchantPos(i, island.getX(), island.getZ(), dir, perpX, perpZ,
+            final int[] pos = Island.Layout.regularMerchantPos(i, island.getX(), island.getZ(), dir, perpX, perpZ,
                     regularOffset);
-            Location villagerLoc = new Location(world, pos[0] + 0.5, islandY + 1, pos[1] + 0.5,
-                    facingYaw, 0);
-            spawnMerchant(world, villagerLoc, regularTypes[i]);
+            final Location loc = new Location(world, pos[0] + 0.5, islandY + 1, pos[1] + 0.5, facingYaw, 0);
+
+            spawnMerchant(world, loc, regularTypes[i]);
         }
     }
 
@@ -734,7 +778,7 @@ public class GameManager {
 
         final List<Island> islands = new ArrayList<>();
         for (Island.Layout.IslandPosition p : Island.Layout.positionsFor(islandType, islandOffset)) {
-            islands.add(new Island(p.x(), p.z(), p.rotation()));
+            islands.add(new Island(p.x(), p.z(), p.rotation(), p.dirX(), p.dirZ(), p.merchantYaw(), p.facing()));
         }
 
         final Island.Type resolvedMapType = Island.Type.byName(file.header().mapTypeName())
@@ -801,23 +845,22 @@ public class GameManager {
             final Island island = islands.get(slot);
 
             if (islandToTeam.containsKey(slot)) {
-                Team.placeIslandBed(world, island, slot, islandY, Team.Color.valueOf(islandToTeam.get(slot)));
+                Team.placeIslandBed(world, island, islandY, Team.Color.valueOf(islandToTeam.get(slot)));
             } else if (extraHearts) {
                 final Set<Team.Color> takenColors = islandToTeam.values().stream()
                         .map(Team.Color::valueOf)
                         .collect(Collectors.toSet());
                 final List<Team.Color> extraColors = Game.randomExtraBedColors(takenColors);
 
-                Team.placeIslandBed(world, island, slot, islandY,
-                        extraColors.get(slot % extraColors.size()));
+                Team.placeIslandBed(world, island, islandY, extraColors.get(slot % extraColors.size()));
             }
 
             final int enderChestOffset = plugin.getConfig().getInt("villagerSpeedOffset") - 1;
-            final int[] dir = Island.Layout.ISLAND_DIRECTIONS[slot];
+            final int[] dir = new int[] { island.getDirX(), island.getDirZ() };
 
             placeIslandEnderChests(world, island.getX(), island.getZ(), islandY, dir, dir[1], enderChestOffset,
-                    Island.Layout.facingTowardsCenter(slot), 2);
-            placeIslandMerchants(world, island, slot, islandY);
+                    island.getFacing(), 2);
+            placeIslandMerchants(world, island, islandY);
         }
     }
 
@@ -825,6 +868,8 @@ public class GameManager {
      * Called when a GameRoom's game starts.
      */
     public void onGameRoomStarted(GameRoom room) {
+        clearLobbyAsync(room);
+
         RushLogger.info(i18n.log("internal.game_manager.game_started", room.getId()));
 
         for (GameCombatant participant : room.getGame().getPlayers()) {
@@ -835,6 +880,24 @@ public class GameManager {
                 room.getGame().getPlayerStatistic(player);
             }
         }
+    }
+
+    private void clearLobbyAsync(GameRoom room) {
+        final BlockVector3[] bounds = lobbyBounds.remove(room.getId());
+        if (bounds == null)
+            return;
+
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            try (EditSession editSession = WorldEdit.getInstance()
+                    .newEditSession(BukkitAdapter.adapt(room.getWorld()))) {
+                CuboidRegion region = new CuboidRegion(
+                        BukkitAdapter.adapt(room.getWorld()), bounds[0], bounds[1]);
+                Pattern airPattern = pos -> BlockTypes.AIR.getDefaultState().toBaseBlock();
+                editSession.setBlocks((com.sk89q.worldedit.regions.Region) region, airPattern);
+            } catch (WorldEditException e) {
+                RushLogger.error(i18n.log("internal.game_manager.lobby_clear_failed", e.getMessage()));
+            }
+        });
     }
 
     /**

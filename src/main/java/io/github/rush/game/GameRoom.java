@@ -62,10 +62,14 @@ public class GameRoom {
 
     private int islandY = 0;
 
+    @Getter
+    @Setter
+    private boolean locked = false;
+
     @TypeScript
     public enum IslandType {
         FOUR_ISLANDS(4, "4 Îles"),
-        EIGHT_ISLANDS(8, "8 Îles (À venir)");
+        EIGHT_ISLANDS(8, "8 Îles");
 
         @Getter
         private final int count;
@@ -116,10 +120,9 @@ public class GameRoom {
     }
 
     private List<Island> createIslands() {
-        final int islandOffset = Main.getInstance().getConfig().getInt("islandOffset");
-        return Island.Layout.positionsFor(config.islandType(), islandOffset)
+        return Island.Layout.positionsFor(config.islandType(), Main.getInstance().getConfig().getInt("islandOffset"))
                 .stream()
-                .map(p -> new Island(p.x(), p.z(), p.rotation()))
+                .map(p -> new Island(p.x(), p.z(), p.rotation(), p.dirX(), p.dirZ(), p.merchantYaw(), p.facing()))
                 .toList();
     }
 
@@ -169,23 +172,20 @@ public class GameRoom {
         if (game.getState() != GameState.WAITING)
             return;
 
-        long readyCount = game.getPlayersReadyCount();
-        int maxPlayers = room.getMaxPlayers();
-        NamedTextColor color = readyCount >= maxPlayers ? NamedTextColor.GREEN : NamedTextColor.RED;
-        Component message = Component.translatable("rush.ready_players",
+        final long readyCount = game.getPlayersReadyCount();
+        final int maxPlayers = room.getMaxPlayers();
+        final NamedTextColor color = readyCount >= maxPlayers ? NamedTextColor.GREEN : NamedTextColor.RED;
+        final Component message = Component.translatable("rush.ready_players",
                 Component.text(readyCount + "/" + maxPlayers).color(color));
 
-        for (Player player : room.getWorld().getPlayers()) {
+        for (Player player : room.getWorld().getPlayers())
             player.sendActionBar(message);
-        }
     }
 
     public static UUID nextHost(List<UUID> joinOrder, UUID disconnected, Predicate<UUID> isOnline) {
-        for (UUID candidate : joinOrder) {
-            if (!candidate.equals(disconnected) && isOnline.test(candidate)) {
+        for (UUID candidate : joinOrder)
+            if (!candidate.equals(disconnected) && isOnline.test(candidate))
                 return candidate;
-            }
-        }
         return null;
     }
 }

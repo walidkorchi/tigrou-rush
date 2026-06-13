@@ -1,5 +1,6 @@
 # --- Plugin Configuration ---
 
+
 database:
   host: localhost
   port: 5432
@@ -24,7 +25,7 @@ rank:
 TNTDamage: 5.0                                # Reduce the TNT damage by dividing the damages (useful for TNT Fly)
 radius: 4.0                                   # Radius affected by the explosion. Minecraft defaults is to 4.0
 explodeTicks: 80                              # Minecraft defaults it to 4s
-fallDamage: 5.0                               # Reduce the fall damage by dividing the damages (useful for TNT Fly)
+fallFromFlyDamage: 5.0                        # Reduce the fall damage by dividing the damages (useful for TNT Fly)
 
 
 # --- Islands/Map Configuration ---

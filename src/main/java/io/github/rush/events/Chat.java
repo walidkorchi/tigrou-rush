@@ -5,7 +5,6 @@ import io.github.rush.abstracts.Team;
 import io.github.rush.entities.GamePlayer;
 import io.github.rush.game.Game;
 import io.github.rush.game.GameState;
-import io.github.rush.storage.PlayerLevelManager;
 import io.github.rush.storage.PlayerLevelManager.PlayerLevel;
 import io.papermc.paper.event.player.AsyncChatEvent;
 import net.kyori.adventure.text.Component;
@@ -33,9 +32,12 @@ public class Chat implements Listener {
         event.viewers().removeIf(
                 audience -> audience instanceof Player viewer && !viewer.getWorld().equals(player.getWorld()));
 
-        final PlayerLevel playerLevel = Main.getInstance().getPlayerLevelManager().loadPlayerLevel(player.getUniqueId());
+        final PlayerLevel playerLevel = Main.getInstance().getPlayerLevelManager()
+                .loadPlayerLevel(player.getUniqueId());
         final int ri = playerLevel.getRankIndex();
-        Component rankComponent = MiniMessage.miniMessage().deserialize(playerLevel.getFormattedRank()).color(NamedTextColor.WHITE);
+
+        Component rankComponent = MiniMessage.miniMessage().deserialize(playerLevel.getFormattedRank())
+                .color(NamedTextColor.WHITE);
         Component hoverText;
 
         if (ri >= 0) {

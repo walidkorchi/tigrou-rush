@@ -102,7 +102,8 @@ public class PlayerStatisticManager {
         public double getWeightedScore() {
             if (getDeaths() == 0)
                 return (double) getKills() * 2 + getAssists();
-            return Math.round((getKills() * 2.0 + getAssists() - getDeaths()) * 10.0) / 10.0;
+            else
+                return Math.round((getKills() * 2.0 + getAssists() - getDeaths()) * 10.0) / 10.0;
         }
     }
 
@@ -115,11 +116,13 @@ public class PlayerStatisticManager {
 
     public PlayerStatistic loadStatistic(UUID uuid) {
         final EntityManager em = databaseManager.getEntityManager();
+
         try {
             PlayerStatistic stat = em.find(PlayerStatistic.class, uuid);
-            if (stat == null) {
+
+            if (stat == null)
                 stat = new PlayerStatistic(uuid);
-            }
+
             return stat;
         } finally {
             em.close();
@@ -131,7 +134,8 @@ public class PlayerStatisticManager {
     }
 
     public void saveStatistic(PlayerStatistic statistic) {
-        EntityManager em = databaseManager.getEntityManager();
+        final EntityManager em = databaseManager.getEntityManager();
+
         try {
             em.getTransaction().begin();
             statistic.addCurrentValues();
@@ -139,36 +143,20 @@ public class PlayerStatisticManager {
             em.getTransaction().commit();
         } catch (Exception e) {
             RushLogger.error(i18n.log("internal.storage.player_statistic.save_failed", e.getMessage()));
-            if (em.getTransaction().isActive()) {
+            if (em.getTransaction().isActive())
                 em.getTransaction().rollback();
-            }
         } finally {
             em.close();
         }
     }
 
-    public void storeStatistic(PlayerStatistic statistic) {
-        saveStatistic(statistic);
-    }
+    public List<Map.Entry<String, Integer>> queryTop10(String fieldName) {
+        final EntityManager em = databaseManager.getEntityManager();
 
-    public List<Map.Entry<String, Integer>> getTop10ByKills() {
-        return queryTop10("kills");
-    }
-
-    public List<Map.Entry<String, Integer>> getTop10ByWins() {
-        return queryTop10("wins");
-    }
-
-    public List<Map.Entry<String, Integer>> getTop10ByWinStreak() {
-        return queryTop10("winStreak");
-    }
-
-    private List<Map.Entry<String, Integer>> queryTop10(String fieldName) {
-        EntityManager em = databaseManager.getEntityManager();
         try {
-            CriteriaBuilder cb = em.getCriteriaBuilder();
-            CriteriaQuery<Object[]> query = cb.createQuery(Object[].class);
-            Root<PlayerStatistic> root = query.from(PlayerStatistic.class);
+            final CriteriaBuilder cb = em.getCriteriaBuilder();
+            final CriteriaQuery<Object[]> query = cb.createQuery(Object[].class);
+            final Root<PlayerStatistic> root = query.from(PlayerStatistic.class);
 
             query.multiselect(root.get("name"), root.<Integer>get(fieldName))
                     .where(cb.and(
@@ -190,4 +178,5 @@ public class PlayerStatisticManager {
     public void close() {
         databaseManager.close();
     }
+
 }

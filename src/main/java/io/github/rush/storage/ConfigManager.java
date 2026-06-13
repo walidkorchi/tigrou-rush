@@ -45,10 +45,9 @@ public class ConfigManager {
         config = YamlConfiguration.loadConfiguration(configFile);
 
         final InputStream defaultStream = plugin.getResource("config.yml");
-        if (defaultStream != null) {
+        if (defaultStream != null)
             config.setDefaults(YamlConfiguration.loadConfiguration(
                     new InputStreamReader(defaultStream, StandardCharsets.UTF_8)));
-        }
     }
 
     /**

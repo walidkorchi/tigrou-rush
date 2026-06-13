@@ -321,14 +321,14 @@ public class LeaderboardCommand {
         }
 
         private List<Map.Entry<String, Integer>> fetchTop10() {
-            PlayerStatisticManager statManager = Main.getInstance().getPlayerStatisticManager();
-            PlayerLevelManager levelManager = Main.getInstance().getPlayerLevelManager();
+            final PlayerStatisticManager statManager = Main.getInstance().getPlayerStatisticManager();
+            final PlayerLevelManager levelManager = Main.getInstance().getPlayerLevelManager();
 
             try {
                 return switch (type) {
-                    case KILLS -> statManager.getTop10ByKills();
-                    case WINS -> statManager.getTop10ByWins();
-                    case WINSTREAK -> statManager.getTop10ByWinStreak();
+                    case KILLS -> statManager.queryTop10("kills");
+                    case WINS -> statManager.queryTop10("wins");
+                    case WINSTREAK -> statManager.queryTop10("winStreak");
                     case LEVEL -> levelManager.getTop10ByXP();
                 };
             } catch (Exception e) {

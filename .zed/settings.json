@@ -1,0 +1,19 @@
+{
+  "file_scan_exclusions": [
+    ".gradle",
+    ".git",
+    ".settings",
+    "./config",
+    "node_modules",
+    "./gradle",
+    "rush.d.ts",
+    "bun.lock",
+    ".claude",
+    "bin",
+    "build",
+    ".factorypath",
+    "gradlew",
+    ".project",
+    ".classpath"
+  ]
+}

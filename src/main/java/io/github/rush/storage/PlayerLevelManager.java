@@ -208,8 +208,12 @@ public class PlayerLevelManager {
         final int newRank = playerLevel.getRankIndex();
         savePlayerLevel(playerLevel);
 
+        final Player player = Bukkit.getPlayer(uuid);
+        if (player != null && player.isOnline()) {
+            applyXPBar(player, playerLevel);
+        }
+
         if (newRank > oldRank) {
-            final Player player = Bukkit.getPlayer(uuid);
             if (player != null && player.isOnline()) {
                 int oldPrestige = oldRank / 12;
                 int newPrestige = newRank / 12;
@@ -231,6 +235,23 @@ public class PlayerLevelManager {
             if (lb != null)
                 lb.updateAllHolograms();
         }
+    }
+
+    public void applyXPBar(Player player) {
+        applyXPBar(player, loadPlayerLevel(player.getUniqueId()));
+    }
+
+    public static void applyXPBar(Player player, PlayerLevel level) {
+        int displayLevel = level.getRankIndex() < 0 ? 0 : level.getRankIndex() + 1;
+        float progress;
+        if (level.getRankIndex() >= 35) {
+            progress = 1.0f;
+        } else {
+            long range = level.getXPForCurrentRange();
+            progress = range > 0 ? Math.min(1.0f, (float) level.getProgressInRank() / range) : 0f;
+        }
+        player.setLevel(displayLevel);
+        player.setExp(progress);
     }
 
     private void triggerPrestigeCelebration(Player player, int newRank) {

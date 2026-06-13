@@ -3,6 +3,7 @@ package io.github.rush.commands;
 import io.github.rush.Main;
 import io.github.rush.utils.i18n;
 import io.github.rush.utils.RushLogger;
+import io.github.rush.utils.ItemBuilder;
 import io.github.rush.storage.ConfigManager;
 import io.papermc.paper.command.brigadier.Commands;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
@@ -246,15 +247,13 @@ public class AuthorCommand {
                 stand.addScoreboardTag(ARMOR_STAND_TAG);
             });
 
-            ItemStack skull = new ItemStack(Material.PLAYER_HEAD);
-            SkullMeta meta = (SkullMeta) skull.getItemMeta();
+            final ItemBuilder<SkullMeta> skull = ItemBuilder.<SkullMeta>of(Material.PLAYER_HEAD);
+            final PlayerProfile profile = Bukkit.createProfile(getAuthorName());
 
-            PlayerProfile profile = Bukkit.createProfile(getAuthorName());
             profile.update().thenAccept(updatedProfile -> {
                 Bukkit.getScheduler().runTask(plugin, () -> {
-                    meta.setPlayerProfile(updatedProfile);
-                    skull.setItemMeta(meta);
-                    armorStand.getEquipment().setHelmet(skull);
+                    skull.meta(m -> m.setPlayerProfile(updatedProfile));
+                    armorStand.getEquipment().setHelmet(skull.build());
                 });
             });
 

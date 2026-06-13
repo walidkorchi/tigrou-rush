@@ -50,6 +50,19 @@ public record GameRoomConfig(
             return this;
         }
 
+        /** Cycles N (maxTeams) upward, wrapping from the island-type cap back to 2. */
+        public Builder cycleMaxTeams() {
+            maxTeams = (maxTeams < islandType.getCount()) ? maxTeams + 1 : 2;
+            return this;
+        }
+
+        /** Cycles K (playersPerTeam) upward 1→2→3→4→1. */
+        public Builder cycleTeamSize() {
+            int next = (teamSize.getPlayersPerTeam() % 4) + 1;
+            teamSize = GameRoom.TeamSize.values()[next - 1];
+            return this;
+        }
+
         public Builder teamSize(GameRoom.TeamSize teamSize) {
             this.teamSize = teamSize;
             return this;
@@ -84,10 +97,15 @@ public record GameRoomConfig(
         }
     }
 
+    /** Returns true when this game is a 1-vs-1 match-type (Mise à Deux Teams — exactly 2 teams). */
+    public boolean isMDT() {
+        return maxTeams == 2;
+    }
+
     public double getCoefficient() {
         int t = maxTeams;
         int p = teamSize.getPlayersPerTeam();
-        if (t == 2)
+        if (isMDT())
             return switch (p) {
                 case 1 -> 1.00;
                 case 2 -> 1.15;
@@ -115,12 +133,6 @@ public record GameRoomConfig(
     }
 
     public String formatDisplayName() {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < maxTeams; i++) {
-            if (i > 0)
-                sb.append("vs");
-            sb.append(teamSize.getPlayersPerTeam());
-        }
-        return sb.toString();
+        return maxTeams + "x" + teamSize.getPlayersPerTeam() + (isMDT() ? " (MDT)" : "");
     }
 }

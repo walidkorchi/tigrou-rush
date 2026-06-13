@@ -22,6 +22,8 @@ public class ScoreboardManager {
     private final List<Player> lobbyPlayers = new ArrayList<>();
     private double animationFrame = 0.0;
 
+    private static final char[] ISLAND_CIRCLES = { '①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧' };
+
     private static final String[] SEPARATOR_FRAMES = {
             "§8§m=                         =",
             "§8§m=§8§m                         =",
@@ -60,6 +62,10 @@ public class ScoreboardManager {
         this.plugin = plugin;
     }
 
+    private String getTeamLetter(Team.Color color) {
+        return color.getSectionColor() + color.name().charAt(0);
+    }
+
     private Component getAnimatedSeparator() {
         int frameIndex = (int) animationFrame;
         if (frameIndex >= SEPARATOR_FRAMES.length) {
@@ -70,6 +76,7 @@ public class ScoreboardManager {
 
     public void updateLobbyScoreboard(Player player) {
         final FastBoard board = getOrCreateBoard(player);
+        // TODO: refactor this ugly workaround
         final String title = TextUtils.convertHexToLegacy(
                 "&#B8291BT&#C0301Ci&#C8361Eg&#D03D1Fr&#D84320o&#DF4A22u&#E75023R&#EF5724u&#F75D26s&#FF6427h");
 
@@ -82,6 +89,7 @@ public class ScoreboardManager {
 
         lines.add(getAnimatedSeparator());
         lines.add(Component.empty());
+
         if (playerLevel.getRankIndex() >= 0) {
             long progress = playerLevel.getProgressInRank();
             long range = playerLevel.getXPForCurrentRange();
@@ -92,12 +100,14 @@ public class ScoreboardManager {
         } else {
             lines.add(LegacyComponentSerializer.legacySection().deserialize("§8Non classé"));
         }
-        lines.add(LegacyComponentSerializer.legacySection().deserialize("§8[" + generateProgressBar(playerLevel) + "§8]"));
+
+        lines.add(LegacyComponentSerializer.legacySection()
+                .deserialize("§8[" + generateProgressBar(playerLevel) + "§8]"));
         lines.add(Component.empty());
         lines.add(LegacyComponentSerializer.legacySection().deserialize("§f☆ §7Statistiques:"));
-        lines.add(LegacyComponentSerializer.legacySection().deserialize(
-                stat.getKills() + " §c\uD83D\uDDE1 §f" + stat.getAssists() + " §c\u2694 §f" + stat.getDeaths()
-                        + " §c☠ §8("
+        lines.add(MiniMessage.miniMessage().deserialize(
+                "<white>" + stat.getKills() + "<image:tland:skull> <white>" + stat.getAssists()
+                        + " <red>⚔ <white>" + stat.getDeaths() + " <red>☠ <dark_gray>("
                         + String.format("%.1f", stat.getWeightedScore()) + ")"));
         lines.add(Component.empty());
         lines.add(getAnimatedSeparator());
@@ -108,7 +118,6 @@ public class ScoreboardManager {
     private String generateProgressBar(PlayerLevel playerLevel) {
         final long currentXP = playerLevel.getProgressInRank();
         final long nextLevelXP = playerLevel.getXPForCurrentRange();
-
         double progress = nextLevelXP > 0 ? (double) currentXP / nextLevelXP : 0.0;
 
         progress = Math.min(1.0, Math.max(0.0, progress));
@@ -149,8 +158,10 @@ public class ScoreboardManager {
             lines.add(LegacyComponentSerializer.legacySection()
                     .deserialize("§eLit: §f" + bedStatus));
 
+            final int totalIslands = game.getIslands().isEmpty() ? 4 : game.getIslands().size();
             lines.add(LegacyComponentSerializer.legacySection()
-                    .deserialize("§eÎle: §f" + getRelativeIslandNumber(player, game, playerTeam)));
+                    .deserialize("§eÎle: " + islandProgressBar(
+                            getRelativeIslandNumber(player, game, playerTeam), totalIslands)));
             lines.add(Component.empty());
             lines.add(LegacyComponentSerializer.legacySection().deserialize("§e§nÉquipes§r"));
 
@@ -170,6 +181,22 @@ public class ScoreboardManager {
         }
 
         board.updateLines(lines);
+    }
+
+    /**
+     * Builds e.g. "§a① ②§c ③ ④" for a 4-island game where the player is at island
+     * 2.
+     */
+    private static String islandProgressBar(int currentIsland, int totalIslands) {
+        final int capped = Math.min(totalIslands, ISLAND_CIRCLES.length);
+        final StringBuilder sb = new StringBuilder();
+        for (int i = 1; i <= capped; i++) {
+            if (i > 1)
+                sb.append(' ');
+            sb.append(i <= currentIsland ? "§a" : "§c");
+            sb.append(ISLAND_CIRCLES[i - 1]);
+        }
+        return sb.toString();
     }
 
     private int getRelativeIslandNumber(Player player, Game game, Team playerTeam) {
@@ -231,16 +258,6 @@ public class ScoreboardManager {
         return nearest;
     }
 
-    private String getTeamLetter(Team.Color color) {
-        return switch (color) {
-            case RED -> "§cR";
-            case BLUE -> "§9B";
-            case GREEN -> "§aV";
-            case YELLOW -> "§eJ";
-            default -> "§7" + color.name().substring(0, 1);
-        };
-    }
-
     public void removeScoreboard(Player player) {
         lobbyPlayers.remove(player);
 
@@ -273,8 +290,6 @@ public class ScoreboardManager {
             animationFrame = 0;
         }
 
-        final String hubWorld = plugin.getHubWorld();
-
         for (Player player : plugin.getServer().getOnlinePlayers()) {
             if (!plugin.getPlayerSettingsManager().isScoreboardEnabled(player.getUniqueId())) {
                 removeScoreboard(player);
@@ -289,7 +304,7 @@ public class ScoreboardManager {
                 } else {
                     updateGameScoreboard(player, game);
                 }
-            } else if (hubWorld != null && player.getWorld().getName().equals(hubWorld)) {
+            } else if (Hub.isAtHub(player)) {
                 updateLobbyScoreboard(player);
             } else {
                 removeScoreboard(player);

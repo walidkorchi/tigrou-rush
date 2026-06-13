@@ -41,9 +41,8 @@ public final class LoadingBar {
                         + ".".repeat((dotTick.getAndIncrement() / DOT_CYCLE) % DOT_CYCLE + 1);
 
                 p.sendActionBar(buildComponent(message, step.get(), totalSteps));
-            } else if (nullTickCount.incrementAndGet() >= MAX_NULL_TICKS) {
+            } else if (nullTickCount.incrementAndGet() >= MAX_NULL_TICKS)
                 cancel();
-            }
         }, 0L, TICK_INTERVAL);
     }
 
@@ -51,13 +50,12 @@ public final class LoadingBar {
         Component bar = Component.text("[", NamedTextColor.GRAY);
 
         for (int i = 0; i < totalSteps; i++) {
-            if (i < currentStep) {
+            if (i < currentStep)
                 bar = bar.append(Component.text(BAR_CHAR, NamedTextColor.GREEN));
-            } else if (i == currentStep) {
+            else if (i == currentStep)
                 bar = bar.append(Component.text(BAR_CHAR, NamedTextColor.YELLOW));
-            } else {
+            else
                 bar = bar.append(Component.text(BAR_CHAR, NamedTextColor.DARK_GRAY));
-            }
         }
 
         bar = bar.append(Component.text("] ", NamedTextColor.GRAY));
@@ -72,9 +70,8 @@ public final class LoadingBar {
     }
 
     void cancel() {
-        if (cancelled.compareAndSet(false, true)) {
+        if (cancelled.compareAndSet(false, true))
             task.cancel();
-        }
     }
 
     void stop(Main plugin) {
@@ -82,7 +79,6 @@ public final class LoadingBar {
 
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             final Player p = Bukkit.getPlayer(viewerId);
-
             if (p != null && p.isOnline())
                 p.sendActionBar(Component.empty());
         }, CLEAR_DELAY);

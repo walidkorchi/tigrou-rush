@@ -1,5 +1,6 @@
 package io.github.rush;
 
+import io.github.rush.abstracts.Team;
 import io.github.rush.storage.PlayerLevelManager.PlayerLevel;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -65,12 +66,29 @@ public class TablistManager {
     }
 
     public void updatePlayerListName(Player player) {
-        PlayerLevel level = plugin.getPlayerLevelManager().loadPlayerLevel(player.getUniqueId());
-        Component rank = MiniMessage.miniMessage().deserialize(level.getFormattedRank());
+        updatePlayerListName(player, null);
+    }
+
+    public void updatePlayerListName(Player player, Team.Color teamColor) {
+        final PlayerLevel level = plugin.getPlayerLevelManager().loadPlayerLevel(player.getUniqueId());
+        final Component rank = MiniMessage.miniMessage().deserialize(level.getFormattedRank()).color(NamedTextColor.WHITE);
+
         Component nameComponent = Component.text("[", NamedTextColor.GRAY)
                 .append(rank)
-                .append(Component.text("] ", NamedTextColor.GRAY))
-                .append(player.displayName());
+                .append(Component.text("] ", NamedTextColor.GRAY));
+
+        if (teamColor != null) {
+            final Component teamIcon = MiniMessage.miniMessage().deserialize(
+                    "<image:tland:team_color-" + teamColor.name().toLowerCase() + ">")
+                    .color(NamedTextColor.WHITE);
+            nameComponent = nameComponent
+                    .append(teamIcon)
+                    .append(Component.space())
+                    .append(player.displayName().color(teamColor.getTextColor()));
+        } else {
+            nameComponent = nameComponent.append(player.displayName());
+        }
+
         player.playerListName(nameComponent);
     }
 

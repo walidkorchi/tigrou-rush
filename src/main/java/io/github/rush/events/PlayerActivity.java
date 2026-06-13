@@ -6,28 +6,27 @@ import io.github.rush.commands.AuthorCommand;
 import io.github.rush.game.Game;
 import io.github.rush.entities.GameMannequin;
 import io.github.rush.entities.GamePlayer;
-import io.github.rush.replay.ReplayFollowGUI;
 import io.github.rush.replay.ReplayPlayback;
-import io.github.rush.replay.ReplayViewerInventory;
-import io.github.rush.replay.ReplayViewerMenuGUI;
+import io.github.rush.inventories.ReplayViewerInventory;
+import io.github.rush.inventories.GamePlayerInventory;
 import io.github.rush.game.GameManager;
 import io.github.rush.game.GameRoom;
 import io.github.rush.game.GameState;
 import io.github.rush.Hub;
 import io.github.rush.abstracts.Team;
+import io.github.rush.guis.AnvilInputGUI;
 import io.github.rush.guis.HostPanelGUI;
 import io.github.rush.utils.Sounds;
 import java.util.UUID;
-import io.github.rush.guis.GUI;
 import io.github.rush.guis.PlayerSettingsGUI;
+import io.github.rush.guis.ReplayFollowGUI;
+import io.github.rush.guis.ReplayViewerMenuGUI;
 import io.github.rush.guis.TeamSelectionGUI;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Location;
 import org.bukkit.Material;
-import org.bukkit.Tag;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.block.Block;
-import org.bukkit.block.Container;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Mannequin;
 import org.bukkit.entity.Player;
@@ -39,14 +38,18 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.FoodLevelChangeEvent;
+import org.bukkit.event.player.PlayerExpChangeEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.CraftItemEvent;
 import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.inventory.InventoryInteractEvent;
 import org.bukkit.event.inventory.InventoryType;
+import org.bukkit.event.inventory.PrepareAnvilEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
+import org.bukkit.inventory.view.AnvilView;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
@@ -57,6 +60,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.Sound;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.util.Vector;
 
 public class PlayerActivity implements Listener {
 
@@ -144,7 +148,8 @@ public class PlayerActivity implements Listener {
                             r.setHostUUID(nextHostUUID);
                             r.setHostName(nextHost.getName());
 
-                            nextHost.getInventory().setItem(8, Hub.createHostPanelItem());
+                            nextHost.getInventory().setItem(GamePlayerInventory.SLOT_HOST_PANEL,
+                                    GamePlayerInventory.createHostPanelItem());
                             nextHost.sendMessage(Component.translatable("rush.room_host_transfer"));
                         } else {
                             plugin.getGameManager().removeGameRoom(r.getId());
@@ -222,7 +227,7 @@ public class PlayerActivity implements Listener {
         final Player player = event.getPlayer();
         final String worldName = player.getWorld().getName();
 
-        if (worldName.equals(plugin.getHubWorld()) && player.getLocation().getY() < 0) {
+        if (Hub.isAtHub(player) && player.getLocation().getY() < 0) {
             player.setFallDistance(0);
             player.teleport(plugin.getMainLobby());
             return;
@@ -298,6 +303,7 @@ public class PlayerActivity implements Listener {
 
             if (spawn != null) {
                 entity.teleport(spawn);
+                entity.setVelocity(new Vector(0, 0, 0));
             }
 
             game.equipEntity(new GamePlayer(player), team);
@@ -315,6 +321,13 @@ public class PlayerActivity implements Listener {
                 event.setCancelled(true);
             }
         }
+    }
+
+    @EventHandler
+    public void onPlayerExpChange(PlayerExpChangeEvent event) {
+        // The vanilla XP bar is repurposed for rank display — block all natural XP gain
+        // so that orb pickups and giveExp() calls never overwrite setLevel()/setExp().
+        event.setAmount(0);
     }
 
     @EventHandler
@@ -456,13 +469,17 @@ public class PlayerActivity implements Listener {
         if (!(event.getWhoClicked() instanceof Player player))
             return;
 
-        if (event.getInventory().getHolder() instanceof GUI gui) {
+        // Anvil input capture must run before the waiting-room guard so hosts
+        // can interact with the rename field while in a game room.
+        if (AnvilInputGUI.tryConsume(player, event))
+            return;
+
+        if (plugin.getReplayManager() != null && plugin.getReplayManager().isWatching(player)) {
             event.setCancelled(true);
-            gui.onClick(player, event.getRawSlot(), event.getClick());
             return;
         }
 
-        if (plugin.getReplayManager() != null && plugin.getReplayManager().isWatching(player)) {
+        if (Hub.isAtHub(player)) {
             event.setCancelled(true);
             return;
         }
@@ -525,6 +542,10 @@ public class PlayerActivity implements Listener {
     public void onInventoryDrag(InventoryDragEvent event) {
         if (event.getWhoClicked() instanceof Player player) {
             if (plugin.getReplayManager() != null && plugin.getReplayManager().isWatching(player)) {
+                event.setCancelled(true);
+                return;
+            }
+            if (Hub.isAtHub(player)) {
                 event.setCancelled(true);
             }
         }
@@ -603,6 +624,26 @@ public class PlayerActivity implements Listener {
 
         if (victim instanceof Player playerVictim) {
             game.getKillTracker().recordDamage(playerVictim, attacker, event.getFinalDamage());
+        }
+    }
+
+    @EventHandler
+    public void onInventoryClose(InventoryCloseEvent event) {
+        if (!(event.getPlayer() instanceof Player player))
+            return;
+        if (!(event.getView() instanceof AnvilView anvilView))
+            return;
+        // Clear the input slot so Bukkit doesn't return it to the player's inventory.
+        anvilView.getTopInventory().setItem(0, null);
+        AnvilInputGUI.cancel(player);
+    }
+
+    @EventHandler
+    public void onPrepareAnvil(PrepareAnvilEvent event) {
+        if (event.getView() instanceof AnvilView anvilView
+                && anvilView.getPlayer() instanceof Player player
+                && AnvilInputGUI.hasPending(player)) {
+            anvilView.setRepairCost(0);
         }
     }
 

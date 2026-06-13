@@ -5,6 +5,7 @@ import io.github.rush.utils.ReplayUtils.ReplayFile;
 
 import io.github.rush.Main;
 import io.github.rush.game.Game;
+import io.github.rush.inventories.ReplayViewerInventory;
 import io.github.rush.Hub;
 import io.github.rush.objects.TNT;
 import io.github.rush.abstracts.Team;
@@ -29,6 +30,7 @@ import org.bukkit.entity.TNTPrimed;
 import org.bukkit.inventory.EntityEquipment;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffectType;
+import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.Vector;
 
@@ -75,6 +77,7 @@ public final class ReplayPlayback {
     @Setter
     private double speedMultiplier = 1.0;
     private BukkitTask tickTask;
+    private BukkitTask tntFreezeTask;
 
     public ReplayPlayback(ReplayFile file, World world) {
         this.file = file;
@@ -90,6 +93,7 @@ public final class ReplayPlayback {
 
         for (Map.Entry<UUID, List<ReplayAction>> entry : file.actions().entrySet()) {
             final UUID uuid = entry.getKey();
+
             if (uuid.equals(GLOBAL))
                 continue;
 
@@ -98,6 +102,7 @@ public final class ReplayPlayback {
                     .map(a -> (MoveAction) a)
                     .findFirst()
                     .orElse(null);
+
             if (firstMove == null)
                 continue;
 
@@ -313,8 +318,51 @@ public final class ReplayPlayback {
         pendingExplosions.clear();
     }
 
+    private void startTntFreeze() {
+        stopTntFreeze();
+
+        final Map<TNTPrimed, Integer> frozenFuses = new HashMap<>();
+        for (Entity e : replayEntities) {
+            if (e instanceof TNTPrimed tnt && tnt.isValid()) {
+                frozenFuses.put(tnt, tnt.getFuseTicks());
+            }
+        }
+        if (frozenFuses.isEmpty())
+            return;
+
+        tntFreezeTask = new BukkitRunnable() {
+            @Override
+            public void run() {
+                boolean anyAlive = false;
+                for (Map.Entry<TNTPrimed, Integer> entry : frozenFuses.entrySet()) {
+                    TNTPrimed tnt = entry.getKey();
+                    if (tnt.isValid() && !tnt.isDead()) {
+                        tnt.setFuseTicks(entry.getValue());
+                        anyAlive = true;
+                    }
+                }
+                if (!anyAlive) {
+                    this.cancel();
+                    tntFreezeTask = null;
+                }
+            }
+        }.runTaskTimer(Main.getInstance(), 0L, 1L);
+    }
+
+    private void stopTntFreeze() {
+        if (tntFreezeTask != null) {
+            tntFreezeTask.cancel();
+            tntFreezeTask = null;
+        }
+    }
+
     public void togglePause() {
         isPaused = !isPaused;
+        if (isPaused) {
+            startTntFreeze();
+        } else {
+            stopTntFreeze();
+        }
         for (Player viewer : viewers) {
             viewer.getInventory().setItem(
                     ReplayViewerInventory.SLOT_PAUSE_RESUME,
@@ -372,6 +420,7 @@ public final class ReplayPlayback {
     }
 
     public void seek(long targetMs) {
+        stopTntFreeze();
         targetMs = Math.max(0, Math.min(targetMs, file.header().durationMs()));
         if (targetMs >= playheadMs) {
             playheadMs = targetMs;
@@ -401,6 +450,10 @@ public final class ReplayPlayback {
             playheadMs = targetMs;
             frameIndices.clear();
             repositionMannequins(targetMs);
+        }
+
+        if (isPaused) {
+            startTntFreeze();
         }
     }
 
@@ -510,6 +563,7 @@ public final class ReplayPlayback {
     }
 
     public void cleanup() {
+        stopTntFreeze();
         clearReplayEntities();
 
         if (tickTask != null) {
@@ -517,9 +571,8 @@ public final class ReplayPlayback {
             tickTask = null;
         }
 
-        for (Mannequin mannequin : new ArrayList<>(mannequins)) {
+        for (Mannequin mannequin : new ArrayList<>(mannequins))
             mannequin.remove();
-        }
 
         mannequins.clear();
         mannequinByPlayer.clear();

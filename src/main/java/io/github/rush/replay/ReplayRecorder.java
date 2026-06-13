@@ -73,17 +73,17 @@ public final class ReplayRecorder implements Listener {
 
         for (GameCombatant participant : game.getPlayers()) {
             if (participant instanceof GamePlayer gp) {
-                Player player = gp.player();
+                final Player player = gp.player();
                 final Location loc = player.getLocation();
                 final PlayerInventory inv = player.getInventory();
-                final String mainHand = inv.getItemInMainHand().getType().name();
-                final String offHand = inv.getItemInOffHand().getType().name();
 
                 actionsFor(player.getUniqueId()).add(
                         new MoveAction(ts, player.getUniqueId(),
                                 loc.getX(), loc.getY(), loc.getZ(),
                                 loc.getYaw(), loc.getPitch(),
-                                mainHand, offHand, player.isSneaking()));
+                                inv.getItemInMainHand().getType().name(),
+                                inv.getItemInOffHand().getType().name(),
+                                player.isSneaking()));
             } else if (participant instanceof GameMannequin gm) {
                 Mannequin mannequin = gm.mannequin();
                 final Location loc = mannequin.getLocation();

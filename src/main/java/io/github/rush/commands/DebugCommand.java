@@ -281,8 +281,16 @@ public class DebugCommand {
             int j = (i + 1) % n;
             Island a = islands.get(i);
             Island b = islands.get(j);
-            double[] ea = RingPath.bridgeEndpoint(a.getX(), a.getZ(), b.getX(), b.getZ());
-            double[] eb = RingPath.bridgeEndpoint(b.getX(), b.getZ(), a.getX(), a.getZ());
+            double[] ea = RingPath.bridgeEndpoint(a, b);
+            double[] eb = RingPath.bridgeEndpoint(b, a);
+
+            // Skip endpoint plates for bridges that belong to the forbidden zone —
+            // those bridges are visualised as orange wool already.
+            double midX = (ea[0] + eb[0]) / 2.0;
+            double midZ = (ea[1] + eb[1]) / 2.0;
+            if (game.isBlockInForbiddenZone(new Location(world, midX, islandY, midZ)))
+                continue;
+
             for (double[] ep : new double[][] { ea, eb }) {
                 int bx = (int) Math.round(ep[0]);
                 int bz = (int) Math.round(ep[1]);

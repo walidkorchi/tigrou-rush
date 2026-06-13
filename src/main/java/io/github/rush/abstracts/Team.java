@@ -174,11 +174,11 @@ public class Team {
         return enderChestLocations.size();
     }
 
-    public void placeEnderChests(int islandIndex) {
+    public void placeEnderChests(Island island) {
         if (spawnLocation == null)
             return;
         enderChestLocations.clear();
-        final int[] dir = Island.Layout.ISLAND_DIRECTIONS[islandIndex];
+        final int[] dir = new int[] { island.getDirX(), island.getDirZ() };
         final int perpX = dir[1];
         final int speedOffset = 13;
         final int enderChestOffset = speedOffset - 1;
@@ -188,7 +188,7 @@ public class Team {
                 spawnLocation.getBlockZ(),
                 spawnLocation.getBlockY() - 2,
                 dir, perpX, enderChestOffset,
-                Island.Layout.facingTowardsCenter(islandIndex),
+                island.getFacing(),
                 getGeneratorCount()));
     }
 
@@ -196,7 +196,7 @@ public class Team {
         return Math.max(2, Math.min(4, players.size()));
     }
 
-    public void placeBed(int islandIndex) {
+    public void placeBed(Island island) {
         if (spawnLocation == null)
             return;
 
@@ -206,23 +206,21 @@ public class Team {
             return;
 
         final int[] coords = bedCoords(spawnLocation.getBlockX(), spawnLocation.getBlockZ(),
-                spawnLocation.getBlockY() - 2, islandIndex);
+                spawnLocation.getBlockY() - 2, island.getDirX(), island.getDirZ());
 
         placeBedAt(spawnLocation.getWorld(), coords[0], coords[1], coords[2],
-                Island.Layout.facingTowardsCenter(islandIndex), bedMaterial);
+                island.getFacing(), bedMaterial);
 
         bedLocation = new Location(spawnLocation.getWorld(), coords[0], coords[1], coords[2]);
     }
 
-    public static int[] bedCoords(int spawnX, int spawnZ, int bedY, int islandIndex) {
-        final int[] dir = Island.Layout.ISLAND_DIRECTIONS[islandIndex];
-        return new int[] { spawnX + dir[0] * 6, bedY, spawnZ + dir[1] * 6 };
+    public static int[] bedCoords(int spawnX, int spawnZ, int bedY, int dirX, int dirZ) {
+        return new int[] { spawnX + dirX * 6, bedY, spawnZ + dirZ * 6 };
     }
 
-    public static void placeIslandBed(World world, Island island, int islandIndex, int bedY, Color color) {
-        final int[] coords = bedCoords(island.getX(), island.getZ(), bedY, islandIndex);
-        placeBedAt(world, coords[0], coords[1], coords[2], Island.Layout.facingTowardsCenter(islandIndex),
-                bedMaterialFor(color));
+    public static void placeIslandBed(World world, Island island, int bedY, Color color) {
+        final int[] coords = bedCoords(island.getX(), island.getZ(), bedY, island.getDirX(), island.getDirZ());
+        placeBedAt(world, coords[0], coords[1], coords[2], island.getFacing(), bedMaterialFor(color));
     }
 
     public static void placeBedAt(World world, int x, int y, int z, BlockFace facing, Material bedMaterial) {

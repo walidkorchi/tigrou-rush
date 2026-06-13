@@ -2,6 +2,8 @@ package io.github.rush.geometry;
 
 import java.util.List;
 
+import io.github.rush.objects.Island;
+
 /**
  * Geometry of the "ring path" — the diagonal corridors players are allowed to
  * build on, connecting one island to the next around the cyclic layout.
@@ -52,52 +54,86 @@ public final class RingPath {
      */
     public static final double BRIDGE_SPREAD = 5.0;
 
+    /**
+     * Transverse distance (blocks from island centre toward the pair neighbour) for
+     * intra-pair (straight-line) bridge endpoints.
+     */
+    public static final double INTRA_PAIR_TRANSVERSE = 8.0;
+
+    /**
+     * Axial pull toward the map centre applied to intra-pair bridge endpoints, in
+     * addition to the transverse offset. Pulls the plate slightly inward so it sits
+     * visually inside the island edge rather than flush with it.
+     */
+    public static final double INTRA_PAIR_AXIAL_PULL = 7.0;
+
     private RingPath() {
     }
 
     /**
-     * @return true if the block is within {@link #BRIDGE_SPREAD} of any
-     *         bridge corridor between two cyclically-adjacent islands.
+     * Accepts a list of {@link Island} positions in their cyclic layout order. Uses
+     * the Island-aware {@link #bridgeEndpoint(Island, Island)} so that intra-pair
+     * (straight) bridges get the correct endpoint.
+     *
+     * @return true if the block is within {@link #BRIDGE_SPREAD} of any bridge
+     *         corridor between two cyclically-adjacent islands.
      */
-    public static boolean isOnPath(double blockX, double blockZ,
-            double[] islandsX, double[] islandsZ) {
-        if (islandsX.length != islandsZ.length || islandsX.length < 2) {
+    public static boolean isOnPath(double blockX, double blockZ, List<Island> islands) {
+        final int n = islands.size();
+        if (n < 2)
             return true;
-        }
 
-        final int n = islandsX.length;
         final double spreadSq = Math.pow(BRIDGE_SPREAD, 2);
 
         for (int i = 0; i < n; i++) {
             final int j = (i + 1) % n;
-            final double[] ea = bridgeEndpoint(islandsX[i], islandsZ[i], islandsX[j], islandsZ[j]);
-            final double[] eb = bridgeEndpoint(islandsX[j], islandsZ[j], islandsX[i], islandsZ[i]);
+            final double[] ea = bridgeEndpoint(islands.get(i), islands.get(j));
+            final double[] eb = bridgeEndpoint(islands.get(j), islands.get(i));
 
-            if (distanceSqToSegment(blockX, blockZ, ea[0], ea[1], eb[0], eb[1]) <= spreadSq) {
+            if (distanceSqToSegment(blockX, blockZ, ea[0], ea[1], eb[0], eb[1]) <= spreadSq)
                 return true;
-            }
         }
 
         return false;
     }
 
     /**
-     * Convenience overload accepting a list of
-     * {@link io.github.rush.objects.Island}
-     * positions in their cyclic layout order.
+     * Island-aware overload: uses {@link #straightBridgeEndpoint} for intra-pair
+     * (straight-line) bridges — same-{@code dirX}/{@code dirZ} island pairs in the
+     * 8-island layout — and the standard diagonal formula otherwise.
      */
-    public static boolean isOnPath(double blockX, double blockZ,
-            List<io.github.rush.objects.Island> islands) {
-        final int n = islands.size();
-        final double[] xs = new double[n];
-        final double[] zs = new double[n];
+    public static double[] bridgeEndpoint(Island a, Island b) {
+        if (a.getDirX() == b.getDirX() && a.getDirZ() == b.getDirZ())
+            return straightBridgeEndpoint(a.getX(), a.getZ(), b.getX(), b.getZ(),
+                    a.getDirX(), a.getDirZ());
+        else
+            return bridgeEndpoint(a.getX(), a.getZ(), b.getX(), b.getZ());
+    }
 
-        for (int i = 0; i < n; i++) {
-            xs[i] = islands.get(i).getX();
-            zs[i] = islands.get(i).getZ();
-        }
+    /**
+     * Endpoint for a straight (intra-pair) bridge:
+     * <ul>
+     * <li>{@link #INTRA_PAIR_TRANSVERSE} (8) blocks from A's centre toward B,
+     * and</li>
+     * <li>{@link #INTRA_PAIR_AXIAL_PULL} (2) blocks pulled toward the map origin
+     * along A's inward radial direction ({@code −dirX, −dirZ}).</li>
+     * </ul>
+     */
+    private static double[] straightBridgeEndpoint(
+            double ax, double az, double bx, double bz, int dirX, int dirZ) {
+        final double dx = bx - ax;
+        final double dz = bz - az;
+        final double len = Math.sqrt(Math.pow(dx, 2) + Math.pow(dz, 2));
 
-        return isOnPath(blockX, blockZ, xs, zs);
+        if (len == 0.0)
+            return new double[] { ax, az };
+
+        // Axial pull uses +dir (outward / into the island) so the endpoint sits
+        // 2 blocks inside the island's inner face rather than 2 blocks outside it.
+        return new double[] {
+                ax + INTRA_PAIR_TRANSVERSE * dx / len + INTRA_PAIR_AXIAL_PULL * dirX,
+                az + INTRA_PAIR_TRANSVERSE * dz / len + INTRA_PAIR_AXIAL_PULL * dirZ
+        };
     }
 
     /**
@@ -106,11 +142,10 @@ public final class RingPath {
      * {@link #TRANSVERSE_OFFSET} blocks toward B along A's tangential axis.
      */
     public static double[] bridgeEndpoint(double ax, double az, double bx, double bz) {
-        final double aLen = Math.sqrt(ax * ax + az * az);
+        final double aLen = Math.sqrt(Math.pow(ax, 2) + Math.pow(az, 2));
 
-        if (aLen == 0.0) {
+        if (aLen == 0.0)
             return new double[] { ax, az };
-        }
 
         final double axialX = -ax / aLen;
         final double axialZ = -az / aLen;
@@ -132,32 +167,20 @@ public final class RingPath {
             double px, double pz,
             double ax, double az,
             double bx, double bz) {
-
         final double abx = bx - ax;
         final double abz = bz - az;
-        final double ab2 = abx * abx + abz * abz;
+        final double ab2 = Math.pow(abx, 2) + Math.pow(abz, 2);
 
-        if (ab2 == 0.0) {
-            final double dpx = px - ax;
-            final double dpz = pz - az;
+        if (ab2 == 0.0)
+            return Math.pow(px - ax, 2) + Math.pow(pz - az, 2);
 
-            return dpx * dpx + dpz * dpz;
-        }
-
-        final double apx = px - ax;
-        final double apz = pz - az;
-        double t = (apx * abx + apz * abz) / ab2;
+        double t = (Math.pow(px - ax, 2) + Math.pow(pz - az, 2)) / ab2;
 
         if (t < 0.0)
             t = 0.0;
         else if (t > 1.0)
             t = 1.0;
 
-        final double cx = ax + t * abx;
-        final double cz = az + t * abz;
-        final double dx = px - cx;
-        final double dz = pz - cz;
-
-        return dx * dx + dz * dz;
+        return Math.pow(px - (ax + t * abx), 2) + Math.pow(pz - (az + t * abz), 2);
     }
 }

@@ -51,17 +51,19 @@ public class PlayerSettingsManager {
     }
 
     public PlayerSettings loadSettings(UUID playerId) {
-        if (settingsCache.containsKey(playerId)) {
+        if (settingsCache.containsKey(playerId))
             return settingsCache.get(playerId);
-        }
 
-        EntityManager em = databaseManager.getEntityManager();
+        final EntityManager em = databaseManager.getEntityManager();
+
         try {
             PlayerSettings settings = em.find(PlayerSettings.class, playerId);
-            if (settings == null) {
+
+            if (settings == null)
                 settings = new PlayerSettings(playerId);
-            }
+
             settingsCache.put(playerId, settings);
+
             return settings;
         } finally {
             em.close();
@@ -71,16 +73,16 @@ public class PlayerSettingsManager {
     public void saveSettings(PlayerSettings settings) {
         settingsCache.put(settings.getPlayerId(), settings);
 
-        EntityManager em = databaseManager.getEntityManager();
+        final EntityManager em = databaseManager.getEntityManager();
+
         try {
             em.getTransaction().begin();
             em.merge(settings);
             em.getTransaction().commit();
         } catch (Exception e) {
             RushLogger.error(i18n.log("internal.storage.player_settings.save_failed", e.getMessage()));
-            if (em.getTransaction().isActive()) {
+            if (em.getTransaction().isActive())
                 em.getTransaction().rollback();
-            }
         } finally {
             em.close();
         }
@@ -91,7 +93,8 @@ public class PlayerSettingsManager {
     }
 
     public void setScoreboardEnabled(UUID playerId, boolean enabled) {
-        PlayerSettings settings = loadSettings(playerId);
+        final PlayerSettings settings = loadSettings(playerId);
+
         settings.setScoreboardEnabled(enabled);
         saveSettings(settings);
     }
@@ -101,7 +104,8 @@ public class PlayerSettingsManager {
     }
 
     public void setMusicEnabled(UUID playerId, boolean enabled) {
-        PlayerSettings settings = loadSettings(playerId);
+        final PlayerSettings settings = loadSettings(playerId);
+
         settings.setMusicEnabled(enabled);
         saveSettings(settings);
     }

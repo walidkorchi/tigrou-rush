@@ -1,4 +1,4 @@
-package io.github.rush.replay;
+package io.github.rush.inventories;
 
 import io.github.rush.utils.i18n;
 import io.github.rush.utils.ItemBuilder;

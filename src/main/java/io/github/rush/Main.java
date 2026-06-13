@@ -71,10 +71,10 @@ public class Main extends JavaPlugin {
     private final Map<Player, FastBoard> playerBoards = new HashMap<>();
 
     public String getCraftEngineDataFolder() {
-        if (craftEngineDataFolder == null) {
+        if (craftEngineDataFolder == null)
             return getDataFolder().getParent() + "/CraftEngine";
-        }
-        return craftEngineDataFolder.getAbsolutePath();
+        else
+            return craftEngineDataFolder.getAbsolutePath();
     }
 
     public net.momirealms.craftengine.core.entity.player.Player adaptCraftPlayer(org.bukkit.entity.Player player) {
@@ -148,18 +148,6 @@ public class Main extends JavaPlugin {
         }
     }
 
-    public Integer getRespawnProtectionTime() {
-        return this.getConfig().getInt("respawn-protection");
-    }
-
-    public int getVoidThreshold() {
-        return this.getConfig().getInt("void-threshold", 20);
-    }
-
-    public String getHubWorld() {
-        return getConfig().getString("lobbyWorld");
-    }
-
     public Location getMainLobby() {
         final FileConfiguration config = getConfig();
         if (!config.contains("lobby-spawn"))
@@ -192,9 +180,8 @@ public class Main extends JavaPlugin {
         }
 
         if (scoreboardManager != null) {
-            for (Player player : new ArrayList<>(playerBoards.keySet())) {
+            for (Player player : new ArrayList<>(playerBoards.keySet()))
                 scoreboardManager.removeScoreboard(player);
-            }
             scoreboardManager.removeAllScoreboards();
             RushLogger.info(i18n.log("internal.main.shutdown_scoreboards_removed"));
         }
@@ -211,15 +198,12 @@ public class Main extends JavaPlugin {
 
         playerBoards.clear();
 
-        if (playerSettingsManager != null) {
+        if (playerSettingsManager != null)
             playerSettingsManager.close();
-        }
-        if (playerStatisticManager != null) {
+        if (playerStatisticManager != null)
             playerStatisticManager.close();
-        }
-        if (playerLevelManager != null) {
+        if (playerLevelManager != null)
             playerLevelManager.close();
-        }
 
         RushLogger.info(i18n.log("internal.main.shutdown_complete"));
     }

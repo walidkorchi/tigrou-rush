@@ -28,6 +28,7 @@ public class Merchant {
 
         if (name == null)
             return null;
+
         try {
             return MerchantType.valueOf(name);
         } catch (IllegalArgumentException e) {
@@ -50,14 +51,11 @@ public class Merchant {
      * @param merchantType the type of merchant to apply
      */
     public static void apply(Villager villager, MerchantType merchantType) {
-        villager.setProfession(merchantType.getProfession());
-
         final List<MerchantRecipe> recipes = merchantType.getTrades().stream()
                 .map(Merchant::toMerchantRecipe)
                 .toList();
-
         villager.setRecipes(recipes);
-
+        villager.setProfession(merchantType.getProfession());
         villager.getPersistentDataContainer().set(MERCHANT_TYPE_KEY, PersistentDataType.STRING, merchantType.name());
     }
 
@@ -71,13 +69,7 @@ public class Merchant {
     }
 
     public static String typeKey(MerchantType type) {
-        return switch (type) {
-            case WEAPONSMITH -> "rush.merchant_weaponsmith";
-            case BUILDER -> "rush.merchant_builder";
-            case ALCHEMIST -> "rush.merchant_alchemist";
-            case ARMORSMITH -> "rush.merchant_armorsmith";
-            default -> "rush.merchant_" + type.name().toLowerCase();
-        };
+        return "rush.merchant_" + type.name().toLowerCase();
     }
 
     static MerchantRecipe toMerchantRecipe(Trade trade) {
@@ -85,17 +77,15 @@ public class Merchant {
                 ? trade.resultItem().clone()
                 : new ItemStack(trade.result(), trade.resultAmount());
 
-        if (trade.enchantments() != null && !trade.enchantments().isEmpty()) {
+        if (trade.enchantments() != null && !trade.enchantments().isEmpty())
             result.addEnchantments(trade.enchantments());
-        }
 
         final MerchantRecipe recipe = new MerchantRecipe(result, 0, Integer.MAX_VALUE, false);
 
         recipe.addIngredient(new ItemStack(trade.currency(), trade.costAmount()));
 
-        if (trade.secondCost() != null) {
+        if (trade.secondCost() != null)
             recipe.addIngredient(new ItemStack(trade.secondCost().material(), trade.secondCost().amount()));
-        }
 
         return recipe;
     }

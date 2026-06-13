@@ -7,7 +7,6 @@ import java.util.*;
 
 public class GameKillTracker {
 
-
     private final Map<UUID, Map<UUID, Double>> damageDealt = new HashMap<>();
     private final Map<UUID, LastHitRecord> lastHitBy = new HashMap<>();
 
@@ -26,10 +25,10 @@ public class GameKillTracker {
 
         if (killer == null) {
             final LastHitRecord record = lastHitBy.get(victimId);
+            final double lastHitExpiryMs = Main.getInstance().getConfig().getLong("kill-tracker.last-hit-expiry-ms");
 
-            if (record != null && System.currentTimeMillis() - record.timestamp <= Main.getInstance().getConfig().getLong("kill-tracker.last-hit-expiry-ms")) {
+            if (record != null && System.currentTimeMillis() - record.timestamp <= lastHitExpiryMs)
                 killer = victim.getServer().getPlayer(record.attackerId);
-            }
         }
 
         if (killer == null) {
@@ -40,7 +39,6 @@ public class GameKillTracker {
         final UUID killerId = killer.getUniqueId();
         final Map<UUID, Double> victimDamageMap = damageDealt.getOrDefault(victimId, Map.of());
         final double killerDamage = victimDamageMap.getOrDefault(killerId, 0.0);
-
         final List<Player> assists = new ArrayList<>();
 
         if (killerDamage > 0) {
@@ -51,11 +49,8 @@ public class GameKillTracker {
                     continue;
                 if (entry.getValue() >= threshold) {
                     final Player assistPlayer = victim.getServer().getPlayer(entry.getKey());
-
-
-                    if (assistPlayer != null) {
+                    if (assistPlayer != null)
                         assists.add(assistPlayer);
-                    }
                 }
             }
         }

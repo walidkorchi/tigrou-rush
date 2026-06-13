@@ -41,6 +41,7 @@ import io.github.rush.utils.RushLogger;
 
 public class TNT implements Listener {
 
+    // TODO: make this YML configurable
     private static final Set<Material> EXPLOSION_BREAKABLE = Set.of(
             Material.SANDSTONE, Material.END_STONE);
 
@@ -56,50 +57,48 @@ public class TNT implements Listener {
         final ItemStack item = event.getItem();
         final Block block = event.getClickedBlock();
 
-        if (item != null) {
-            if (event.getAction() == Action.RIGHT_CLICK_BLOCK && block != null
-                    && block.getType() == Material.TNT
-                    && event.useInteractedBlock() != Result.DENY) {
-                block.setType(Material.AIR);
-                spawnTNT(block.getLocation(), player);
-                event.setCancelled(true);
-            }
+        if (item != null
+                && item.getType() != Material.TNT
+                && event.getAction() == Action.RIGHT_CLICK_BLOCK
+                && block != null
+                && block.getType() == Material.TNT
+                && event.useInteractedBlock() != Result.DENY) {
+            block.setType(Material.AIR);
+            spawnTNT(block.getLocation(), player);
+            event.setCancelled(true);
         }
     }
 
     @EventHandler
     public void onEntityDamage(EntityDamageEvent event) {
-        if (event.isCancelled())
-            return;
         if (event.getEntityType() == EntityType.PLAYER) {
             if (event.getCause() == DamageCause.FALL) {
-                event.setDamage(event.getDamage() / plugin.getConfig().getDouble("fallDamage"));
+                event.setDamage(getAdjustedFallDamage(event));
             } else if (event.getCause() == DamageCause.BLOCK_EXPLOSION) {
-                event.setDamage(event.getDamage() / plugin.getConfig().getDouble("TNTDamage"));
+                event.setDamage(getAdjustedTNTDamage(event));
             }
         }
+    }
+
+    private double getAdjustedFallDamage(EntityDamageEvent event) {
+        return event.getDamage() / plugin.getConfig().getDouble("fallFromFlyDamage");
+    }
+
+    private double getAdjustedTNTDamage(EntityDamageEvent event) {
+        return event.getDamage() / plugin.getConfig().getDouble("TNTDamage");
     }
 
     @EventHandler
     public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
-        if (event.isCancelled())
-            return;
-        if (event.getEntityType() == EntityType.PLAYER && isTNT(event.getDamager())) {
-            if (isPlayerIRG((Player) event.getEntity())) {
-                event.setDamage(event.getDamage() / plugin.getConfig().getDouble("TNTDamage"));
-            }
-        }
+        if (event.getEntityType() == EntityType.PLAYER && event.getDamager() instanceof TNTPrimed)
+            if (isPlayerIRG((Player) event.getEntity()))
+                event.setDamage(getAdjustedTNTDamage((EntityDamageByEntityEvent) event));
     }
 
     @EventHandler(ignoreCancelled = true)
     public void onEntityExplode(EntityExplodeEvent event) {
-        final Entity entity = event.getEntity();
-
-        if (isTNT(entity)) {
-            final Entity source = entity instanceof TNTPrimed ? ((TNTPrimed) entity).getSource() : null;
-
-            handleExplosion(event, source, event.getLocation(), event.getYield(), event.blockList());
-        }
+        if (event.getEntity() instanceof TNTPrimed primed)
+            handleExplosion(event, primed.getSource(), event.getLocation(), event.getYield(), event.blockList());
     }
 
     @EventHandler(ignoreCancelled = true)
@@ -107,18 +106,15 @@ public class TNT implements Listener {
         handleExplosion(event, null, event.getBlock().getLocation(), event.getYield(), event.blockList());
     }
 
-    public boolean isTNT(Entity entity) {
-        return entity instanceof TNTPrimed;
-    }
-
     private void handleExplosion(Event event, Entity source, Location location,
             float yield, List<Block> blockList) {
         final Iterator<Block> blockIterator = blockList.iterator();
+
         while (blockIterator.hasNext()) {
             final Block block = blockIterator.next();
             final Material blockType = block.getType();
 
-            if (isBed(block)) {
+            if (block.getState() instanceof Bed) {
                 blockIterator.remove();
                 handleBedDestruction(block, source);
                 continue;
@@ -131,83 +127,68 @@ public class TNT implements Listener {
                 continue;
             }
 
-            // Protect island blocks (non-breakable) but let player-placed blocks break
+            // edge case: protect island blocks but let player-placed blocks break
             if (!EXPLOSION_BREAKABLE.contains(blockType)) {
                 blockIterator.remove();
             }
         }
     }
 
-    private boolean isBed(Block block) {
-        BlockState state = block.getState();
-        return state instanceof Bed;
-    }
-
     private void handleBedDestruction(Block bedBlock, Entity source) {
-        GameRoom room = Main.getInstance().getGameManager()
-                .getGameRoomByWorld(bedBlock.getWorld().getName());
-        if (room == null || !room.isRunning()) {
+        if (!(bedBlock.getState() instanceof Bed bed))
             return;
-        }
 
-        Game game = room.getGame();
+        final GameRoom room = Main.getInstance().getGameManager().getGameRoomByWorld(bedBlock.getWorld().getName());
 
-        BlockState state = bedBlock.getState();
-        if (!(state instanceof Bed bed)) {
+        if (room == null || !room.isRunning())
             return;
-        }
-
-        Team.Color bedColor = getTeamColorFromBed(bed);
-
-        if (bedColor == null) {
+        else if (room.getConfig().extraHearts())
             return;
-        }
 
-        Team team = game.getTeam(bedColor.name());
+        final Team.Color bedColor = Team.Color.valueOf(bed.getColor().name());
 
-        // Extra bed with no team — only relevant when extraHearts is enabled
+        if (bedColor == null)
+            return;
+
+        final Game game = room.getGame();
+        final Team team = game.getTeam(bedColor.name());
+        final Player tntSource = resolveTntSource(source);
+
+        // [extraHearts] edge case: satisfied if extra bed with no team assgined to it
         if (team == null) {
-            if (room.getConfig().extraHearts()) {
-                removeBedBlocks(bedBlock);
-                Player tntSource = resolveTntSource(source);
-                if (tntSource != null) {
-                    game.onExtraBedDestroyed(tntSource);
-                }
-            }
+            removeBedBlocks(bedBlock);
+            if (tntSource != null)
+                game.onExtraBedDestroyed(tntSource);
             return;
         }
 
-        if (team.isBedDestroyed()) {
+        if (team.isBedDestroyed())
             return;
-        }
-
-        Player tntSource = resolveTntSource(source);
 
         if (tntSource != null) {
             Team sourceTeam = game.getPlayerTeam(new GamePlayer(tntSource));
-            if (sourceTeam != null && sourceTeam == team) {
+            if (sourceTeam != null && sourceTeam == team)
                 return;
-            }
         }
 
-        // Remove both halves of the bed (foot and head) to prevent item drops
         removeBedBlocks(bedBlock);
-
         game.onBedDestroyed(team, tntSource);
     }
 
+    /**
+     * Removes both halves of the bed (foot and head) to prevent bed item drop
+     */
     public static void removeBedBlocks(Block bedBlock) {
         org.bukkit.block.data.type.Bed bedData = (org.bukkit.block.data.type.Bed) bedBlock.getBlockData();
         Block otherHalf;
-        if (bedData.getPart() == org.bukkit.block.data.type.Bed.Part.FOOT) {
+
+        if (bedData.getPart() == org.bukkit.block.data.type.Bed.Part.FOOT)
             otherHalf = bedBlock.getRelative(bedData.getFacing());
-        } else {
+        else
             otherHalf = bedBlock.getRelative(bedData.getFacing().getOppositeFace());
-        }
+
         bedBlock.setType(Material.AIR, false);
-        if (otherHalf.getType().name().endsWith("_BED")) {
-            otherHalf.setType(Material.AIR, false);
-        }
+        otherHalf.setType(Material.AIR, false);
     }
 
     private Player resolveTntSource(Entity source) {
@@ -219,14 +200,6 @@ public class TNT implements Listener {
             }
         }
         return null;
-    }
-
-    private Team.Color getTeamColorFromBed(Bed bed) {
-        try {
-            return Team.Color.valueOf(bed.getColor().name());
-        } catch (IllegalArgumentException e) {
-            return null;
-        }
     }
 
     public TNTPrimed spawnTNT(Location location, Entity source) {
@@ -246,9 +219,8 @@ public class TNT implements Listener {
 
                 tnt.customName(Component.text(timeLeft.concat("s"))); // i.e: 5s
 
-                if (!tnt.isValid() || tnt.getFuseTicks() <= 0) {
+                if (!tnt.isValid() || tnt.getFuseTicks() <= 0)
                     cancel();
-                }
             }
         }.runTaskTimer(plugin, 0, 1);
 
@@ -260,9 +232,11 @@ public class TNT implements Listener {
                         + event.getMessage());
             }
         }
+
         return tnt;
     }
 
+    // TODO: substitute NMS legacy code
     public static void setTntSource(TNTPrimed tnt, Entity source) throws ReflectiveOperationException {
         if (hasSetSourceMethod()) {
             tnt.setSource(source);
@@ -293,8 +267,6 @@ public class TNT implements Listener {
 
     /**
      * Checks if the rush game has started and the player is in the rush world.
-     *
-     * @param player the player to check
      */
     public boolean isPlayerIRG(Player player) {
         final Game game = plugin.getGameManager().getGameForPlayer(player);

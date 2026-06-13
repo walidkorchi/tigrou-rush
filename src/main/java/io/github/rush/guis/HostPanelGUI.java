@@ -1,7 +1,6 @@
 package io.github.rush.guis;
 
 import io.github.rush.game.GameManager;
-import io.github.rush.entities.GamePlayer;
 import io.github.rush.game.GameRoom;
 import io.github.rush.utils.i18n;
 import io.github.rush.utils.ItemBuilder;
@@ -11,22 +10,13 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
-import java.util.List;
-
 public final class HostPanelGUI {
 
     private HostPanelGUI() {
     }
 
     public static void open(Player host, GameRoom room, GameManager manager) {
-        final List<Player> players = room.getGame().getPlayers().stream()
-                .filter(GamePlayer.class::isInstance)
-                .map(e -> ((GamePlayer) e).player())
-                .toList();
-
-        // Rows: 1 for the force-start button + ceil(players / 9) for kick list, min 2 rows
-        final int rows = Math.max(2, 1 + (int) Math.ceil(players.size() / 9.0));
-        final GUI gui = new GUI(Component.translatable("rush.host_panel_title"), rows);
+        final GUI gui = new GUI(Component.translatable("rush.host_panel_title"), 1);
 
         // Delete room button (slot 0, top row left)
         final ItemStack deleteRoom = ItemBuilder.of(Material.BARRIER)
@@ -59,32 +49,25 @@ public final class HostPanelGUI {
             room.getGame().forceStart();
         });
 
-        // Per-player kick buttons (row 2+, one slot per player)
-        int slot = 9;
-        for (Player target : players) {
-            if (target.equals(host))
-                continue;
+        // Lock / unlock button (slot 8, top-row right)
+        final boolean locked = room.isLocked();
+        final ItemStack lockItem = ItemBuilder.of(locked ? Material.RED_DYE : Material.LIME_DYE)
+                .name(locked ? i18n.txt("rush.host_panel_unlock") : i18n.txt("rush.host_panel_lock"))
+                .lore(locked ? i18n.txt("rush.host_panel_unlock_lore") : i18n.txt("rush.host_panel_lock_lore"))
+                .build();
 
-            final ItemStack head = ItemBuilder.of(Material.PLAYER_HEAD)
-                    .name(i18n.txt("rush.host_panel_kick_name", target.getName()))
-                    .lore(
-                            i18n.txt("rush.host_panel_kick_lore1", target.getName()),
-                            i18n.txt("rush.host_panel_kick_lore2"))
-                    .build();
-            final Player kicked = target;
+        gui.addItem(8, lockItem, p -> {
+            room.setLocked(!room.isLocked());
+            open(p, room, manager);
+        });
 
-            gui.addItem(slot, head, p -> {
-                p.closeInventory();
-                room.removePlayer(kicked);
-                manager.removePlayerFromGameRoom(kicked);
-                kicked.teleport(kicked.getServer().getWorlds().get(0).getSpawnLocation());
-                kicked.getInventory().clear();
-                kicked.sendMessage(Component.translatable("rush.room_kicked"));
-                p.sendMessage(Component.translatable("rush.player_kicked", Component.text(kicked.getName())));
-            });
+        // Manage players button (slot 2) — opens HostPlayerListGUI
+        final ItemStack managePlayers = ItemBuilder.of(Material.PLAYER_HEAD)
+                .name(i18n.txt("rush.host_panel_manage_players"))
+                .lore(i18n.txt("rush.host_panel_manage_players_lore"))
+                .build();
 
-            slot++;
-        }
+        gui.addItem(2, managePlayers, p -> HostPlayerListGUI.open(p, room, manager));
 
         gui.openGUI(host);
     }

@@ -72,14 +72,12 @@ public enum MerchantType {
 
                 final Trade trade = parseTrade(entry);
 
-                if (trade != null) {
+                if (trade != null)
                     parsed.add(trade);
-                }
             }
 
-            if (!parsed.isEmpty()) {
+            if (!parsed.isEmpty())
                 type.trades = parsed;
-            }
         }
     }
 
@@ -94,27 +92,22 @@ public enum MerchantType {
         if (entry.containsKey("potion")) {
             final PotionType potionType = parsePotionType((String) entry.get("potion"));
             final boolean upgrade = String.valueOf(entry.get("upgrade")).equals("true");
-            potionStack = buildPotionStack(potionType, upgrade);
 
+            potionStack = buildPotionStack(potionType, upgrade);
             result = potionStack.getType();
-        } else if (entry.containsKey("result")) {
+        } else if (entry.containsKey("result"))
             result = Material.getMaterial((String) entry.get("result"));
-        }
 
         if (result == null)
             return null;
 
-        if (entry.containsKey("resultAmount")) {
+        if (entry.containsKey("resultAmount"))
             resultAmount = ((Number) entry.get("resultAmount")).intValue();
-        }
-
-        if (entry.get("enchantments") instanceof Map<?, ?> raw) {
+        if (entry.get("enchantments") instanceof Map<?, ?> raw)
             enchantMap = (Map<String, Object>) raw;
-        }
 
-        if (entry.containsKey("durability")) {
+        if (entry.containsKey("durability"))
             durability = ((Number) entry.get("durability")).intValue();
-        }
 
         final List<Map<String, Object>> costs = (List<Map<String, Object>>) entry.get("cost");
 
@@ -134,11 +127,9 @@ public enum MerchantType {
         if (costs.size() >= 2) {
             final Map<String, Object> second = costs.get(1);
             final Material secondMat = Material.getMaterial((String) second.get("material"));
-            final int secondAmt = ((Number) second.getOrDefault("amount", 1)).intValue();
 
-            if (secondMat != null) {
-                trade = trade.withSecondCost(secondMat, secondAmt);
-            }
+            if (secondMat != null)
+                trade = trade.withSecondCost(secondMat, ((Number) second.getOrDefault("amount", 1)).intValue());
         }
 
         return trade;
@@ -151,12 +142,11 @@ public enum MerchantType {
         final Map<Enchantment, Integer> result = new java.util.HashMap<>();
 
         for (Map.Entry<String, Object> e : raw.entrySet()) {
-            final Enchantment ench = RegistryAccess.registryAccess().getRegistry(RegistryKey.ENCHANTMENT).get(
-                    NamespacedKey.minecraft(e.getKey().toLowerCase()));
+            final NamespacedKey key = NamespacedKey.minecraft(e.getKey().toLowerCase()); 
+            final Enchantment ench = RegistryAccess.registryAccess().getRegistry(RegistryKey.ENCHANTMENT).get(key);
 
-            if (ench != null) {
+            if (ench != null)
                 result.put(ench, ((Number) e.getValue()).intValue());
-            }
         }
         return result;
     }
@@ -179,9 +169,9 @@ public enum MerchantType {
                 case HEALING -> new PotionEffect(PotionEffectType.INSTANT_HEALTH, 1, 0, false, true, true);
                 default -> null;
             };
-            if (effect != null) {
+            
+            if (effect != null)
                 builder.addCustomEffect(effect);
-            }
         }
 
         potion.setData(DataComponentTypes.POTION_CONTENTS, builder.build());

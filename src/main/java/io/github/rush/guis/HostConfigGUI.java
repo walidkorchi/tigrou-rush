@@ -29,10 +29,9 @@ public final class HostConfigGUI {
             open(p, builder, manager);
         });
 
-        gui.addItem(13, formatItem(builder), p -> {
-            cycleFormat(builder);
-            open(p, builder, manager);
-        });
+        gui.addItem(13, formatItem(builder),
+                p -> { builder.cycleMaxTeams(); open(p, builder, manager); },
+                p -> { builder.cycleTeamSize(); open(p, builder, manager); });
 
         gui.addItem(16, mapTypeItem(builder), p -> {
             builder.cycleMapType();
@@ -76,33 +75,8 @@ public final class HostConfigGUI {
         gui.openGUI(player);
     }
 
-    private static void cycleFormat(GameRoomConfig.Builder b) {
-        int players = b.teamSize().getPlayersPerTeam();
-        int teams = b.maxTeams();
-
-        teams++;
-        if (teams > b.islandType().getCount()) {
-            teams = 2;
-            players++;
-            if (players > 4) {
-                players = 1;
-            }
-        }
-
-        b.maxTeams(teams - b.maxTeams());
-        b.teamSize(GameRoom.TeamSize.values()[players - 1]);
-    }
-
     private static String formatDisplayName(int teams, int playersPerTeam) {
-        final StringBuilder sb = new StringBuilder();
-
-        for (int i = 0; i < teams; i++) {
-            if (i > 0)
-                sb.append("vs");
-            sb.append(playersPerTeam);
-        }
-
-        return sb.toString();
+        return teams + "x" + playersPerTeam + (teams == 2 ? " (MDT)" : "");
     }
 
     private static ItemStack islandTypeItem(GameRoomConfig.Builder b) {
@@ -121,7 +95,8 @@ public final class HostConfigGUI {
         final String displayName = formatDisplayName(b.maxTeams(), b.teamSize().getPlayersPerTeam());
         return labeled(Material.IRON_SWORD, i18n.txt("rush.config_format_name", displayName),
                 List.of(
-                        i18n.txt("rush.config_format_click"),
+                        i18n.txt("rush.config_format_left_click"),
+                        i18n.txt("rush.config_format_right_click"),
                         Component.empty(),
                         i18n.txt("rush.config_format_current", displayName)));
     }

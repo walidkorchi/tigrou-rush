@@ -1,20 +1,20 @@
 package io.github.rush.guis;
 
 import io.github.rush.Main;
+import io.github.rush.utils.ItemBuilder;
 import io.github.rush.utils.i18n;
 import io.github.rush.game.Game;
 import io.github.rush.entities.GamePlayer;
 import io.github.rush.game.GameRoom;
 import io.github.rush.game.GameState;
 import io.github.rush.abstracts.Team;
+import io.github.rush.inventories.GamePlayerInventory;
 import io.papermc.paper.datacomponent.DataComponentTypes;
-import io.papermc.paper.datacomponent.item.TooltipDisplay;
 import io.papermc.paper.registry.RegistryAccess;
 import io.papermc.paper.registry.RegistryKey;
 import io.papermc.paper.registry.keys.BannerPatternKeys;
 import net.kyori.adventure.text.Component;
 import net.momirealms.craftengine.core.item.Item;
-import net.momirealms.craftengine.core.item.ItemManager;
 import net.momirealms.craftengine.core.plugin.context.PlayerOptionalContext;
 import net.momirealms.craftengine.core.plugin.gui.Gui;
 import net.momirealms.craftengine.core.plugin.gui.GuiElement;
@@ -31,45 +31,25 @@ import org.bukkit.Material;
 import org.bukkit.Registry;
 import org.bukkit.block.banner.Pattern;
 import org.bukkit.block.banner.PatternType;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.BannerMeta;
 import org.bukkit.inventory.meta.ItemMeta;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
 public class TeamSelectionGUI {
 
-    private static final class Constants {
-        static String TEAM_SELECTION_BROWSER_TITLE = null;
-
-        static void load() {
-            final File configFile = new File(Main.getInstance().getCraftEngineDataFolder(), "config.yml");
-            final YamlConfiguration yaml = YamlConfiguration.loadConfiguration(configFile);
-            TEAM_SELECTION_BROWSER_TITLE = yaml.getString("gui.browser.team_selection.title");
-        }
-    }
-
-    private static GuiElement createFillerElement() {
-        final Item item = itemManager().createCustomWrappedItem(Key.of("tland:empty_slot"), null);
-        if (item.platformItem() instanceof ItemStack itemStack) {
-            itemStack.setData(DataComponentTypes.TOOLTIP_DISPLAY,
-                    TooltipDisplay.tooltipDisplay().hideTooltip(true).build());
-        }
-        return GuiElement.constant(item, (element, click) -> click.cancel());
-    }
+    private static String title;
 
     private static GuiElement createNavElement(boolean next) {
-        final Key key = Key.of(next ? "tland:next_page" : "tland:previous_page");
         return GuiElement.paged(element -> {
-            if (next ? element.gui().hasNextPage() : element.gui().hasPreviousPage()) {
-                return itemManager().createCustomWrappedItem(key, null);
-            }
-            return itemManager().createCustomWrappedItem(Key.of("tland:empty_slot"), null);
+            if (next ? element.gui().hasNextPage() : element.gui().hasPreviousPage())
+                return GUI.itemManager()
+                        .createCustomWrappedItem(Key.of(next ? "tland:next_page" : "tland:previous_page"), null);
+            return GUI.itemManager().createCustomWrappedItem(Key.of("tland:empty_slot"), null);
         }, next);
     }
 
@@ -79,36 +59,28 @@ public class TeamSelectionGUI {
                 "<AAAAAAA>",
                 "_________")
                 .addIngredient('A', Ingredient.paged())
-                .addIngredient('_', createFillerElement())
+                .addIngredient('_', GUI.fillerElement())
                 .addIngredient('<', createNavElement(false))
                 .addIngredient('>', createNavElement(true));
     }
 
-    private static ItemManager itemManager() {
-        return Main.getInstance().getCraftEngineItemManager();
-    }
-
     public static void openTeamSelection(Player player) {
         final Game game = getGameForPlayer(player);
-        if (game == null || game.getState() != GameState.WAITING) {
-            return;
-        }
 
-        if (Constants.TEAM_SELECTION_BROWSER_TITLE == null) {
-            Constants.load();
-        }
+        if (game == null || game.getState() != GameState.WAITING)
+            return;
+
+        if (title == null)
+            title = GUI.loadCETitle("gui.browser.team_selection.title");
 
         final net.momirealms.craftengine.core.entity.player.Player craftPlayer = Main.getInstance()
                 .adaptCraftPlayer(player);
-
         final List<ItemWithAction> icons = new ArrayList<>();
-        for (Team.Color color : Team.Color.values()) {
+
+        for (Team.Color color : Team.Color.values())
             icons.add(createTeamIcon(color));
-        }
 
-        final TagResolver[] resolvers = PlayerOptionalContext.of(craftPlayer).tagResolvers();
-
-        final Gui gui = PagedGui.builder()
+        PagedGui.builder()
                 .addIngredients(icons)
                 .layout(createTeamLayout())
                 .inventoryClickConsumer(c -> {
@@ -120,91 +92,54 @@ public class TeamSelectionGUI {
                 })
                 .build()
                 .title(AdventureHelper.miniMessage().deserialize(
-                        Constants.TEAM_SELECTION_BROWSER_TITLE, resolvers))
-                .refresh();
-
-        gui.open(craftPlayer);
+                        title, PlayerOptionalContext.of(craftPlayer).tagResolvers()))
+                .refresh()
+                .open(craftPlayer);
     }
 
     private static ItemWithAction createTeamIcon(Team.Color color) {
-        final Key itemKey = Key.of("tland:team_color-" + color.name().toLowerCase());
-        Item item = itemManager().createCustomWrappedItem(itemKey, null);
-        if (item == null || item.isEmpty()) {
-            item = itemManager().wrap(new ItemStack(Material.WHITE_WOOL));
-        }
+        Item item = GUI.itemManager().createCustomWrappedItem(
+                Key.of("tland:team_color-" + color.name().toLowerCase()), null);
+
+        if (item == null || item.isEmpty())
+            item = GUI.itemManager().wrap(new ItemStack(Material.WHITE_WOOL));
 
         if (item.platformItem() instanceof ItemStack itemStack) {
             final ItemMeta meta = itemStack.getItemMeta();
+
             meta.displayName(i18n.txt("rush.team_color_name", color.name()));
             itemStack.setItemMeta(meta);
         }
 
         return new ItemWithAction(item, (element, click) -> {
             click.cancel();
-            final Player bukkitPlayer = (Player) click.clicker().platformPlayer();
-            Bukkit.getScheduler().runTask(Main.getInstance(), () -> selectTeam(bukkitPlayer, color));
+
+            Bukkit.getScheduler().runTask(Main.getInstance(), () -> {
+                selectTeam((Player) click.clicker().platformPlayer(), color);
+            });
         });
     }
 
     private static void selectTeam(Player player, Team.Color color) {
         final Game game = getGameForPlayer(player);
+
         if (game == null)
             return;
 
-        game.joinTeam(new GamePlayer(player), color);
+        if (!game.joinTeam(new GamePlayer(player), color)) {
+            player.sendMessage(Component.translatable("rush.team_full").color(color.getTextColor()));
+            return;
+        }
 
-        player.getInventory().setItem(0, createSlimeballItem());
-        player.getInventory().setItem(1, createReadyItem(true));
+        player.getInventory().setItem(GamePlayerInventory.SLOT_LEAVE_TEAM, GamePlayerInventory.createSlimeballItem());
+        player.getInventory().setItem(GamePlayerInventory.SLOT_READY_TOGGLER,
+                GamePlayerInventory.createReadyItem(true));
         player.getInventory().setHelmet(createTeamBanner(color));
         player.closeInventory();
 
+        Main.getInstance().getTablistManager().updatePlayerListName(player, color);
+
         player.sendMessage(i18n.txt("rush.joinTeam", color.name()).color(color.getTextColor()));
-    }
-
-    public static ItemStack createBannerItem() {
-        final ItemStack banner = new ItemStack(Material.WHITE_BANNER);
-        final BannerMeta meta = (BannerMeta) banner.getItemMeta();
-
-        meta.displayName(i18n.txt("rush.bannerName"));
-        meta.addItemFlags(ItemFlag.HIDE_DYE);
-        banner.setItemMeta(meta);
-
-        final ItemStack bannerCopy = banner.clone();
-        bannerCopy.setAmount(1);
-
-        return bannerCopy;
-    }
-
-    public static ItemStack createSlimeballItem() {
-        final ItemStack slimeball = new ItemStack(Material.SLIME_BALL);
-        final ItemMeta meta = slimeball.getItemMeta();
-
-        meta.displayName(i18n.txt("rush.quit_team_confirm"));
-        slimeball.setItemMeta(meta);
-        slimeball.setData(DataComponentTypes.LORE,
-                io.papermc.paper.datacomponent.item.ItemLore.lore(
-                        List.of(i18n.txt("rush.quitLore"))));
-
-        return slimeball;
-    }
-
-    public static ItemStack createReadyItem(boolean ready) {
-        final Material dyeMaterial = ready ? Material.LIME_DYE : Material.RED_DYE;
-        final ItemStack dye = new ItemStack(dyeMaterial);
-        final ItemMeta meta = dye.getItemMeta();
-
-        if (ready) {
-            meta.displayName(i18n.txt("rush.ready"));
-        } else {
-            meta.displayName(i18n.txt("rush.notReady"));
-        }
-
-        dye.setItemMeta(meta);
-        dye.setData(DataComponentTypes.LORE,
-                io.papermc.paper.datacomponent.item.ItemLore.lore(
-                        List.of(i18n.txt(ready ? "rush.notReadyLore" : "rush.readyLore"))));
-
-        return dye;
     }
 
     private static Game getGameForPlayer(Player player) {
@@ -218,9 +153,11 @@ public class TeamSelectionGUI {
 
         game.leaveTeam(new GamePlayer(player));
 
-        player.getInventory().setItem(0, createBannerItem());
-        player.getInventory().setItem(1, null);
+        player.getInventory().setItem(GamePlayerInventory.SLOT_TEAM_SELECTION, GamePlayerInventory.createBannerItem());
+        player.getInventory().setItem(GamePlayerInventory.SLOT_READY_TOGGLER, null);
         player.getInventory().setHelmet(null);
+
+        Main.getInstance().getTablistManager().updatePlayerListName(player);
 
         player.sendMessage(Component.translatable("rush.quit_team"));
     }
@@ -247,24 +184,26 @@ public class TeamSelectionGUI {
     }
 
     public static void toggleReady(Player player) {
-        Game game = getGameForPlayer(player);
+        final Game game = getGameForPlayer(player);
+
         if (game == null || game.getState() != GameState.WAITING)
             return;
 
-        GamePlayer gp = new GamePlayer(player);
+        final GamePlayer gp = new GamePlayer(player);
         final boolean currentlyReady = game.isPlayerReady(gp);
 
         game.setPlayerReady(gp, !currentlyReady);
-        player.getInventory().setItem(1, createReadyItem(!currentlyReady));
+        player.getInventory().setItem(GamePlayerInventory.SLOT_READY_TOGGLER,
+                GamePlayerInventory.createReadyItem(!currentlyReady));
 
         final Team team = game.getPlayerTeam(gp);
-        if (team != null) {
-            player.getInventory().setHelmet(createTeamBanner(team.getColor()));
-        }
 
-        GameRoom barRoom = Main.getInstance().getGameManager().getGameRoomByWorld(player.getWorld().getName());
-        if (barRoom != null) {
+        if (team != null)
+            player.getInventory().setHelmet(createTeamBanner(team.getColor()));
+
+        final GameRoom barRoom = Main.getInstance().getGameManager().getGameRoomByWorld(player.getWorld().getName());
+
+        if (barRoom != null)
             GameRoom.sendReadyActionBar(barRoom);
-        }
     }
 }

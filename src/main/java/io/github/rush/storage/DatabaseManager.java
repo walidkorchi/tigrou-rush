@@ -58,8 +58,8 @@ public class DatabaseManager {
     }
 
     public void close() {
-        if (entityManagerFactory != null && entityManagerFactory.isOpen()) {
+        if (entityManagerFactory != null && entityManagerFactory.isOpen())
             entityManagerFactory.close();
-        }
     }
+
 }

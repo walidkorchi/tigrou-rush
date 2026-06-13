@@ -14,7 +14,7 @@ import org.bukkit.inventory.ItemStack;
 public class PlayerSettingsGUI {
 
     public static void openPlayerSettings(Player player) {
-        final GUI gui = new GUI(Component.translatable("gui.player_settings.title").toString(), 1);
+        final GUI gui = new GUI(Component.translatable("gui.player_settings.title"), 1);
         final PlayerSettingsManager settingsManager = Main.getInstance().getPlayerSettingsManager();
         final PlayerSettings settings = settingsManager.loadSettings(player.getUniqueId());
 

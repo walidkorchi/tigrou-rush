@@ -1,7 +1,7 @@
-package io.github.rush.replay;
+package io.github.rush.guis;
 
+import io.github.rush.replay.ReplayPlayback;
 import io.github.rush.utils.i18n;
-import io.github.rush.guis.GUI;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -23,7 +23,7 @@ public final class ReplayFollowGUI {
     public static void open(Player viewer, ReplayPlayback playback) {
         Map<UUID, Mannequin> mannequins = playback.getMannequinByPlayer();
         int rows = Math.max(1, (int) Math.ceil(mannequins.size() / 9.0));
-        GUI gui = new GUI(Component.translatable("gui.replay_follow.title"), rows);
+        final GUI gui = new GUI(Component.translatable("gui.replay_follow.title"), rows);
 
         int slot = 0;
 

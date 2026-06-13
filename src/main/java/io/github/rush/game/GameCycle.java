@@ -15,19 +15,16 @@ public class GameCycle {
 
     public void onGameStart() {
         gameTask = Bukkit.getScheduler().runTaskTimer(Main.getInstance(), () -> {
-            if (game.getState() != GameState.RUNNING) {
+            if (game.getState() != GameState.RUNNING)
                 return;
-            }
 
             game.incrementGameTime();
         }, 0L, 20L);
     }
 
     public void onGameEnd() {
-        if (gameTask != null) {
+        if (gameTask != null)
             gameTask.cancel();
-        }
-
         game.saveStats();
     }
 }

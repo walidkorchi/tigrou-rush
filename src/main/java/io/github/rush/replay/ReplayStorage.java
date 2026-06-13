@@ -27,7 +27,7 @@ public final class ReplayStorage {
 
     public ReplayStorage(Path replaysDir) {
         this.replaysDir = replaysDir;
-        this.maxReplays = Main.getInstance().getConfig().getInt("max-replays", 20);
+        this.maxReplays = Main.getInstance().getConfig().getInt("max-replays");
     }
 
     public void save(ReplayFile file) {
@@ -55,6 +55,14 @@ public final class ReplayStorage {
                     .toList();
         } catch (IOException e) {
             return List.of();
+        }
+    }
+
+    public void delete(String sessionId) {
+        try {
+            Files.deleteIfExists(replaysDir.resolve(sessionId + ".json"));
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to delete replay " + sessionId, e);
         }
     }
 

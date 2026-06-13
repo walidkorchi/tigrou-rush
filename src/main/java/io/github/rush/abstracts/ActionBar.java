@@ -13,8 +13,8 @@ public final class ActionBar {
     }
 
     public static void sendReadyToAll() {
-        for (GameRoom room : Main.getInstance().getGameManager().getAllGameRooms()) {
+        for (GameRoom room : Main.getInstance().getGameManager().getAllGameRooms())
             GameRoom.sendReadyActionBar(room);
-        }
     }
+
 }

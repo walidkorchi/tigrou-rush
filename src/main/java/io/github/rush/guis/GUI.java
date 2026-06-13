@@ -1,148 +1,154 @@
 package io.github.rush.guis;
 
+import io.github.rush.Main;
+import io.github.rush.utils.RushLogger;
 import io.papermc.paper.datacomponent.DataComponentTypes;
-import io.papermc.paper.datacomponent.item.ItemLore;
+import io.papermc.paper.datacomponent.item.TooltipDisplay;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.minimessage.MiniMessage;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+import net.kyori.adventure.translation.GlobalTranslator;
+import net.momirealms.craftengine.core.item.Item;
+import net.momirealms.craftengine.core.item.ItemManager;
+import net.momirealms.craftengine.core.plugin.context.PlayerOptionalContext;
+import net.momirealms.craftengine.core.plugin.gui.BasicGui;
+import net.momirealms.craftengine.core.plugin.gui.GuiElement;
+import net.momirealms.craftengine.core.plugin.gui.GuiLayout;
+import net.momirealms.craftengine.core.util.AdventureHelper;
+import net.momirealms.craftengine.core.util.Key;
+import net.momirealms.craftengine.libraries.adventure.text.minimessage.tag.resolver.TagResolver;
 import org.bukkit.Bukkit;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
-import org.bukkit.event.inventory.ClickType;
-import org.bukkit.inventory.Inventory;
-import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
-import lombok.Getter;
-import org.jetbrains.annotations.NotNull;
 
-import java.util.ArrayList;
+import java.io.File;
+
 import java.util.HashMap;
-import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.function.IntPredicate;
 
 /**
- * Class representing a menu in a chest with clickable items.
+ * CraftEngine-backed slot-indexed GUI wrapper.
  *
- * @author [Matocolotoe](https://github.com/Matocolotoe)
+ * <p>
+ * Exposes the same {@code addItem} / {@code openGUI} API that callers
+ * expect from a plain inventory GUI, but builds a CE {@link PagedGui}
+ * internally so the inventory carries CE's custom texture and font system.
+ *
+ * <p>
+ * Slot ↔ layout-char mapping is handled automatically: each slot index
+ * (0–53) is assigned a unique character from {@link #SLOT_CHARS}. Empty slots
+ * become {@code '_'} (filler). The layout is rebuilt fresh on every
+ * {@link #openGUI} call, so the same instance can be opened for multiple
+ * players independently.
+ *
+ * <p>
+ * CE click handlers fire off the main thread; all {@link Consumer} actions
+ * are dispatched via {@link org.bukkit.scheduler.BukkitScheduler#runTask} so
+ * callers can safely touch Bukkit state. Right-click prefers a dedicated
+ * right-click action when one is registered, otherwise falls through to the
+ * generic action — identical behaviour to the old Bukkit-backed GUI.
+ *
+ * <p>
+ * Usage:
+ *
+ * <pre>
+ *   final GUI gui = new GUI(Component.translatable("rush.my_title"), 3);
+ *   gui.addItem(4, myItem, p -> { ... });
+ *   gui.addItem(2, item, null, p -> { ... rightClick ... });
+ *   gui.openGUI(player);
+ * </pre>
  */
-public class GUI implements InventoryHolder {
+public final class GUI {
+
+    /** One unique layout character per slot index (0–53). Must not contain {@link #FILLER}. */
+    private static final char[] SLOT_CHARS = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQR".toCharArray();
+
+    /** Layout character used for every slot that has no registered item. Maps to the CE {@code tland:empty_slot} filler. */
+    private static final char FILLER = '_';
+
+    private final String miniMessageTitle;
+    private final int rows;
+
+    private final Map<Integer, ItemStack> items = new HashMap<>();
+    private final Map<Integer, Consumer<Player>> clickActions = new HashMap<>();
+    private final Map<Integer, Consumer<Player>> rightClickActions = new HashMap<>();
 
     /**
-     * Returns the GUI currently shown to a player if it has the required title.
-     *
-     * @param player The player who clicked
-     * @param title  The title of the requested GUI
-     *
-     * @return The current GUI if titles match, null otherwise.
+     * @param miniMessageTitle Title in MiniMessage format (e.g. from CE config).
+     *                         Resolved with per-player tag resolvers on open.
      */
-    public static GUI getIfOpen(Player player, String title) {
-        return player.getOpenInventory().getTopInventory().getHolder() instanceof GUI menu && menu.title.equals(title)
-                ? menu
-                : null;
+    public GUI(String miniMessageTitle, int rows) {
+        this.miniMessageTitle = miniMessageTitle;
+        this.rows = rows;
     }
 
     /**
-     * The Bukkit inventory representing the chest.
-     */
-    private final Inventory inventory;
-
-    /**
-     * The title of the GUI.
-     */
-    @Getter
-    private final String title;
-
-    /**
-     * The actions to apply when a player clicks on a specific slot with any button.
-     */
-    private final Map<Integer, Consumer<Player>> clickActions;
-
-    /**
-     * The actions to apply when a player clicks on a specific slot with the right
-     * button.
-     */
-    private final Map<Integer, Consumer<Player>> rightClickActions;
-
-    /**
-     * The predicate testing whether to allow a click depending on the slot.
-     */
-    private final IntPredicate cancelClicks;
-
-    /**
-     * Creates a new GUI with no clicks allowed.
+     * Accepts a Kyori {@link Component} title (e.g. from {@code i18n.txt()} or
+     * {@code Component.translatable()}).
      *
-     * @param title The title of the GUI
-     * @param rows  The number of rows
-     */
-    public GUI(String title, int rows) {
-        this(title, rows, null);
-    }
-
-    /**
-     * Creates a new GUI with a Component title.
-     *
-     * @param title The title of the GUI as a Component
-     * @param rows  The number of rows
+     * <p>
+     * Bridge to CE's adventure library:
+     * <ol>
+     * <li>{@link GlobalTranslator#render} resolves translatable components to
+     * their server-side French text.</li>
+     * <li>{@link LegacyComponentSerializer} round-trips through any § codes
+     * embedded as raw text by {@code i18n.txt()}, converting them to
+     * proper Kyori styling.</li>
+     * <li>{@link MiniMessage} serialises the result to a string CE can
+     * deserialise with full colour fidelity.</li>
+     * </ol>
      */
     public GUI(Component title, int rows) {
-        this.inventory = Bukkit.createInventory(this, rows * 9, title);
-        this.title = null;
-        this.clickActions = new HashMap<>();
-        this.rightClickActions = new HashMap<>();
-        this.cancelClicks = null;
+        final Component resolved = GlobalTranslator.render(title, Locale.FRANCE);
+        final String legacy = LegacyComponentSerializer.legacySection().serialize(resolved);
+        this.miniMessageTitle = MiniMessage.miniMessage().serialize(
+                LegacyComponentSerializer.legacySection().deserialize(legacy));
+        this.rows = rows;
     }
 
     /**
-     * Creates a new GUI.
+     * Registers a display-only item at {@code slot} with no click behaviour.
      *
-     * @param title        The title of the GUI
-     * @param rows         The number of rows
-     * @param cancelClicks The click policy with respect to the clicked slot
-     */
-    GUI(String title, int rows, IntPredicate cancelClicks) {
-        this.inventory = Bukkit.createInventory(this, rows * 9, Component.text(title));
-        this.title = title;
-        this.clickActions = new HashMap<>();
-        this.rightClickActions = new HashMap<>();
-        this.cancelClicks = cancelClicks;
-    }
-
-    /**
-     * Adds an item to the GUI with no action.
-     *
-     * @param slot The slot to put the item at
-     * @param item The item to add
-     *
-     * @return The current GUI
+     * @param slot 0-based slot index (0–53)
+     * @param item the item to display
+     * @return {@code this} for chaining
      */
     public GUI addItem(int slot, ItemStack item) {
         return addItem(slot, item, null, null);
     }
 
     /**
-     * Adds an item to the GUI with a specific action.
+     * Registers an item at {@code slot} with a generic click action fired on any click type.
      *
-     * @param slot   The slot to put the item at
-     * @param item   The item to add
-     * @param action The action to execute on click
-     *
-     * @return The current GUI
+     * @param slot   0-based slot index (0–53)
+     * @param item   the item to display
+     * @param action called on the main thread when the slot is clicked; may be {@code null}
+     * @return {@code this} for chaining
      */
     public GUI addItem(int slot, ItemStack item, Consumer<Player> action) {
         return addItem(slot, item, action, null);
     }
 
     /**
-     * Adds an item to the GUI with a specific action.
+     * Registers an item at {@code slot} with separate generic and right-click actions.
      *
-     * @param slot             The slot to put the item at
-     * @param item             The item to add
-     * @param action           The action to execute on click with any button
-     * @param rightClickAction The action to execute on right click
+     * <p>On a right-click, {@code rightClickAction} takes priority over {@code action}.
+     * If {@code rightClickAction} is {@code null}, {@code action} fires for all click types.
+     * Both consumers are always dispatched on the main thread.
      *
-     * @return The current GUI
+     * @param slot             0-based slot index (0–53)
+     * @param item             the item to display
+     * @param action           fired on any click that has no dedicated right-click handler; may be {@code null}
+     * @param rightClickAction fired exclusively on right-click; may be {@code null}
+     * @return {@code this} for chaining
      */
-    public GUI addItem(int slot, ItemStack item, Consumer<Player> action, Consumer<Player> rightClickAction) {
-        inventory.setItem(slot, item);
+    public GUI addItem(int slot, ItemStack item,
+            Consumer<Player> action,
+            Consumer<Player> rightClickAction) {
+        items.put(slot, item);
         if (action != null)
             clickActions.put(slot, action);
         if (rightClickAction != null)
@@ -151,106 +157,128 @@ public class GUI implements InventoryHolder {
     }
 
     /**
-     * Returns the {@link Inventory} representing the chest.
+     * Removes the item and any associated actions from {@code slot}.
+     * The slot reverts to a filler element on the next {@link #openGUI} call.
      *
-     * @return The inventory
+     * @param slot 0-based slot index (0–53)
      */
-    @Override
-    public @NotNull Inventory getInventory() {
-        return inventory;
-    }
-
-    /**
-     * Executes the action corresponding to the clicked slot.
-     *
-     * @param player The player who clicked the item
-     * @param slot   The clicked slot
-     * @param type   The type of click (left or right)
-     *
-     * @return Whether to allow the click interaction
-     */
-    public boolean onClick(Player player, int slot, ClickType type) {
-        if (type == ClickType.RIGHT) {
-            // Prioritize right click action over generic when it exists
-            Consumer<Player> action = rightClickActions.get(slot);
-            if (action != null) {
-                action.accept(player);
-                return true;
-            }
-        }
-
-        // No right click action found, execute generic
-        Consumer<Player> action = clickActions.get(slot);
-        if (action != null) {
-            action.accept(player);
-            return true;
-        }
-
-        return cancelClicks == null || cancelClicks.test(slot);
-    }
-
-    /**
-     * Displays the current GUI to a given player.
-     *
-     * @param player The player to show the GUI to
-     */
-    public void openGUI(Player player) {
-        player.openInventory(inventory);
-    }
-
-    /**
-     * Removes the actions bound to an item.
-     *
-     * @param slot The slot where the item is
-     */
-    public void removeActions(int slot) {
+    public void removeItem(int slot) {
+        items.remove(slot);
         clickActions.remove(slot);
         rightClickActions.remove(slot);
     }
 
     /**
-     * Changes an item within the GUI, without modifying any action
-     * (unless the item is null, in that case actions are removed).
+     * Builds the CE {@link PagedGui} from the current slot registrations and opens it for {@code player}.
+     * The layout is constructed fresh on each call, so the same {@code GUI} instance is safe to
+     * open for multiple players concurrently.
      *
-     * @param slot The slot to put the item at
-     * @param item The item to insert
+     * @param player the player to show the inventory to
      */
-    public void setItem(int slot, ItemStack item) {
-        inventory.setItem(slot, item);
-        if (item == null)
-            removeActions(slot);
+    public void openGUI(Player player) {
+        final net.momirealms.craftengine.core.entity.player.Player craftPlayer = Main.getInstance()
+                .adaptCraftPlayer(player);
+        final TagResolver[] resolvers = PlayerOptionalContext.of(craftPlayer).tagResolvers();
+
+        BasicGui.builder()
+                .layout(buildLayout())
+                .inventoryClickConsumer(c -> {
+                    final String type = c.type();
+                    if ("SHIFT_LEFT".equals(type) || "SHIFT_RIGHT".equals(type)
+                            || "DOUBLE_CLICK".equals(type)) {
+                        c.cancel();
+                    }
+                })
+                .build()
+                .title(AdventureHelper.miniMessage().deserialize(miniMessageTitle, resolvers))
+                .refresh()
+                .open(craftPlayer);
+    }
+
+    /** Converts the slot→item map into a {@link GuiLayout} by assigning each occupied slot its unique {@link #SLOT_CHARS} character and every empty slot the {@link #FILLER} character. */
+    private GuiLayout buildLayout() {
+        final int totalSlots = rows * 9;
+
+        final String[] rowStrings = new String[rows];
+        for (int r = 0; r < rows; r++) {
+            final StringBuilder sb = new StringBuilder(9);
+            for (int col = 0; col < 9; col++) {
+                final int slot = r * 9 + col;
+                sb.append(items.containsKey(slot) ? SLOT_CHARS[slot] : FILLER);
+            }
+            rowStrings[r] = sb.toString();
+        }
+
+        GuiLayout layout = new GuiLayout(rowStrings);
+        layout = layout.addIngredient(FILLER, fillerElement());
+
+        for (int slot = 0; slot < totalSlots; slot++) {
+            if (items.containsKey(slot)) {
+                layout = layout.addIngredient(SLOT_CHARS[slot], slotElement(slot));
+            }
+        }
+
+        return layout;
     }
 
     /**
-     * Changes the lore of an item within the GUI.
+     * Reads a CE GUI title string from {@code config.yml} by {@code key}.
+     * Returns the raw value (may be {@code null} if the key is absent).
+     * Any I/O or runtime error is logged via {@link RushLogger} and {@code null} is returned.
      *
-     * @param slot The slot where the item is
-     * @param lore The list of lines to apply
+     * @param key YAML path, e.g. {@code "gui.browser.speed_merchant.title"}
      */
-    public void setItemLore(int slot, List<String> lore) {
-        ItemStack item = inventory.getItem(slot);
-        if (item == null)
-            return;
-        item.setData(DataComponentTypes.LORE,
-                ItemLore.lore(lore.stream().map(Component::text).toList()));
+    static String loadCETitle(String key) {
+        try {
+            return YamlConfiguration.loadConfiguration(
+                    new File(Main.getInstance().getCraftEngineDataFolder(), "config.yml"))
+                    .getString(key);
+        } catch (Exception e) {
+            RushLogger.error("Failed to load CE GUI title for key '" + key + "': " + e.getMessage());
+            return null;
+        }
+    }
+
+    /** Returns a non-interactive CE {@code tland:empty_slot} element with its tooltip hidden. */
+    static GuiElement fillerElement() {
+        final Item item = itemManager().createCustomWrappedItem(Key.of("tland:empty_slot"), null);
+        if (item.platformItem() instanceof ItemStack is) {
+            is.setData(DataComponentTypes.TOOLTIP_DISPLAY,
+                    TooltipDisplay.tooltipDisplay().hideTooltip(true).build());
+        }
+        return GuiElement.constant(item, (element, click) -> click.cancel());
     }
 
     /**
-     * Changes a line of the lore of an item within the GUI.
-     *
-     * @param slot The slot where the item is
-     * @param line The line to change
-     * @param text The text to apply
+     * Wraps the item and actions registered at {@code slot} into a CE {@link GuiElement}.
+     * Right-click dispatches {@code rightClickAction} when present; all other clicks dispatch
+     * {@code clickAction}. The resolved consumer is scheduled on the main thread via
+     * {@link org.bukkit.scheduler.BukkitScheduler#runTask} before being invoked.
      */
-    public void setItemLore(int slot, int line, String text) {
-        ItemStack item = inventory.getItem(slot);
-        if (item == null)
-            return;
-        ItemLore loreData = item.getData(DataComponentTypes.LORE);
-        if (loreData == null)
-            return;
-        List<Component> lines = new ArrayList<>(loreData.lines());
-        lines.set(line, Component.text(text));
-        item.setData(DataComponentTypes.LORE, ItemLore.lore(lines));
+    private GuiElement slotElement(int slot) {
+        final Item ceItem = itemManager().wrap(items.get(slot).clone());
+        final Consumer<Player> clickAction = clickActions.get(slot);
+        final Consumer<Player> rightClickAction = rightClickActions.get(slot);
+
+        return GuiElement.constant(ceItem, (element, click) -> {
+            click.cancel();
+
+            final Consumer<Player> action;
+            if ("RIGHT".equals(click.type()) && rightClickAction != null) {
+                action = rightClickAction;
+            } else {
+                action = clickAction;
+            }
+
+            if (action == null)
+                return;
+
+            final Player bukkit = (Player) click.clicker().platformPlayer();
+            Bukkit.getScheduler().runTask(Main.getInstance(), () -> action.accept(bukkit));
+        });
+    }
+
+    static ItemManager itemManager() {
+        return Main.getInstance().getCraftEngineItemManager();
     }
 }

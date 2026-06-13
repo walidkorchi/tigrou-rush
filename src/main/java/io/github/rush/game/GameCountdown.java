@@ -25,21 +25,19 @@ public class GameCountdown {
         this.force = force;
     }
 
+    /**
+     * Attempts every second to run the game if they are enough "ready" players
+     * Sends a countdown message of the game start event in the last 15 seconds
+     */
     public void start() {
         task = Bukkit.getScheduler().runTaskTimer(Main.getInstance(), () -> {
-            if (counter == 15 || counter == 10 || counter <= 5) {
-                if (counter > 0) {
-                    broadcastCountdown(counter);
-                }
-            }
-
-            if (counter <= 0) {
+            if (counter > 0 && (counter == 15 || counter == 10 || counter <= 5))
+                broadcastCountdown(counter);
+            else if (counter == 0) {
                 game.start();
                 cancel();
                 return;
-            }
-
-            if (!(force || game.areEnoughTeamsFull())) {
+            } else if (!(force || game.areEnoughTeamsFull())) {
                 cancel();
                 return;
             }
@@ -57,7 +55,8 @@ public class GameCountdown {
                 final Player player = gp.player();
 
                 player.sendMessage(Component.translatable("rush.countdown_seconds", Component.text(seconds)));
-                player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1.0f, seconds <= 1 ? 2.0f : 1.0f);
+                final float pitch = seconds <= 1 ? 2.0f : seconds <= 2 ? 1.5f : seconds <= 3 ? 1.2f : 1.0f;
+                player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1.0f, pitch);
 
                 Sounds.COUNTDOWN.play(player);
             }
